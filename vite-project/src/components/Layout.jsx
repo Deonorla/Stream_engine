@@ -1,7 +1,5 @@
-import { useLocation } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import Header from './Header';
-import Hero from './Hero';
 import { MobileBottomNav, ErrorBoundary } from './ui';
 import { LayoutDashboard, ArrowRightLeft, Bot, BookOpen, Building2 } from 'lucide-react';
 
@@ -14,10 +12,7 @@ const tabs = [
 ];
 
 export default function Layout({ children }) {
-  const location = useLocation();
   const { walletAddress, chainId, getNetworkName, connectWallet, mneeBalance, status, isProcessing } = useWallet();
-
-  const isDashboard = location.pathname === '/app';
 
   return (
     <div className="min-h-screen w-full">
@@ -31,8 +26,6 @@ export default function Layout({ children }) {
         balance={mneeBalance}
         tabs={tabs}
       />
-
-      {isDashboard && <Hero networkName={getNetworkName(chainId)} />}
 
       <main className="mx-auto w-full max-w-7xl px-4 pb-24 md:pb-16">
         <div className="mt-6 md:mt-8">
