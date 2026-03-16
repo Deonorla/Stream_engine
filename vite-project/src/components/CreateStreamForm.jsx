@@ -11,7 +11,7 @@ const DURATION_PRESETS = [
 
 // Token options
 const TOKENS = [
-  { symbol: 'MNEE', name: 'MNEE Token', Icon: Coins, balance: '500.00' },
+  { symbol: 'DOT', name: 'DOT Token', Icon: Coins, balance: '500.00' },
 ];
 
 // Progress Step Component
@@ -168,19 +168,19 @@ const RateCalculator = ({ amount, duration, token }) => {
         <div>
           <div className="text-white/50">Flow Rate</div>
           <div className="font-mono font-semibold text-flowpay-300">
-            {rate.toFixed(8)} {token?.symbol || 'MNEE'}/sec
+            {rate.toFixed(8)} {token?.symbol || 'DOT'}/sec
           </div>
         </div>
         <div>
           <div className="text-white/50">Per Hour</div>
           <div className="font-mono font-semibold text-white">
-            {ratePerHour.toFixed(6)} {token?.symbol || 'MNEE'}
+            {ratePerHour.toFixed(6)} {token?.symbol || 'DOT'}
           </div>
         </div>
         <div>
           <div className="text-white/50">Per Day</div>
           <div className="font-mono font-semibold text-white">
-            {ratePerDay.toFixed(4)} {token?.symbol || 'MNEE'}
+            {ratePerDay.toFixed(4)} {token?.symbol || 'DOT'}
           </div>
         </div>
         <div>

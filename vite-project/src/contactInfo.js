@@ -3,10 +3,10 @@ export const contractAddress = (typeof import.meta !== 'undefined' && import.met
   ? import.meta.env.VITE_CONTRACT_ADDRESS
   : "0x155A00fBE3D290a8935ca4Bf5244283685Bb0035"; // FlowPayStream on Sepolia
 
-// MNEE Token address on Sepolia
+// DOT Token address on Sepolia
 export const mneeTokenAddress = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_MNEE_TOKEN_ADDRESS)
   ? import.meta.env.VITE_MNEE_TOKEN_ADDRESS
-  : "0x96B1FE54Ee89811f46ecE4a347950E0D682D3896"; // MockMNEE on Sepolia
+  : "0x96B1FE54Ee89811f46ecE4a347950E0D682D3896"; // MockDOT on Sepolia
 
 // 2. Uses the Vercel Environment Variable for the ABI if it exists, otherwise falls back to the hardcoded ABI.
 const hardcodedABI = [
@@ -121,7 +121,7 @@ export const contractABI = (typeof import.meta !== 'undefined' && import.meta.en
   ? JSON.parse(import.meta.env.VITE_CONTRACT_ABI)
   : hardcodedABI;
 
-// MNEE Token ABI (ERC20 standard functions)
+// DOT Token ABI (ERC20 standard functions)
 export const mneeTokenABI = [
   {
     "inputs": [],

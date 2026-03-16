@@ -196,7 +196,7 @@ export function ToastProvider({ children }) {
     cancelled: (streamId) => 
       addToast({ type: 'info', title: 'Stream Cancelled', message: `Stream #${streamId} has been cancelled` }),
     withdrawn: (amount) => 
-      addToast({ type: 'success', title: 'Withdrawal Complete', message: `${amount} MNEE withdrawn successfully` }),
+      addToast({ type: 'success', title: 'Withdrawal Complete', message: `${amount} DOT withdrawn successfully` }),
     lowBalance: (streamId) => 
       addToast({ type: 'warning', title: 'Low Balance', message: `Stream #${streamId} is running low on funds` }),
     expired: (streamId) => 

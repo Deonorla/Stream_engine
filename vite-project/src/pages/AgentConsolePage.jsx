@@ -126,11 +126,11 @@ export default function AgentConsolePage() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-white/70">Daily Limit</span>
-                <span className="font-mono text-cyan-300">{agentConfig.spendingLimits.dailyLimit} MNEE</span>
+                <span className="font-mono text-cyan-300">{agentConfig.spendingLimits.dailyLimit} DOT</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/70">Per Request</span>
-                <span className="font-mono text-cyan-300">{agentConfig.spendingLimits.perRequestLimit} MNEE</span>
+                <span className="font-mono text-cyan-300">{agentConfig.spendingLimits.perRequestLimit} DOT</span>
               </div>
             </div>
           </div>

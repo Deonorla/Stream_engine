@@ -138,7 +138,7 @@ export default function LandingHero() {
           </span>
         </h1>
         <p className="text-base text-surface-400 max-w-md mx-auto leading-relaxed">
-          AI agents. Streaming payments. Real-world assets. All on Ethereum.
+          AI agents. Streaming payments. Real-world assets. All on Polkadot EVM.
         </p>
       </div>
 
@@ -325,8 +325,8 @@ export default function LandingHero() {
               cls: "border-success-500/40 text-success-300 bg-success-500/10",
             },
             {
-              label: "Flash Advance",
-              cls: "border-warning-500/40 text-warning-300 bg-warning-500/10",
+              label: "Polkadot EVM",
+              cls: "border-pink-500/40 text-pink-300 bg-pink-500/10",
             },
           ].map((p) => (
             <span

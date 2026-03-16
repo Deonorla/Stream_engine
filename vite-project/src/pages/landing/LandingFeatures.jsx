@@ -1,26 +1,26 @@
 const FEATURES = [
   {
     title: 'x402 Service Discovery',
-    desc: 'Standard HTTP 402 responses. Any AI agent hits your API and gets MNEE payment requirements automatically — no custom integration.',
+    desc: 'Standard HTTP 402 responses. Any AI agent hits your API and gets DOT payment requirements automatically — no custom integration.',
     color: 'text-flowpay-400', span: 'md:col-span-2',
     extra: (
       <div className="mt-4 rounded-lg bg-surface-900 border border-surface-700 p-3 font-mono text-xs space-y-1">
         <div><span className="text-surface-500">GET</span> <span className="text-flowpay-300">/api/weather</span></div>
         <div><span className="text-warning-400">← 402</span> <span className="text-surface-300">Payment Required</span></div>
         <div className="pl-2 text-surface-400">X-Payment-Mode: <span className="text-success-400">streaming</span></div>
-        <div className="pl-2 text-surface-400">X-FlowPay-Rate: <span className="text-flowpay-400">0.0001 MNEE/sec</span></div>
+        <div className="pl-2 text-surface-400">X-FlowPay-Rate: <span className="text-flowpay-400">0.0001 DOT/sec</span></div>
         <div><span className="text-success-400">→ 200</span> <span className="text-surface-300">OK + Data</span></div>
       </div>
     ),
   },
   {
-    title: 'Autonomous MNEE Payments',
-    desc: 'Agents pay for API access with MNEE stablecoin on Ethereum — no human intervention, no gas surprises.',
+    title: 'Autonomous DOT Payments',
+    desc: 'Agents pay for API access with DOT on Polkadot EVM — no human intervention, no gas surprises.',
     color: 'text-flowpay-400', span: '',
   },
   {
     title: 'RWA Physical Access',
-    desc: 'Stream MNEE to unlock real-world assets — smart locks, IoT ignition, PLC controllers. Owner keeps the NFT and all financial rights.',
+    desc: 'Stream DOT to unlock real-world assets — smart locks, IoT ignition, PLC controllers. Owner keeps the NFT and all financial rights.',
     color: 'text-success-400', span: '',
   },
   {

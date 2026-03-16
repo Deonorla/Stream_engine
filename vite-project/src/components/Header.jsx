@@ -66,7 +66,7 @@ export default function Header({ walletAddress, chainId, networkName, onConnect,
               )}
               {balance && (
                 <div className="px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 font-mono text-xs text-flowpay-300">
-                  {parseFloat(balance).toFixed(4)} MNEE
+                  {parseFloat(balance).toFixed(4)} DOT
                 </div>
               )}
               <div className="px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 font-mono text-xs text-surface-300">

@@ -47,7 +47,7 @@ function AssetCard({ asset, onStream }) {
             <ShieldCheck className="w-3 h-3" />Owner earns
           </div>
           <div className="font-mono text-cyan-300 text-sm font-bold tabular-nums">
-            {ownerYield.toFixed(4)}<span className="text-white/30 text-xs font-normal ml-1">MNEE</span>
+            {ownerYield.toFixed(4)}<span className="text-white/30 text-xs font-normal ml-1">DOT</span>
           </div>
           <div className="text-white/25 text-xs mt-0.5">{(asset.flowRate * 3600).toFixed(4)}/hr</div>
         </div>
@@ -56,17 +56,17 @@ function AssetCard({ asset, onStream }) {
             <Key className="w-3 h-3" />Access via
           </div>
           <div className="text-white/70 text-xs font-medium leading-snug">{asset.accessType}</div>
-          <div className="text-white/25 text-xs mt-0.5">{asset.pricePerHour} MNEE/hr</div>
+          <div className="text-white/25 text-xs mt-0.5">{asset.pricePerHour} DOT/hr</div>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-xs text-white/30">
         <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{daysLeft}d remaining</span>
-        <span>{asset.totalYield.toLocaleString()} MNEE pool</span>
+        <span>{asset.totalYield.toLocaleString()} DOT pool</span>
       </div>
 
       <button onClick={() => onStream(asset)} className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5">
-        <Unlock className="w-3.5 h-3.5" />Stream to Unlock — {asset.pricePerHour} MNEE/hr
+        <Unlock className="w-3.5 h-3.5" />Stream to Unlock — {asset.pricePerHour} DOT/hr
       </button>
     </div>
   );
@@ -97,19 +97,19 @@ function StreamModal({ asset, onClose, onConfirm, isProcessing }) {
 
         <div className="bg-black/20 rounded-lg p-3 mb-4 border border-white/5 space-y-1.5 text-xs text-white/50">
           <div className="flex items-start gap-2"><Lock className="w-3 h-3 text-white/30 mt-0.5 shrink-0" /><span>Owner keeps the NFT and all financial rights (yield, flash loans)</span></div>
-          <div className="flex items-start gap-2"><Zap className="w-3 h-3 text-cyan-400 mt-0.5 shrink-0" /><span>Your MNEE streams per-second — physical access unlocks instantly</span></div>
-          <div className="flex items-start gap-2"><DollarSign className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" /><span>Cancel anytime — unspent MNEE refunded immediately</span></div>
+          <div className="flex items-start gap-2"><Zap className="w-3 h-3 text-cyan-400 mt-0.5 shrink-0" /><span>Your DOT streams per-second — physical access unlocks instantly</span></div>
+          <div className="flex items-start gap-2"><DollarSign className="w-3 h-3 text-emerald-400 mt-0.5 shrink-0" /><span>Cancel anytime — unspent DOT refunded immediately</span></div>
         </div>
 
         <label className="block mb-4">
           <span className="text-sm text-white/70 block mb-1.5">Duration (hours)</span>
           <input type="number" min={1} max={720} value={hours} onChange={e => setHours(Math.max(1, Number(e.target.value)))} className="input-default w-full" />
-          <span className="text-white/30 text-xs mt-1 block">{(asset.pricePerHour / 3600).toFixed(8)} MNEE/sec</span>
+          <span className="text-white/30 text-xs mt-1 block">{(asset.pricePerHour / 3600).toFixed(8)} DOT/sec</span>
         </label>
 
         <div className="flex items-center justify-between bg-black/30 rounded-lg p-3 mb-5 border border-white/5">
           <span className="text-white/60 text-sm">Total locked</span>
-          <span className="font-mono text-cyan-300 font-bold">{total} MNEE</span>
+          <span className="font-mono text-cyan-300 font-bold">{total} DOT</span>
         </div>
 
         <div className="flex gap-3">
@@ -191,7 +191,7 @@ export default function RWA() {
           <Building2 className="w-6 h-6 text-cyan-400" />Real World Assets
         </h1>
         <p className="text-white/50 text-sm mt-1">
-          Asset owners keep the NFT &amp; financial rights. Stream MNEE to unlock physical access — cancel anytime, refunded instantly.
+          Asset owners keep the NFT &amp; financial rights. Stream DOT to unlock physical access — cancel anytime, refunded instantly.
         </p>
       </div>
 

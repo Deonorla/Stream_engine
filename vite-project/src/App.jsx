@@ -81,7 +81,7 @@ function AppContent() {
     setMyStreamIds((prev) => (prev.includes(idNumber) ? prev : [...prev, idNumber]));
   };
 
-  // Fetch MNEE balance
+  // Fetch DOT balance
   const fetchMneeBalance = async () => {
     if (!provider || !walletAddress) return;
     try {
@@ -89,11 +89,11 @@ function AppContent() {
       const balance = await mneeContract.balanceOf(walletAddress);
       setMneeBalance(ethers.formatEther(balance));
     } catch (error) {
-      console.error('Failed to fetch MNEE balance:', error);
+      console.error('Failed to fetch DOT balance:', error);
     }
   };
 
-  // Mint MNEE tokens for testing
+  // Mint DOT tokens for testing
   const mintMneeTokens = async (amount = '1000') => {
     if (!signer || !walletAddress) {
       toast.warning('Please connect your wallet first');
@@ -101,8 +101,8 @@ function AppContent() {
     }
     try {
       setIsProcessing(true);
-      setStatus('Minting MNEE tokens...');
-      const loadingToast = toast.transaction.pending('Minting MNEE tokens...');
+      setStatus('Minting DOT tokens...');
+      const loadingToast = toast.transaction.pending('Minting DOT tokens...');
       
       const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, signer);
       const amountWei = ethers.parseEther(amount);
@@ -110,8 +110,8 @@ function AppContent() {
       await tx.wait();
       
       toast.dismiss(loadingToast);
-      toast.success(`Minted ${amount} MNEE tokens!`, { title: 'Mint Successful' });
-      setStatus(`Minted ${amount} MNEE tokens.`);
+      toast.success(`Minted ${amount} DOT tokens!`, { title: 'Mint Successful' });
+      setStatus(`Minted ${amount} DOT tokens.`);
       await fetchMneeBalance();
     } catch (error) {
       console.error('Mint failed:', error);
@@ -228,16 +228,16 @@ function AppContent() {
         setStatus('Contract not deployed on this network. Switch to Sepolia.');
         return;
       }
-      setStatus('Approving MNEE...');
-      // Use the imported MNEE token address and ABI
+      setStatus('Approving DOT...');
+      // Use the imported DOT token address and ABI
       const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, signer);
 
       const currentAllowance = await mneeContract.allowance(await signer.getAddress(), contractAddress);
       if (currentAllowance < totalAmountWei) {
-        setStatus('Approving MNEE token...');
+        setStatus('Approving DOT token...');
         const approveTx = await mneeContract.approve(contractAddress, totalAmountWei);
         await approveTx.wait();
-        setStatus('MNEE Approved.');
+        setStatus('DOT Approved.');
       }
 
       setStatus('Creating stream...');
@@ -554,11 +554,11 @@ function AppContent() {
     }
     return (
       <div className="space-y-8 md:space-y-12">
-        {/* MNEE Token Balance Card */}
+        {/* DOT Token Balance Card */}
         <section className="card-glass p-4 md:p-6">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold text-white mb-1">💰 MNEE Token Balance</h3>
+              <h3 className="text-lg font-semibold text-white mb-1">💰 DOT Token Balance</h3>
               <p className="text-2xl font-mono text-cyan-300">
                 {Number(mneeBalance).toLocaleString(undefined, { maximumFractionDigits: 4 })} MNEE
               </p>
@@ -581,7 +581,7 @@ function AppContent() {
                 onClick={() => mintMneeTokens('1000')}
                 disabled={isProcessing}
               >
-                Mint 1000 MNEE
+                Mint 1000 DOT
               </button>
             </div>
           </div>
@@ -589,7 +589,7 @@ function AppContent() {
 
         <section className="grid gap-4 md:gap-6 lg:grid-cols-2">
           <CollapsibleSection title="Create Stream" icon="➕" defaultOpen={true}>
-            <p className="text-sm text-white/50 mb-4">Funds stream per second using MNEE tokens. Flow rate = total / duration.</p>
+            <p className="text-sm text-white/50 mb-4">Funds stream per second using DOT tokens. Flow rate = total / duration.</p>
             <CreateStreamForm
               recipient={recipient}
               setRecipient={setRecipient}
@@ -602,7 +602,7 @@ function AppContent() {
           </CollapsibleSection>
 
           <CollapsibleSection title="Withdraw Funds" icon="💰" defaultOpen={true}>
-            <p className="text-sm text-white/60 mb-4">Enter a stream ID to check and withdraw claimable MNEE funds.</p>
+            <p className="text-sm text-white/60 mb-4">Enter a stream ID to check and withdraw claimable DOT funds.</p>
             <div className="grid grid-cols-1 gap-4">
               <label>
                 <span className="block text-sm text-white/70 mb-1.5">Stream ID</span>
@@ -631,7 +631,7 @@ function AppContent() {
               </div>
 
               <p className="text-sm text-white/70">
-                Can Withdraw: <span className="font-mono text-cyan-300">{Number(claimableBalance || '0').toLocaleString(undefined, { maximumFractionDigits: 6 })}</span> MNEE
+                Can Withdraw: DOT
               </p>
             </div>
           </CollapsibleSection>

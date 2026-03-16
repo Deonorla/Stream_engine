@@ -2,11 +2,12 @@ import { createContext, useContext, useState, useMemo, useEffect, useCallback, u
 import { ethers } from 'ethers';
 import { contractAddress, contractABI, mneeTokenAddress, mneeTokenABI } from '../contactInfo.js';
 import { useToast } from '../components/ui';
+import { ACTIVE_NETWORK } from '../networkConfig.js';
 
 const WalletContext = createContext(null);
 
-const TARGET_CHAIN_ID_DEC = 11155111;
-const TARGET_CHAIN_ID_HEX = '0x' + TARGET_CHAIN_ID_DEC.toString(16);
+const TARGET_CHAIN_ID_DEC = ACTIVE_NETWORK.chainId;
+const TARGET_CHAIN_ID_HEX = ACTIVE_NETWORK.chainIdHex;
 
 export function WalletProvider({ children }) {
   const toast = useToast();
@@ -38,8 +39,8 @@ export function WalletProvider({ children }) {
 
   const getNetworkName = (id) => {
     if (!id) return '...';
-    const mapping = { 11155111: 'Ethereum Sepolia' };
-    return mapping[id] || `Chain ${id}`;
+    if (id === ACTIVE_NETWORK.chainId) return ACTIVE_NETWORK.name;
+    return `Chain ${id}`;
   };
 
   const ensureCorrectNetwork = async (eth) => {
@@ -53,9 +54,11 @@ export function WalletProvider({ children }) {
           await eth.request({
             method: 'wallet_addEthereumChain',
             params: [{
-              chainId: TARGET_CHAIN_ID_HEX, chainName: 'Ethereum Sepolia',
-              nativeCurrency: { name: 'SepoliaETH', symbol: 'ETH', decimals: 18 },
-              rpcUrls: ['https://rpc.sepolia.org'], blockExplorerUrls: ['https://sepolia.etherscan.io']
+              chainId: TARGET_CHAIN_ID_HEX,
+              chainName: ACTIVE_NETWORK.name,
+              nativeCurrency: ACTIVE_NETWORK.nativeCurrency,
+              rpcUrls: [ACTIVE_NETWORK.rpcUrl],
+              blockExplorerUrls: [ACTIVE_NETWORK.explorerUrl],
             }],
           });
         } else throw switchError;
@@ -94,21 +97,21 @@ export function WalletProvider({ children }) {
       const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, provider);
       const balance = await mneeContract.balanceOf(walletAddress);
       setMneeBalance(ethers.formatEther(balance));
-    } catch (error) { console.error('Failed to fetch MNEE balance:', error); }
+    } catch (error) { console.error('Failed to fetch DOT balance:', error); }
   }, [provider, walletAddress]);
 
   const mintMneeTokens = async (amount = '1000') => {
     if (!signer || !walletAddress) { toast.warning('Please connect your wallet first'); return; }
     try {
       setIsProcessing(true);
-      setStatus('Minting MNEE tokens...');
-      const loadingToast = toast.transaction.pending('Minting MNEE tokens...');
+      setStatus('Minting DOT tokens...');
+      const loadingToast = toast.transaction.pending('Minting DOT tokens...');
       const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, signer);
       const tx = await mneeContract.mint(walletAddress, ethers.parseEther(amount));
       await tx.wait();
       toast.dismiss(loadingToast);
-      toast.success(`Minted ${amount} MNEE tokens!`, { title: 'Mint Successful' });
-      setStatus(`Minted ${amount} MNEE tokens.`);
+      toast.success(`Minted ${amount} DOT tokens!`, { title: 'Mint Successful' });
+      setStatus(`Minted ${amount} DOT tokens.`);
       await fetchMneeBalance();
     } catch (error) {
       console.error('Mint failed:', error);
@@ -203,14 +206,14 @@ export function WalletProvider({ children }) {
       if (totalAmountWei <= 0n || !Number.isFinite(dur) || dur <= 0) {
         setStatus('Enter a positive amount and duration.'); return null;
       }
-      setStatus('Approving MNEE...');
+      setStatus('Approving DOT...');
       const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, signer);
       const currentAllowance = await mneeContract.allowance(await signer.getAddress(), contractAddress);
       if (currentAllowance < totalAmountWei) {
-        setStatus('Approving MNEE token...');
+        setStatus('Approving DOT token...');
         const approveTx = await mneeContract.approve(contractAddress, totalAmountWei);
         await approveTx.wait();
-        setStatus('MNEE Approved.');
+        setStatus('DOT Approved.');
       }
       setStatus('Creating stream...');
       setIsProcessing(true);

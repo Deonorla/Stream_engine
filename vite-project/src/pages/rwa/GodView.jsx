@@ -50,8 +50,8 @@ export default function GodView() {
         {[
           { label: 'Total Assets',   value: MOCK_ASSETS.length,          suffix: '',      color: 'text-blue-400',    Icon: Building2  },
           { label: 'Active Rentals', value: activeCount,                  suffix: ' live', color: 'text-emerald-400', Icon: Zap        },
-          { label: 'Owner Yield',    value: totalYield.toFixed(2),        suffix: ' MNEE', color: 'text-cyan-400',    Icon: TrendingUp },
-          { label: 'Rent Received',  value: rentPaid.toFixed(2),          suffix: ' MNEE', color: 'text-purple-400',  Icon: DollarSign },
+          { label: 'Owner Yield',    value: totalYield.toFixed(2),        suffix: ' DOT', color: 'text-cyan-400',    Icon: TrendingUp },
+          { label: 'Rent Received',  value: rentPaid.toFixed(2),          suffix: ' DOT', color: 'text-purple-400',  Icon: DollarSign },
         ].map(({ label, value, suffix, color, Icon }) => (
           <div key={label} className="card-glass p-4 border border-white/5">
             <div className={`flex items-center gap-1.5 text-xs mb-1 ${color}`}><Icon className="w-3.5 h-3.5" />{label}</div>
@@ -114,15 +114,15 @@ export default function GodView() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs">
                   <span className="text-white/50">Owner yield</span>
-                  <span className="font-mono text-cyan-300 tabular-nums">{selYield.toFixed(4)} MNEE</span>
+                  <span className="font-mono text-cyan-300 tabular-nums">{selYield.toFixed(4)} DOT</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-white/50">Rent received</span>
-                  <span className="font-mono text-purple-300 tabular-nums">{selRentPaid.toFixed(4)} MNEE</span>
+                  <span className="font-mono text-purple-300 tabular-nums">{selRentPaid.toFixed(4)} DOT</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-white/50">Rate</span>
-                  <span className="font-mono text-white/70">{selected.pricePerHour} MNEE/hr</span>
+                  <span className="font-mono text-white/70">{selected.pricePerHour} DOT/hr</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-white/50">Access</span>

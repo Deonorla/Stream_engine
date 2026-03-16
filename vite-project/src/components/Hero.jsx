@@ -151,9 +151,9 @@ const StatisticsBanner = ({ stats }) => {
 
       <div className="text-center p-4 rounded-xl glass hover-glow">
         <div className="text-2xl md:text-3xl font-bold text-gradient-accent">
-          <AnimatedCounter end={stats.totalMNEE} duration={2500} prefix="$" suffix="K" />
+          <AnimatedCounter end={stats.totalDOT} duration={2500} prefix="$" suffix="K" />
         </div>
-        <div className="text-xs text-white/60 mt-1">MNEE Streamed</div>
+        <div className="text-xs text-white/60 mt-1">DOT Streamed</div>
       </div>
 
       <div className="text-center p-4 rounded-xl glass hover-glow">
@@ -177,7 +177,7 @@ export default function Hero({ networkName = 'Ethereum Sepolia', stats }) {
   // Default mock stats if not provided
   const defaultStats = {
     totalStreams: 1247,
-    totalMNEE: 89,
+    totalDOT: 89,
     activeAgents: 156,
     txnsSaved: 45892
   };
@@ -212,7 +212,7 @@ export default function Hero({ networkName = 'Ethereum Sepolia', stats }) {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg md:text-xl text-white/70 leading-relaxed">
-              AI agents pay for services with continuous MNEE streams.
+              AI agents pay for services with continuous DOT streams.
               <span className="text-flowpay-400 font-semibold"> One signature, unlimited requests.</span>
             </p>
 

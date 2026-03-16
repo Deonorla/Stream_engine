@@ -202,11 +202,11 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
 
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-xl font-bold text-white">{formatEth(stream.totalAmount)}</span>
-              <span className="text-sm text-white/50">MNEE</span>
+              <span className="text-sm text-white/50">DOT</span>
             </div>
 
             <div className="text-xs font-mono text-white/50">
-              Rate: {formatEth(stream.flowRate)} MNEE/sec
+              Rate: {formatEth(stream.flowRate)} DOT/sec
             </div>
           </div>
 
@@ -217,7 +217,7 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
               <div className="text-lg font-bold text-success-400">
                 <AnimatedBalance value={liveClaimable} />
               </div>
-              <div className="text-xs text-white/50">MNEE</div>
+              <div className="text-xs text-white/50">DOT</div>
             </div>
           )}
         </div>

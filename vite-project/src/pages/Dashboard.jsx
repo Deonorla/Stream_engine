@@ -66,7 +66,7 @@ function StreamRow({ stream, formatEth }) {
         </span>
       </div>
       <span className="font-mono text-cyan-300 text-xs tabular-nums shrink-0 ml-2">
-        {claimable} MNEE
+        {claimable} DOT
       </span>
     </div>
   );
@@ -86,7 +86,7 @@ function RwaRow({ asset }) {
       <div className="flex items-center justify-between mb-1">
         <span className="text-white/70 text-xs truncate">{asset.title}</span>
         <span className="font-mono text-purple-300 text-xs tabular-nums shrink-0 ml-2">
-          {streamed.toFixed(2)} MNEE
+          {streamed.toFixed(2)} DOT
         </span>
       </div>
       <div className="h-1 bg-white/10 rounded-full overflow-hidden">
@@ -144,10 +144,10 @@ export default function Dashboard() {
 
       {/* ── Top stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Coins}         label="MNEE Balance"     value={Number(mneeBalance).toFixed(2)}  sub="on Sepolia"                       color="text-cyan-400"    />
-        <StatCard icon={ArrowUpRight}  label="Outgoing Streams" value={outgoingStreams.length}           sub={`${totalOutflow.toFixed(2)} MNEE`} color="text-blue-400"    to="/app/streams" />
+        <StatCard icon={Coins}         label="DOT Balance"     value={Number(mneeBalance).toFixed(2)}  sub="on Sepolia"                       color="text-cyan-400"    />
+        <StatCard icon={ArrowUpRight}  label="Outgoing Streams" value={outgoingStreams.length}           sub={`${totalOutflow.toFixed(2)} DOT`} color="text-blue-400"    to="/app/streams" />
         <StatCard icon={ArrowDownLeft} label="Incoming Streams" value={incomingStreams.length}           sub="claimable now"                    color="text-emerald-400" to="/app/streams" />
-        <StatCard icon={Building2}     label="RWA Assets"       value={RWA_ASSETS.length}               sub={`${rwaStreamed.toFixed(2)} MNEE`}  color="text-purple-400"  to="/app/rwa" />
+        <StatCard icon={Building2}     label="RWA Assets"       value={RWA_ASSETS.length}               sub={`${rwaStreamed.toFixed(2)} DOT`}  color="text-purple-400"  to="/app/rwa" />
       </div>
 
       {/* ── Main grid ── */}
@@ -204,7 +204,7 @@ export default function Dashboard() {
       {/* ── Quick actions ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { to: '/app/streams', icon: ArrowRightLeft, label: 'Create Stream',  sub: 'Send MNEE per-second',         color: 'from-blue-600/20 to-cyan-600/20',    border: 'border-blue-500/20'   },
+          { to: '/app/streams', icon: ArrowRightLeft, label: 'Create Stream',  sub: 'Send DOT per-second',         color: 'from-blue-600/20 to-cyan-600/20',    border: 'border-blue-500/20'   },
           { to: '/app/rwa',     icon: Building2,      label: 'Rent an Asset',  sub: 'Stream rent to RWA owners',    color: 'from-purple-600/20 to-pink-600/20',  border: 'border-purple-500/20' },
           { to: '/app/agent',   icon: Bot,            label: 'Agent Console',  sub: 'AI-powered payment decisions', color: 'from-amber-600/20 to-orange-600/20', border: 'border-amber-500/20'  },
         ].map(({ to, icon: Icon, label, sub, color, border }) => (
@@ -232,7 +232,7 @@ export default function Dashboard() {
           {[
             { label: 'Gas Saved',       value: '95%',     color: 'text-emerald-400' },
             { label: 'Sigs / Request',  value: '0.04',    color: 'text-cyan-400'    },
-            { label: 'RWA TVL (MNEE)',  value: '190K',    color: 'text-purple-400'  },
+            { label: 'RWA TVL (DOT)',  value: '190K',    color: 'text-purple-400'  },
             { label: 'Network',         value: 'Sepolia', color: 'text-blue-400'    },
           ].map(({ label, value, color }) => (
             <div key={label}>

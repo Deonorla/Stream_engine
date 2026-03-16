@@ -2,8 +2,7 @@ const STEPS = [
   {
     num: '01',
     title: 'Service Discovery',
-    desc: 'Agent hits any API → server returns HTTP 402 → x402 manifest describes MNEE payment options automatically.',
-    color: 'text-flowpay-400',
+    desc: 'Agent hits any API → server returns HTTP 402 → x402 manifest describes DOT payment options automatically.',
     border: 'hover:border-flowpay-500/40',
     badge: null,
     icon: (
@@ -17,7 +16,7 @@ const STEPS = [
   {
     num: '02',
     title: 'Gemini Decides',
-    desc: 'AI analyzes usage pattern → chooses single MNEE transfer for low volume or FlowPayStream for high-frequency calls.',
+    desc: 'AI analyzes usage pattern → chooses single DOT transfer for low volume or FlowPayStream for high-frequency calls.',
     color: 'text-accent-400',
     border: 'hover:border-accent-500/40',
     badge: 'AI-Powered',
@@ -33,7 +32,7 @@ const STEPS = [
   {
     num: '03',
     title: 'Stream Executes',
-    desc: 'MNEE locked in FlowPayStream contract → streamed per-second to recipient or asset owner → cancel anytime for instant refund.',
+    desc: 'DOT locked in FlowPayStream contract on Polkadot EVM → streamed per-second to recipient or asset owner → cancel anytime for instant refund.',
     color: 'text-success-400',
     border: 'hover:border-success-500/40',
     badge: null,
@@ -52,7 +51,7 @@ export default function LandingHowItWorks() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="space-y-3 mb-16">
           <p className="text-flowpay-400 text-sm font-semibold uppercase tracking-widest font-mono">How it works</p>
-          <h2 className="text-4xl lg:text-5xl font-bold text-white">One Protocol. Ethereum. Infinite Agents.</h2>
+          <h2 className="text-4xl lg:text-5xl font-bold text-white">One Protocol. Polkadot EVM. Infinite Agents.</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 relative">
           {STEPS.map((step, i) => (

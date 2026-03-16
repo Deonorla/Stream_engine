@@ -9,7 +9,7 @@ const SECTIONS = [
     title: 'Introduction',
     content: `# Stream Engine
 
-**Stream Engine** is a protocol that combines x402 HTTP-native payment discovery, continuous MNEE token streaming for AI agents, and Real World Asset (RWA) yield streaming — all on Ethereum Sepolia.
+**Stream Engine** is a protocol that combines x402 HTTP-native payment discovery, continuous DOT token streaming for AI agents, and Real World Asset (RWA) yield streaming — all on Ethereum Sepolia.
 
 ## Three Layers
 
@@ -24,7 +24,7 @@ const SECTIONS = [
 | Contract | Address |
 |----------|---------|
 | FlowPayStream | \`0x155A00fBE3D290a8935ca4Bf5244283685Bb0035\` |
-| MockMNEE | \`0x96B1FE54Ee89811f46ecE4a347950E0D682D3896\` |
+| MockDOT | \`0x96B1FE54Ee89811f46ecE4a347950E0D682D3896\` |
 
 ## Quick Start
 
@@ -33,7 +33,7 @@ git clone https://github.com/ola-893/flowpay.git
 cd flowpay && npm run install:all && npm run dev
 \`\`\`
 
-Open http://localhost:5173, connect MetaMask on Sepolia (Chain ID: 11155111), mint MNEE, and create your first stream.`,
+Open http://localhost:5173, connect MetaMask on Sepolia (Chain ID: 11155111), mint DOT, and create your first stream.`,
   },
   {
     id: 'streams',
@@ -42,7 +42,7 @@ Open http://localhost:5173, connect MetaMask on Sepolia (Chain ID: 11155111), mi
 
 ## How Streaming Works
 
-MNEE tokens are locked in the FlowPayStream contract and released to the recipient per-second based on a flow rate.
+DOT tokens are locked in the FlowPayStream contract and released to the recipient per-second based on a flow rate.
 
 \`\`\`
 Flow Rate = Total Amount ÷ Duration (seconds)
@@ -52,8 +52,8 @@ Claimable = (flow_rate × seconds_elapsed) − amount_withdrawn
 ## Creating a Stream (Dashboard)
 
 1. Go to **Streams** → Create Stream
-2. Enter recipient address, total MNEE amount, duration in seconds
-3. Approve MNEE spend → confirm transaction
+2. Enter recipient address, total DOT amount, duration in seconds
+3. Approve DOT spend → confirm transaction
 4. Stream starts immediately — recipient can withdraw anytime
 
 ## Creating a Stream (SDK)
@@ -73,7 +73,7 @@ const data = await agent.fetch('https://api.weather-agent.com/forecast');
 
 ## Cancelling a Stream
 
-Either party can cancel. The sender receives all unstreamed MNEE back instantly — no lock-in.
+Either party can cancel. The sender receives all unstreamed DOT back instantly — no lock-in.
 
 ## x402 Middleware (Provider Side)
 
@@ -95,12 +95,12 @@ app.use(flowPayMiddleware({
 
 ## The Model
 
-Asset owners tokenize physical assets as NFTs. They keep the NFT and all financial rights (yield stream, flash loans). Renters stream MNEE to unlock physical access.
+Asset owners tokenize physical assets as NFTs. They keep the NFT and all financial rights (yield stream, flash loans). Renters stream DOT to unlock physical access.
 
 \`\`\`
 Owner: holds NFT → earns yield per-second from the yield pool
-Renter: streams MNEE → physical access unlocked (smart lock / IoT / PLC)
-Cancel: unspent MNEE refunded instantly
+Renter: streams DOT → physical access unlocked (smart lock / IoT / PLC)
+Cancel: unspent DOT refunded instantly
 \`\`\`
 
 ## Four Views
@@ -138,12 +138,12 @@ In Fleet Control, freezing an asset pauses the payment stream and disables physi
 // Tenant streams rent to asset owner per-second
 const stream = await agent.createStream({
   recipient: assetOwnerAddress,
-  ratePerSecond: '0.0139',  // ~50 MNEE/hour
+  ratePerSecond: '0.0139',  // ~50 DOT/hour
   deposit: '50.00',
   metadata: { purpose: 'Tesla Model S rental' }
 });
 
-// Cancel early → unused MNEE refunded automatically
+// Cancel early → unused DOT refunded automatically
 await stream.cancel();
 \`\`\``,
   },
@@ -176,9 +176,9 @@ const agent = new FlowPayAgent({
 | Method | Description |
 |--------|-------------|
 | \`agent.fetch(url)\` | Makes HTTP request, auto-handles 402 |
-| \`agent.createStream(opts)\` | Creates a MNEE payment stream |
+| \`agent.createStream(opts)\` | Creates a DOT payment stream |
 | \`agent.cancelStream(id)\` | Cancels stream, refunds sender |
-| \`agent.getBalance()\` | Returns current MNEE balance |
+| \`agent.getBalance()\` | Returns current DOT balance |
 | \`agent.optimizeSpending()\` | AI recommends payment mode |
 
 ## GeminiPaymentBrain
@@ -213,9 +213,9 @@ Core streaming contract on Ethereum Sepolia.
 
 | Function | Description |
 |----------|-------------|
-| \`createStream(recipient, duration, amount, metadata)\` | Lock MNEE and start a stream |
-| \`withdrawFromStream(streamId)\` | Recipient claims accrued MNEE |
-| \`cancelStream(streamId)\` | Cancel and refund unstreamed MNEE |
+| \`createStream(recipient, duration, amount, metadata)\` | Lock DOT and start a stream |
+| \`withdrawFromStream(streamId)\` | Recipient claims accrued DOT |
+| \`cancelStream(streamId)\` | Cancel and refund unstreamed DOT |
 | \`getClaimableBalance(streamId)\` | View current claimable amount |
 | \`isStreamActive(streamId)\` | Check if stream is still running |
 
@@ -226,7 +226,7 @@ struct Stream {
   address sender;
   address recipient;
   uint256 totalAmount;
-  uint256 flowRate;       // MNEE per second (wei)
+  uint256 flowRate;       // DOT per second (wei)
   uint256 startTime;
   uint256 stopTime;
   uint256 amountWithdrawn;
@@ -243,7 +243,7 @@ event Withdrawn(uint256 streamId, address recipient, uint256 amount);
 event StreamCancelled(uint256 streamId, address sender, address recipient, ...);
 \`\`\`
 
-## MockMNEE.sol
+## MockDOT.sol
 
 ERC-20 test token for Sepolia. Call \`mint(address, amount)\` to get free tokens.
 

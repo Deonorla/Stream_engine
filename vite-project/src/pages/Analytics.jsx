@@ -76,12 +76,12 @@ export default function Analytics() {
         <div className="card-glass p-4">
           <div className="text-sm text-white/60 mb-1">Total Sent</div>
           <div className="text-2xl font-bold text-amber-400">{formatEth(analytics.totalOutgoing)}</div>
-          <div className="text-xs text-white/40 mt-1">MNEE</div>
+          <div className="text-xs text-white/40 mt-1">DOT</div>
         </div>
         <div className="card-glass p-4">
           <div className="text-sm text-white/60 mb-1">Total Received</div>
           <div className="text-2xl font-bold text-emerald-400">{formatEth(analytics.totalIncoming)}</div>
-          <div className="text-xs text-white/40 mt-1">MNEE</div>
+          <div className="text-xs text-white/40 mt-1">DOT</div>
         </div>
       </div>
 
@@ -149,7 +149,7 @@ export default function Analytics() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-mono text-cyan-300">{formatEth(stream.totalAmount)} MNEE</div>
+                  <div className="text-sm font-mono text-cyan-300">{formatEth(stream.totalAmount)} DOT</div>
                   <div className={`text-xs ${stream.isActive ? 'text-emerald-400' : 'text-white/40'}`}>
                     {stream.isActive ? 'Active' : 'Completed'}
                   </div>

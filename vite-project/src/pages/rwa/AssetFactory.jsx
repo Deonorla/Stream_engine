@@ -34,7 +34,7 @@ export default function AssetFactory() {
       <div className="flex flex-col items-center justify-center py-24 animate-fade-in">
         <CheckCircle className="w-16 h-16 text-emerald-400 mb-4" />
         <h2 className="text-xl font-bold text-white mb-1">Asset Tokenized!</h2>
-        <p className="text-white/50 text-sm">Your RWA is live. Renters can now stream MNEE to unlock access.</p>
+        <p className="text-white/50 text-sm">Your RWA is live. Renters can now stream DOT to unlock access.</p>
       </div>
     );
   }
@@ -46,7 +46,7 @@ export default function AssetFactory() {
           <Plus className="w-5 h-5 text-cyan-400" /> Asset Factory
         </h2>
         <p className="text-white/50 text-sm mt-1">
-          Tokenize a physical asset. You keep the NFT and all financial rights — renters stream MNEE to unlock access.
+          Tokenize a physical asset. You keep the NFT and all financial rights — renters stream DOT to unlock access.
         </p>
       </div>
 
@@ -99,11 +99,11 @@ export default function AssetFactory() {
         {/* Financials */}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block">
-            <span className="text-sm text-white/70 block mb-1.5">Rent (MNEE/hr) *</span>
+            <span className="text-sm text-white/70 block mb-1.5">Rent (DOT/hr) *</span>
             <input type="number" min="0.01" step="0.01" className="input-default w-full" placeholder="50" value={form.pricePerHour} onChange={e => set('pricePerHour', e.target.value)} />
           </label>
           <label className="block">
-            <span className="text-sm text-white/70 block mb-1.5">Yield Pool (MNEE) *</span>
+            <span className="text-sm text-white/70 block mb-1.5">Yield Pool (DOT) *</span>
             <input type="number" min="1" className="input-default w-full" placeholder="10000" value={form.totalYield} onChange={e => set('totalYield', e.target.value)} />
           </label>
           <label className="block">
@@ -117,7 +117,7 @@ export default function AssetFactory() {
           <div className="bg-black/20 rounded-lg p-3 border border-white/5 text-xs text-white/50 flex justify-between">
             <span>Yield flow rate</span>
             <span className="font-mono text-cyan-300">
-              {(Number(form.totalYield) / (Number(form.durationDays) * 86400)).toFixed(8)} MNEE/sec
+              {(Number(form.totalYield) / (Number(form.durationDays) * 86400)).toFixed(8)} DOT/sec
             </span>
           </div>
         )}

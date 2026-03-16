@@ -60,7 +60,7 @@ const BudgetGauge = ({ spent, limit, label }) => {
             <div className="flex justify-between text-sm">
                 <span className="text-white/60">{label}</span>
                 <span className={`font-mono ${isCritical ? 'text-error-400' : isWarning ? 'text-warning-400' : 'text-white'}`}>
-                    {spent.toFixed(2)} / {limit} MNEE
+                    {spent.toFixed(2)} / {limit} DOT
                 </span>
             </div>
             <div className="h-3 bg-surface-700 rounded-full overflow-hidden">

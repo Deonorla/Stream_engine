@@ -63,7 +63,7 @@ function FleetCard({ asset, frozen, onToggleFreeze }) {
           </div>
           <div className="font-mono text-purple-300 text-sm font-bold tabular-nums">
             {frozen ? '—' : rentPaid.toFixed(4)}
-            <span className="text-white/30 text-xs font-normal ml-1">MNEE</span>
+            <span className="text-white/30 text-xs font-normal ml-1">DOT</span>
           </div>
         </div>
         <div className="bg-black/20 rounded-lg p-2.5 border border-white/5">
@@ -72,7 +72,7 @@ function FleetCard({ asset, frozen, onToggleFreeze }) {
           </div>
           <div className="font-mono text-cyan-300 text-sm font-bold tabular-nums">
             {yieldEarned.toFixed(4)}
-            <span className="text-white/30 text-xs font-normal ml-1">MNEE</span>
+            <span className="text-white/30 text-xs font-normal ml-1">DOT</span>
           </div>
         </div>
       </div>

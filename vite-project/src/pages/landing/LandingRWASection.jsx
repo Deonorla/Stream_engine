@@ -7,7 +7,7 @@ function YieldTicker({ base, color }) {
     const id = setInterval(() => setVal(v => +(v + 0.0001 * (Math.random() * 2 + 1)).toFixed(4)), 1000);
     return () => clearInterval(id);
   }, []);
-  return <span style={{ color }} className="font-mono text-sm font-bold tabular-nums">{val.toFixed(4)} MNEE/s</span>;
+  return <span style={{ color }} className="font-mono text-sm font-bold tabular-nums">{val.toFixed(4)} DOT/s</span>;
 }
 
 const ASSETS = [
@@ -29,13 +29,13 @@ export default function LandingRWASection() {
               Own the asset.<br />Stream the access.
             </h2>
             <p className="text-surface-300 leading-relaxed">
-              Tokenize real estate, vehicles, and machinery as NFTs. Keep the NFT and all financial rights. Renters stream MNEE per-second to unlock physical access — smart locks, IoT ignition, PLC controllers.
+              Tokenize real estate, vehicles, and machinery as NFTs. Keep the NFT and all financial rights. Renters stream DOT per-second to unlock physical access — smart locks, IoT ignition, PLC controllers.
             </p>
             <ul className="space-y-3">
               {[
                 { label: 'Owner keeps NFT + yield + flash loan rights', color: 'text-success-400' },
-                { label: 'Renter streams MNEE → physical access unlocks instantly', color: 'text-success-400' },
-                { label: 'Cancel anytime — unspent MNEE refunded immediately', color: 'text-success-400' },
+                { label: 'Renter streams DOT → physical access unlocks instantly', color: 'text-success-400' },
+                { label: 'Cancel anytime — unspent DOT refunded immediately', color: 'text-success-400' },
                 { label: 'Fleet Control — freeze any asset to pause stream + access', color: 'text-warning-400' },
               ].map(item => (
                 <li key={item.label} className="flex items-center gap-3">
