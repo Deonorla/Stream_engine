@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { FlowPaySDK } from '../src/FlowPaySDK';
 import { Wallet, ethers } from 'ethers';
 import axios from 'axios';
+import { parsePaymentAmount } from '../src/tokenConfig';
 
 /**
  * Simplified Demo Test
@@ -46,8 +47,8 @@ describe('Demo Logic Validation (Mocked)', function () {
         (sdk as any).activeStreams.set(host, {
             streamId: "DEMO_STREAM_123",
             startTime: Math.floor(Date.now() / 1000) - 10,
-            rate: ethers.parseEther("0.0001"),
-            amount: ethers.parseEther("0.36")
+            rate: parsePaymentAmount("0.0001", 6),
+            amount: parsePaymentAmount("0.36", 6)
         });
 
         // Check cache

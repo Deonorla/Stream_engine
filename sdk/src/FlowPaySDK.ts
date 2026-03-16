@@ -2,11 +2,15 @@ import axios, { AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import { ethers, Contract, Wallet, JsonRpcProvider } from 'ethers';
 import { GeminiPaymentBrain } from './GeminiPaymentBrain';
 import { SpendingMonitor, SpendingLimits } from './SpendingMonitor';
+import { PaymentTokenConfig, formatPaymentAmount, parsePaymentAmount, resolvePaymentTokenConfig } from './tokenConfig';
+import { FlowPayTransactionAdapter } from './transactionAdapter';
 
 export interface FlowPayConfig {
-    privateKey: string;
+    privateKey?: string;
     rpcUrl: string;
     apiKey?: string;
+    token?: PaymentTokenConfig;
+    adapter?: FlowPayTransactionAdapter;
 
     spendingLimits?: SpendingLimits;
     agentId?: string;
@@ -20,15 +24,18 @@ export interface StreamMetadata {
 }
 
 export class FlowPaySDK {
-    private wallet: Wallet;
+    private wallet: Wallet | null;
     private provider: JsonRpcProvider;
     private apiKey?: string;
     private agentId?: string;
+    private adapter?: FlowPayTransactionAdapter;
 
     private activeStreams: Map<string, StreamMetadata> = new Map();
     public brain: GeminiPaymentBrain;
     public monitor: SpendingMonitor;
     private isPaused: boolean = false;
+    private tokenSymbol: string;
+    private tokenDecimals: number;
 
     private MIN_ABI = [
         "function createStream(address recipient, uint256 duration, uint256 amount, string metadata) external",
@@ -45,8 +52,15 @@ export class FlowPaySDK {
 
     constructor(config: FlowPayConfig) {
         this.provider = new JsonRpcProvider(config.rpcUrl);
-        this.wallet = new Wallet(config.privateKey, this.provider);
+        this.wallet = config.privateKey ? new Wallet(config.privateKey, this.provider) : null;
+        this.adapter = config.adapter;
         this.apiKey = config.apiKey;
+        if (!this.wallet && !this.adapter) {
+            throw new Error("FlowPaySDK requires either `privateKey` or `adapter`.");
+        }
+        const tokenConfig = resolvePaymentTokenConfig(config.token);
+        this.tokenSymbol = tokenConfig.symbol;
+        this.tokenDecimals = tokenConfig.decimals;
         // Initialize Gemini Brain (requires separate key? reusing apiKey for simplify, but in reality likely different)
         // For Hackathon, let's assume config.apiKey is the FlowPay key, but we might pass a separate 'geminiKey' in config?
         // Let's assume config might have `geminiKey` added to interface or we use env var?
@@ -54,11 +68,11 @@ export class FlowPaySDK {
         this.brain = new GeminiPaymentBrain(process.env.GEMINI_API_KEY); // Assuming env var for Security
         this.agentId = config.agentId;
 
-        // Default Limits: 100 MNEE daily, 1000 Total
+        // Default limits are expressed in payment-token units.
         this.monitor = new SpendingMonitor(config.spendingLimits || {
-            dailyLimit: ethers.parseEther("100"),
-            totalLimit: ethers.parseEther("1000")
-        });
+            dailyLimit: parsePaymentAmount("100", this.tokenDecimals),
+            totalLimit: parsePaymentAmount("1000", this.tokenDecimals)
+        }, tokenConfig);
     }
 
     // Metric counters
@@ -180,11 +194,20 @@ export class FlowPaySDK {
         // Let's assume server might send 'hybrid' or we decide based on capability.
 
         const rate = headers['x-flowpay-rate']; // amount per second or per request
-        const mneeAddress = headers['x-mnee-address']; // Token address
+        const paymentTokenAddress = headers['x-flowpay-token'] || headers['x-mnee-address'];
+        const headerTokenDecimals = Number(headers['x-flowpay-token-decimals']);
+        const tokenDecimals = Number.isFinite(headerTokenDecimals) ? headerTokenDecimals : this.tokenDecimals;
+        const tokenSymbol = headers['x-payment-currency'] || this.tokenSymbol;
         const contractAddress = headers['x-flowpay-contract'];
+        const recipientAddress =
+            headers['x-flowpay-recipient'] ||
+            response.data?.requirements?.recipient;
 
         if (!contractAddress) {
             throw new Error("Missing X-FlowPay-Contract header in 402 response");
+        }
+        if (!recipientAddress) {
+            throw new Error("Missing X-FlowPay-Recipient in 402 response");
         }
 
         // AI Decision Point
@@ -192,8 +215,8 @@ export class FlowPaySDK {
         const selectedMode = await this.selectPaymentMode(simN); // Await async brain
 
         if (selectedMode === 'direct') {
-            const price = ethers.parseEther(rate || "0.0001");
-            return this.performDirectPayment(url, options, mneeAddress, price);
+            const price = parsePaymentAmount(rate || "0.0001", tokenDecimals);
+            return this.performDirectPayment(url, options, paymentTokenAddress, recipientAddress, price, tokenSymbol, tokenDecimals);
         }
 
 
@@ -208,7 +231,7 @@ export class FlowPaySDK {
         // Decide on duration/amount. For this "Hackathon MVP", let's hardcode a top-up
         // e.g., 1 hour worth of streaming or a fixed small deposit.
         const duration = 3600; // 1 hour
-        const rateBn = ethers.parseEther(rate || "0.0001");
+        const rateBn = parsePaymentAmount(rate || "0.0001", tokenDecimals);
         const totalAmount = rateBn * BigInt(duration);
 
 
@@ -227,11 +250,9 @@ export class FlowPaySDK {
             throw new Error("Suspicious renewal activity detected. System Emergency Paused.");
         }
 
-        console.log(`[FlowPaySDK] Initiating Stream: ${ethers.formatEther(totalAmount)} MNEE for ${duration}s`);
+        console.log(`[FlowPaySDK] Initiating Stream: ${formatPaymentAmount(totalAmount, tokenDecimals)} ${tokenSymbol} for ${duration}s`);
 
-        console.log(`[FlowPaySDK] Initiating Stream: ${ethers.formatEther(totalAmount)} MNEE for ${duration}s`);
-
-        const streamData = await this.createStream(contractAddress, mneeAddress, totalAmount, duration, {
+        const streamData = await this.createStream(contractAddress, paymentTokenAddress, recipientAddress, totalAmount, duration, {
             type: "SDK_AUTO",
             target: url
         });
@@ -263,8 +284,15 @@ export class FlowPaySDK {
         return await axios(url, retryOptions);
     }
 
-    public async createStream(contractAddress: string, tokenAddress: string, amount: bigint, duration: number, metadata: any = {}): Promise<{ streamId: string, startTime: bigint }> {
-        const flowPay = new Contract(contractAddress, this.MIN_ABI, this.wallet);
+    public async createStream(
+        contractAddress: string,
+        tokenAddress: string,
+        recipient: string,
+        amount: bigint,
+        duration: number,
+        metadata: any = {}
+    ): Promise<{ streamId: string, startTime: bigint }> {
+        const flowPay = new Contract(contractAddress, this.MIN_ABI, this.wallet || this.provider);
 
         // Metadata Construction
         const enrichedMetadata = {
@@ -276,76 +304,52 @@ export class FlowPaySDK {
         const metadataString = JSON.stringify(enrichedMetadata);
 
         // If token address is not provided in header, try fetching from contract
-        let mneeToken = tokenAddress;
-        if (!mneeToken) {
-            try {
-                mneeToken = await flowPay.mneeToken();
-            } catch {
-                throw new Error("Cannot determine MNEE token address");
+        let paymentTokenAddress = tokenAddress;
+        if (!paymentTokenAddress) {
+            if (this.adapter?.readContract) {
+                paymentTokenAddress = await this.adapter.readContract<string>(
+                    contractAddress,
+                    this.MIN_ABI,
+                    "mneeToken",
+                    []
+                );
+            } else {
+                try {
+                    paymentTokenAddress = await flowPay.mneeToken();
+                } catch {
+                    throw new Error("Cannot determine payment token address");
+                }
             }
         }
 
-        // 1. Approve Token
-        const token = new Contract(mneeToken, this.ERC20_ABI, this.wallet);
+        if (this.adapter) {
+            console.log(`[FlowPaySDK] Approving ${this.tokenSymbol} through adapter...`);
+            await this.adapter.approveToken(paymentTokenAddress, contractAddress, amount);
+            console.log("[FlowPaySDK] Approved.");
+            console.log(`[FlowPaySDK] Creating stream to ${recipient}...`);
+            return this.adapter.createStream(
+                contractAddress,
+                recipient,
+                duration,
+                amount,
+                metadataString,
+                this.MIN_ABI
+            );
+        }
+
+        if (!this.wallet) {
+            throw new Error("FlowPaySDK wallet is not configured");
+        }
+
+        const token = new Contract(paymentTokenAddress, this.ERC20_ABI, this.wallet);
         const allowance = await token.allowance(this.wallet.address, contractAddress);
 
         if (allowance < amount) {
-            console.log("[FlowPaySDK] Approving MNEE...");
+            console.log(`[FlowPaySDK] Approving ${this.tokenSymbol}...`);
             const txApprove = await token.approve(contractAddress, amount);
             await txApprove.wait();
             console.log("[FlowPaySDK] Approved.");
         }
-
-        // 2. Create Stream
-        // Using "random" recipient? No, the 402 header usually implies SOME recipient. 
-        // But the middleware 402 headers we implemented (X-FlowPay-Address) was actually MNEE address...
-        // Wait, where is the payment RECIPIENT address?
-        // The middleware `X-MNEE-Address` was intended for the token.
-        // We usually need a `X-FlowPay-Recipient` header too! 
-        // Let's check middleware implementation. 
-        // Middleware: `res.set('X-MNEE-Address', config.mneeAddress || '');`
-        // Wait, did I map mneeAddress to the recipient or the token in the middleware config?
-        // In Server `index.js`, `mneeAddress: MNEE_ADDRESS`. 
-        // In `flowPayMiddleware.js`: `requirements: { ... recipient: config.mneeAddress }`
-        // It seems I overloaded `mneeAddress` to mean "Token Address" AND "Recipient"?
-        // Detailed check: The contract needs a `recipient` address to stream TO.
-        // My middleware headers currently expose `X-MNEE-Address`.
-        // If the middleware is the recipient, it should expose its wallet address.
-        // Let's assume for this Agent flow that the AGENT is the sender and the SERVER (middleware) is the recipient.
-        // I need the Server's Wallet Address to stream TO.
-        // The middleware currently does NOT expose `X-FlowPay-Recipient`.
-        // I should stick to the plan: "Add automatic MNEE approval and stream creation from x402 requirements".
-        // I will assume for now that the `X-MNEE-Address` header is the token, and I might need to infer recipient or add it.
-        // Actually, looking at `flowPayMiddleware.js`:
-        // `res.set('X-MNEE-Address', config.mneeAddress || '');`
-        // AND `recipient: config.mneeAddress` in the body.
-        // It seems I confused Token Address with Recipient Address in the middleware config.
-        // `mneeAddress` variable name implies Token.
-        // I need to fix this in the middleware task or work around it.
-        // WORKAROUND: For this MVP, I will use a dummy/derived recipient or if I can't find it, I'll send to self or burn?
-        // Better: I will use `contractAddress` as the recipient momentarily? No that fails.
-        // Let's look at `index.js`. It passes `mneeAddress: MNEE_ADDRESS`.
-        // I will assume the Server Wallet Address IS the `MNEE_ADDRESS`? No that's the token.
-        // Okay, I need a recipient.
-        // I will update the code to use `this.wallet.address` (self-stream) for testing if header missing, 
-        // OR I will extract it from the `requirements` JSON body which is more robust than headers sometimes.
-
-        // Let's assume the body of 402 has `requirements.recipient`.
-        // My middleware sends: `recipient: config.mneeAddress`. This is definitely the Token Address in my env vars.
-        // So the Server is asking to be paid... to the Token Contract Address? That's wrong but it's what I configured.
-        // I will follow the configuration. If the server says "Pay to 0xToken...", I will stream to 0xToken.
-        // Ideally, I should have configured a separate `recipientAddress` in the middleware.
-
-        // For the sake of this task (SDK), I will parse `response.data.requirements.recipient` if available, 
-        // otherwise default to `headers['x-flowpay-recipient']` or fallback.
-
-        // Actually, let's just create the stream to the address specified in `x-mnee-address` header
-        // because that's what the middleware is serving, even if it's semantically weird (streaming tokens to the token contract).
-        // It validates the flow even if the funds are stuck.
-
-        // REVISION: I will try to read `response.data.requirements.recipient` first.
-
-        const recipient = mneeToken; // Using the provided address as recipient
 
         console.log(`[FlowPaySDK] Creating stream to ${recipient}...`);
 
@@ -383,27 +387,47 @@ export class FlowPaySDK {
         return remaining > 0n ? remaining : 0n;
     }
 
-    private async performDirectPayment(url: string, options: AxiosRequestConfig, tokenAddress: string, amount: bigint): Promise<AxiosResponse> {
+    private async performDirectPayment(
+        url: string,
+        options: AxiosRequestConfig,
+        tokenAddress: string,
+        recipient: string,
+        amount: bigint,
+        tokenSymbol: string = this.tokenSymbol,
+        tokenDecimals: number = this.tokenDecimals
+    ): Promise<AxiosResponse> {
         if (this.isPaused) throw new Error("FlowPaySDK is paused.");
 
         // SAFETY CHECK
         this.monitor.checkAndRecordSpend(amount);
+        let txHash = "";
 
-        console.log(`[FlowPaySDK] Executing Direct Payment of ${ethers.formatEther(amount)} MNEE`);
+        console.log(`[FlowPaySDK] Executing Direct Payment of ${formatPaymentAmount(amount, tokenDecimals)} ${tokenSymbol}`);
 
-        const recipient = tokenAddress; // Using Token Address as recipient per discussed MVP hack
-        const token = new Contract(tokenAddress, this.ERC20_ABI, this.wallet);
+        if (this.adapter) {
+            const tx = await this.adapter.transferToken(tokenAddress, recipient, amount);
+            txHash = (tx as { hash?: string }).hash || "";
+            if (txHash) {
+                console.log(`[FlowPaySDK] Direct Payment Sent: ${txHash}`);
+            }
+        } else {
+            if (!this.wallet) {
+                throw new Error("FlowPaySDK wallet is not configured");
+            }
 
-        const tx = await token.transfer(recipient, amount);
-        await tx.wait();
+            const token = new Contract(tokenAddress, this.ERC20_ABI, this.wallet);
+            const tx = await token.transfer(recipient, amount);
+            await tx.wait();
+            txHash = tx.hash;
 
-        console.log(`[FlowPaySDK] Direct Payment Sent: ${tx.hash}`);
+            console.log(`[FlowPaySDK] Direct Payment Sent: ${tx.hash}`);
+        }
 
         const retryOptions = {
             ...options,
             headers: {
                 ...options.headers,
-                'X-FlowPay-Tx-Hash': tx.hash
+                'X-FlowPay-Tx-Hash': txHash
             }
         };
 

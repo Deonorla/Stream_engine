@@ -3,6 +3,7 @@ import { FlowPaySDK } from '../src/FlowPaySDK';
 import { Wallet, ethers } from 'ethers';
 import express, { Express } from 'express';
 import { Server } from 'http';
+import { parsePaymentAmount } from '../src/tokenConfig';
 
 /**
  * End-to-End Integration Tests for FlowPay System
@@ -49,15 +50,18 @@ const createMockServer = () => {
                     'X-Payment-Required': 'true',
                     'X-FlowPay-Mode': 'streaming',
                     'X-FlowPay-Rate': '0.0001',
-                    'X-MNEE-Address': '0xMockMNEE',
-                    'X-FlowPay-Contract': '0xMockContract'
+                    'X-FlowPay-Token': '0xMockUsdc',
+                    'X-Payment-Currency': 'USDC',
+                    'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
+                    'X-FlowPay-Contract': '0xMockContract',
+                    'X-FlowPay-Token-Decimals': '6'
                 })
                 .json({
                     message: 'Payment Required',
                     requirements: {
                         mode: 'streaming',
                         price: '0.0001',
-                        currency: 'MNEE'
+                        currency: 'USDC'
                     }
                 });
         }
@@ -89,15 +93,18 @@ const createMockServer = () => {
                     'X-Payment-Required': 'true',
                     'X-FlowPay-Mode': 'hybrid',
                     'X-FlowPay-Rate': '0.001',
-                    'X-MNEE-Address': '0xMockMNEE',
-                    'X-FlowPay-Contract': '0xMockContract'
+                    'X-FlowPay-Token': '0xMockUsdc',
+                    'X-Payment-Currency': 'USDC',
+                    'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
+                    'X-FlowPay-Contract': '0xMockContract',
+                    'X-FlowPay-Token-Decimals': '6'
                 })
                 .json({
                     message: 'Payment Required',
                     requirements: {
                         mode: 'hybrid',
                         price: '0.001',
-                        currency: 'MNEE'
+                        currency: 'USDC'
                     }
                 });
         }
@@ -295,16 +302,16 @@ describe('FlowPay End-to-End Integration Tests', function () {
                 privateKey: Wallet.createRandom().privateKey,
                 rpcUrl: 'http://localhost:8545',
                 spendingLimits: {
-                    dailyLimit: ethers.parseEther('0.5'),
-                    totalLimit: ethers.parseEther('1.0')
+                    dailyLimit: parsePaymentAmount('0.5', 6),
+                    totalLimit: parsePaymentAmount('1.0', 6)
                 }
             });
 
             // First spend should succeed
-            limitedSdk.monitor.checkAndRecordSpend(ethers.parseEther('0.4'));
+            limitedSdk.monitor.checkAndRecordSpend(parsePaymentAmount('0.4', 6));
 
             // Second spend should fail (exceeds daily limit)
-            expect(() => limitedSdk.monitor.checkAndRecordSpend(ethers.parseEther('0.2')))
+            expect(() => limitedSdk.monitor.checkAndRecordSpend(parsePaymentAmount('0.2', 6)))
                 .to.throw('Daily spending limit exceeded');
         });
 
@@ -323,8 +330,8 @@ describe('FlowPay End-to-End Integration Tests', function () {
     describe('Real-time Calculations', () => {
         it('should calculate claimable balance correctly', () => {
             const startTime = Math.floor(Date.now() / 1000) - 100; // 100 seconds ago
-            const rate = ethers.parseEther('0.0001');
-            const amount = ethers.parseEther('1');
+            const rate = parsePaymentAmount('0.0001', 6);
+            const amount = parsePaymentAmount('1', 6);
 
             const stream = {
                 streamId: 'test',
@@ -362,7 +369,7 @@ describe('x402 Protocol Compliance', () => {
         expect(response.headers.get('x-payment-required')).to.equal('true');
         expect(response.headers.get('x-flowpay-mode')).to.equal('streaming');
         expect(response.headers.get('x-flowpay-rate')).to.equal('0.0001');
-        expect(response.headers.get('x-mnee-address')).to.exist;
+        expect(response.headers.get('x-flowpay-token')).to.exist;
         expect(response.headers.get('x-flowpay-contract')).to.exist;
     });
 
@@ -373,6 +380,6 @@ describe('x402 Protocol Compliance', () => {
         expect(body.requirements).to.exist;
         expect(body.requirements.mode).to.equal('streaming');
         expect(body.requirements.price).to.equal('0.0001');
-        expect(body.requirements.currency).to.equal('MNEE');
+        expect(body.requirements.currency).to.equal('USDC');
     });
 });

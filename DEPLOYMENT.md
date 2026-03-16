@@ -1,281 +1,121 @@
-# FlowPay Deployment Guide
+# FlowPay Westend Deployment
 
-## Overview
+This repo is currently wired for a native Westend Asset Hub deployment using Circle test `USDC` asset `31337`.
 
-FlowPay is "The Streaming Extension for x402" - a hybrid payment protocol that solves the N+1 Signature Problem for AI agent payments. This guide covers deployment to Ethereum Sepolia testnet.
+## Runtime defaults
 
-**Key Innovation**: 2 on-chain transactions (Open + Close) regardless of request volume.
+- Network: `Westend Asset Hub`
+- ETH RPC: `https://westend-asset-hub-eth-rpc.polkadot.io`
+- Substrate RPC: `wss://westend-asset-hub-rpc.polkadot.io`
+- Chain ID: `420420421`
+- Explorer: `https://westmint.subscan.io`
+- Gas token: `WND`
+- Payment asset: `Circle USDC`
+- Asset ID: `31337`
+- Token precompile: `0x00007a6900000000000000000000000001200000`
 
-## Prerequisites
+## Required accounts and funds
 
-- Node.js v18+
-- npm or yarn
-- MetaMask or compatible wallet
-- Sepolia testnet ETH (for gas fees)
-- Environment variables configured
+Use one funded Substrate account export for the native deployment and smoke path.
 
-## Environment Setup
+That account needs:
 
-Create a `.env` file in the project root:
+- `WND` on Westend Asset Hub for gas
+- `USDC` asset `31337` for payment and RWA smoke operations
 
-```bash
-# Required
-PRIVATE_KEY=0x...                    # Deployer wallet private key
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
+## Root env
 
-# Optional
-ETHERSCAN_API_KEY=...                # For contract verification
-GEMINI_API_KEY=...                   # For AI features
-
-# Frontend (vite-project/.env)
-VITE_CONTRACT_ADDRESS=0x...          # FlowPayStream contract address (after deployment)
-VITE_MNEE_TOKEN_ADDRESS=0x...        # MockMNEE address (after deployment)
-VITE_MNEE_TOKEN_ADDRESS=0x...        # MockMNEE address (after deployment)
-```
-
-## Quick Start
-
-### 1. Install Dependencies
+Copy `.env.example` to `.env` and set at least:
 
 ```bash
-# Root project
-npm install
-
-# SDK
-cd sdk && npm install && cd ..
-
-# Server
-cd server && npm install && cd ..
-
-# Frontend
-cd vite-project && npm install && cd ..
+POLKADOT_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
+POLKADOT_SUBSTRATE_RPC_URL=wss://westend-asset-hub-rpc.polkadot.io
+POLKADOT_CHAIN_ID=420420421
+FLOWPAY_NETWORK_NAME="Westend Asset Hub"
+FLOWPAY_BLOCK_EXPLORER_URL=https://westmint.subscan.io
+FLOWPAY_PAYMENT_ASSET_ID=31337
+FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
+FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
+FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
+FLOWPAY_USE_SUBSTRATE_READS=true
+FLOWPAY_USE_SUBSTRATE_WRITES=true
+SUBSTRATE_JSON_PATH=./substrate.json
+SUBSTRATE_PASSWORD=your_account_password
+FLOWPAY_RECIPIENT_ADDRESS=0xYOUR_SERVICE_WALLET
+PINATA_JWT=your_pinata_jwt
+FLOWPAY_APP_BASE_URL=http://localhost:5173
 ```
 
-### 2. Deploy Contracts to Sepolia
+Optional but useful:
 
 ```bash
-npx hardhat run scripts/deploy.js --network sepolia
+WESTMINT_WS_URL=wss://westend-asset-hub-rpc.polkadot.io
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/flowpay
+RWA_INDEXER_START_BLOCK=0
 ```
 
-**Expected Output:**
-```
-Deploying contracts with the account: 0x...
-Deploying MockMNEE...
-MockMNEE deployed to: 0x96B1FE54Ee89811f46ecE4a347950E0D682D3896
-Deploying FlowPayStream with MNEE address: 0x96B1FE54Ee89811f46ecE4a347950E0D682D3896
-FlowPayStream deployed to: 0x155A00fBE3D290a8935ca4Bf5244283685Bb0035
-```
+## Frontend env
 
-**Current Sepolia Deployment (January 2026):**
-| Contract | Address |
-|----------|---------|
-| MockMNEE | `0x96B1FE54Ee89811f46ecE4a347950E0D682D3896` |
-| FlowPayStream | `0x155A00fBE3D290a8935ca4Bf5244283685Bb0035` |
-
-**Save these addresses!** You'll need them for configuration.
-
-### 3. Update Configuration
-
-After deployment, update these files:
-
-**`vite-project/.env`:**
-```bash
-VITE_CONTRACT_ADDRESS=0x5678...      # FlowPayStream address
-VITE_MNEE_TOKEN_ADDRESS=0x1234...    # MockMNEE address
-```
-
-**`server/index.js`** (if running standalone):
-```javascript
-const MNEE_ADDRESS = "0x1234...";
-const CONTRACT_ADDRESS = "0x5678...";
-```
-
-### 4. Verify Contracts (Optional)
+Set these in `vite-project/.env`:
 
 ```bash
-npx hardhat verify --network sepolia <CONTRACT_ADDRESS> <MNEE_ADDRESS>
+VITE_FLOWPAY_CHAIN_ID=420420421
+VITE_FLOWPAY_NETWORK_NAME="Westend Asset Hub"
+VITE_FLOWPAY_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
+VITE_FLOWPAY_SUBSTRATE_RPC_URL=wss://westend-asset-hub-rpc.polkadot.io
+VITE_FLOWPAY_BLOCK_EXPLORER_URL=https://westmint.subscan.io
+VITE_FLOWPAY_PAYMENT_ASSET_ID=31337
+VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
+VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
+VITE_FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
+VITE_RWA_API_URL=http://localhost:3001
+VITE_CONTRACT_ADDRESS=0xYOUR_FLOWPAY_STREAM
+VITE_FLOWPAY_RWA_HUB_ADDRESS=0xYOUR_RWA_HUB
+VITE_FLOWPAY_RWA_ASSET_STREAM_ADDRESS=0xYOUR_ASSET_STREAM
 ```
 
-## Running the System
+## Deploy contracts
 
-### Development Mode
-
-**Terminal 1 - Provider Server (The Gatekeeper):**
-```bash
-cd server
-npm start
-```
-
-**Terminal 2 - Frontend Dashboard:**
-```bash
-cd vite-project
-npm run dev
-```
-
-**Terminal 3 - Demo Consumer Agent:**
-```bash
-npx ts-node demo/consumer.ts
-```
-
-### Production Mode
-
-**Build Frontend:**
-```bash
-cd vite-project
-npm run build
-```
-
-**Start Server:**
-```bash
-cd server
-NODE_ENV=production npm start
-```
-
-## Running Tests
-
-### All SDK Tests (41 tests)
-```bash
-cd sdk
-npx mocha -r ts-node/register test/*.test.ts
-```
-
-### Smart Contract Tests (6 tests)
-```bash
-npx hardhat test test/FlowPayStream.test.js
-```
-
-### Integration Tests Only
-```bash
-cd sdk
-npx mocha -r ts-node/register test/integration.test.ts
-```
-
-**Expected Results:**
-- SDK Tests: 41 passing
-- Contract Tests: 6 passing
-- Integration Tests: 12 passing
-
-## Demo Scenarios
-
-### Scenario 1: Complete x402 Handshake
+Deploy the payment contract:
 
 ```bash
-# Terminal 1: Start Provider
-npx ts-node demo/provider.ts
-
-# Terminal 2: Run Consumer
-npx ts-node demo/consumer.ts
+npm run deploy:westmint:substrate
 ```
 
-**Expected Flow:**
-1. Consumer makes blind request to `/api/premium`
-2. Provider returns HTTP 402 with x402 headers
-3. SDK parses payment requirements
-4. Gemini AI decides: streaming vs direct payment
-5. SDK creates stream (1 signature)
-6. SDK retries request with `X-FlowPay-Stream-ID`
-7. Provider verifies stream, returns 200 OK
-8. Subsequent requests use same stream (0 signatures)
-
-### Scenario 2: Efficiency Demonstration
+Deploy the RWA suite:
 
 ```bash
-cd sdk
-npx mocha -r ts-node/register test/load.test.ts
+npm run deploy:rwa:westmint:substrate
 ```
 
-**Validates:**
-- 10+ requests with only 1 signature
-- Stream reuse for concurrent requests
-- N+1 problem is solved
+The scripts print the deployed addresses. Add those addresses back into `.env`:
 
-## Architecture Overview
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    FlowPay System                           │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Consumer  │───▶│  Provider   │───▶│  Ethereum   │     │
-│  │   Agent     │    │  (x402 MW)  │    │  Sepolia    │     │
-│  │   + SDK     │◀───│             │◀───│             │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
-│        │                  │                  │              │
-│        │                  │                  │              │
-│        ▼                  ▼                  ▼              │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐     │
-│  │   Gemini    │    │  Dashboard  │    │  MockMNEE   │     │
-│  │   AI        │    │  (React)    │    │  Token      │     │
-│  └─────────────┘    └─────────────┘    └─────────────┘     │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Key Components
-
-| Component | Description | Location |
-|-----------|-------------|----------|
-| FlowPayStream | Smart contract for payment streams | `contracts/FlowPayStream.sol` |
-| MockMNEE | Test ERC-20 token | `contracts/MockMNEE.sol` |
-| FlowPaySDK | Agent SDK for x402 negotiation | `sdk/src/FlowPaySDK.ts` |
-| flowPayMiddleware | Express.js x402 middleware | `server/middleware/flowPayMiddleware.js` |
-| GeminiPaymentBrain | AI decision engine | `sdk/src/GeminiPaymentBrain.ts` |
-| SpendingMonitor | Safety & limits | `sdk/src/SpendingMonitor.ts` |
-| FlowPayProxy | Multi-agent mesh support | `sdk/src/FlowPayProxy.ts` |
-
-## Network Configuration
-
-| Network | Chain ID | RPC URL |
-|---------|----------|---------|
-| Sepolia | 11155111 | https://rpc.sepolia.org |
-
-## Troubleshooting
-
-### "Insufficient funds for gas"
-- Get Sepolia ETH from faucet: https://sepoliafaucet.com
-
-### "MNEE transfer failed"
-- Ensure MockMNEE is deployed
-- Check token approval: `mnee.approve(flowPayStreamAddress, amount)`
-
-### "Stream is not active"
-- Verify stream ID exists on-chain
-- Check stream hasn't expired or been cancelled
-
-### Tests failing
 ```bash
-# Clean and rebuild
-rm -rf sdk/dist
-cd sdk && npm run build
+FLOWPAY_CONTRACT_ADDRESS=0x...
+FLOWPAY_RWA_ASSET_NFT_ADDRESS=0x...
+FLOWPAY_RWA_ASSET_REGISTRY_ADDRESS=0x...
+FLOWPAY_RWA_COMPLIANCE_GUARD_ADDRESS=0x...
+FLOWPAY_RWA_ASSET_STREAM_ADDRESS=0x...
+FLOWPAY_RWA_HUB_ADDRESS=0x...
 ```
 
-## Production Checklist
+## Run the live smoke test
 
-- [ ] Replace MockMNEE with real MNEE token on mainnet
-- [ ] Configure production RPC URLs (Alchemy/Infura)
-- [ ] Set up monitoring for Emergency Stop triggers
-- [ ] Review spending limits for production agents
-- [ ] Enable contract verification on Etherscan
-- [ ] Configure HTTPS for server endpoints
-- [ ] Set up logging and alerting
-- [ ] Review gas price strategies
+```bash
+npm run smoke:westmint:substrate
+```
 
-## Security Considerations
+This uses the Substrate account JSON and validates the full Westend-native path.
 
-1. **Private Keys**: Never commit private keys to version control
-2. **API Keys**: Use environment variables for all secrets
-3. **Spending Limits**: Configure appropriate limits for agents
-4. **Emergency Stop**: Test emergency stop functionality
-5. **Stream Verification**: Always verify streams on-chain before granting access
+## Start services
 
-## Support
+```bash
+npm --prefix server run dev
+npm --prefix vite-project run dev
+```
 
-For issues or questions:
-- Check existing tests for usage examples
-- Review demo scripts in `demo/` directory
-- Examine SDK source code for implementation details
+## Operator notes
 
-## License
-
-MIT License - See LICENSE file for details
+- The browser UI uses a Polkadot wallet extension path, not MetaMask-only assumptions.
+- The backend can still emit compatibility headers, but the active token model is Circle USDC on Westend.
+- The verified deployment and smoke path is `westmint:substrate`; older `deploy:polkadot` commands remain in the repo but are not the preferred production path.

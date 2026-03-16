@@ -24,8 +24,11 @@ app.get('/api/hybrid', (req, res) => {
         'X-Payment-Required': 'true',
         'X-FlowPay-Mode': 'hybrid', // Server suggesting hybrid capability
         'X-FlowPay-Rate': '0.0001',
-        'X-MNEE-Address': '0xToken',
-        'X-FlowPay-Contract': '0xContract'
+        'X-FlowPay-Token': '0xToken',
+        'X-Payment-Currency': 'USDC',
+        'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
+        'X-FlowPay-Contract': '0xContract',
+        'X-FlowPay-Token-Decimals': '6'
     }).json({ error: "Payment Required" });
 });
 
@@ -54,7 +57,7 @@ describe('FlowPaySDK Hybrid Payment Intelligence', () => {
         // Mock internal methods to avoid real chain calls
         (sdk as any).createStream = async () => {
             console.log("[Mock] createStream called");
-            return { streamId: 'STREAM_101', startTime: BigInt(Date.now()) };
+            return { streamId: 'STREAM_101', startTime: BigInt(Math.floor(Date.now() / 1000)) };
         };
 
         (sdk as any).performDirectPayment = async (url: string, options: any, token: string, amount: bigint) => {

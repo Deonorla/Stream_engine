@@ -3,6 +3,7 @@ import { FlowPaySDK } from '../src/FlowPaySDK';
 import { Wallet, ethers } from 'ethers';
 import express, { Express } from 'express';
 import { Server } from 'http';
+import { parsePaymentAmount } from '../src/tokenConfig';
 
 // Mock Server Setup
 const app = express();
@@ -18,8 +19,11 @@ app.get('/api/resource', (req, res) => {
             'X-Payment-Required': 'true',
             'X-FlowPay-Mode': 'streaming',
             'X-FlowPay-Rate': '0.0001',
-            'X-MNEE-Address': '0xToken',
-            'X-FlowPay-Contract': '0xContract'
+            'X-FlowPay-Token': '0xToken',
+            'X-Payment-Currency': 'USDC',
+            'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
+            'X-FlowPay-Contract': '0xContract',
+            'X-FlowPay-Token-Decimals': '6'
         }).json({
             error: "Payment Required"
         });
@@ -42,8 +46,11 @@ app.get('/api/secure', (req, res) => {
             'X-Payment-Required': 'true',
             'X-FlowPay-Mode': 'streaming',
             'X-FlowPay-Rate': '0.0002', // Higher rate
-            'X-MNEE-Address': '0xToken',
-            'X-FlowPay-Contract': '0xContract'
+            'X-FlowPay-Token': '0xToken',
+            'X-Payment-Currency': 'USDC',
+            'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
+            'X-FlowPay-Contract': '0xContract',
+            'X-FlowPay-Token-Decimals': '6'
         }).json({
             error: "Payment Required"
         });
@@ -80,11 +87,16 @@ describe('FlowPaySDK Integration & Property Tests', () => {
             args: {} as any
         };
 
-        sdk.createStream = async (contract: string, token: string, amount: bigint, duration: number) => {
-            console.log(`[Mock] createStream called for ${amount} MNEE`);
+        sdk.createStream = async (
+            contract: string,
+            token: string,
+            recipient: string,
+            amount: bigint,
+            duration: number
+        ) => {
             createStreamSpy.called = true;
-            createStreamSpy.args = { contract, token, amount, duration };
-            return { streamId: '12345', startTime: BigInt(Date.now()) };
+            createStreamSpy.args = { contract, token, recipient, amount, duration };
+            return { streamId: '12345', startTime: BigInt(Math.floor(Date.now() / 1000)) };
         };
     });
 
@@ -102,7 +114,8 @@ describe('FlowPaySDK Integration & Property Tests', () => {
         app.get('/api/badmode', (req, res) => {
             res.status(402).set({
                 'X-FlowPay-Mode': 'one-time',
-                'X-FlowPay-Contract': '0xContract'
+                'X-FlowPay-Contract': '0xContract',
+                'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc'
             }).end();
         });
 
@@ -118,7 +131,7 @@ describe('FlowPaySDK Integration & Property Tests', () => {
     it('Property 9: Should calculate correct stream amount based on Rate header', async () => {
         // Rate is 0.0001 (from /api/resource). Duration hardcoded to 3600 in SDK.
         // Expected = 0.0001 * 3600 = 0.36
-        const expectedAmount = ethers.parseEther("0.36");
+        const expectedAmount = parsePaymentAmount("0.36", 6);
 
         await sdk.makeRequest(`${BASE_URL}/api/resource`);
 
@@ -137,7 +150,7 @@ describe('FlowPaySDK Integration & Property Tests', () => {
 
         // Check if createStream used the HIGHER rate from /api/secure
         // Rate 0.0002 * 3600 = 0.72
-        expect(createStreamSpy.args.amount).to.equal(ethers.parseEther("0.72"));
+        expect(createStreamSpy.args.amount).to.equal(parsePaymentAmount("0.72", 6));
     });
 
     it('Property 14: Should fail with 401 if API key is invalid', async () => {

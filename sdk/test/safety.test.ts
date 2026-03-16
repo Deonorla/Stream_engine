@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { FlowPaySDK } from '../src/FlowPaySDK';
 import { Wallet, ethers } from 'ethers';
 import axios from 'axios';
+import { parsePaymentAmount } from '../src/tokenConfig';
 
 describe('Safety & Auto-renewal Systems', () => {
     let sdk: FlowPaySDK;
@@ -13,8 +14,8 @@ describe('Safety & Auto-renewal Systems', () => {
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             spendingLimits: {
-                dailyLimit: ethers.parseEther("1.0"), // 1 MNEE Limit
-                totalLimit: ethers.parseEther("10.0")
+                dailyLimit: parsePaymentAmount("1.0", 6),
+                totalLimit: parsePaymentAmount("10.0", 6)
             }
         });
 
@@ -22,7 +23,7 @@ describe('Safety & Auto-renewal Systems', () => {
         createStreamSpy = { called: 0 };
         (sdk as any).createStream = async () => {
             createStreamSpy.called++;
-            return { streamId: `STREAM_${Date.now()}`, startTime: BigInt(Date.now()) };
+            return { streamId: `STREAM_${Date.now()}`, startTime: BigInt(Math.floor(Date.now() / 1000)) };
         };
 
         // Mock Direct Payment
@@ -41,10 +42,10 @@ describe('Safety & Auto-renewal Systems', () => {
     it('Should enforce Daily Spending Limit', () => {
         // limit is 1.0. 
         // Spending 0.6 is fine.
-        sdk.monitor.checkAndRecordSpend(ethers.parseEther("0.6"));
+        sdk.monitor.checkAndRecordSpend(parsePaymentAmount("0.6", 6));
 
         // Spending another 0.5 should fail (Total 1.1 > 1.0)
-        expect(() => sdk.monitor.checkAndRecordSpend(ethers.parseEther("0.5")))
+        expect(() => sdk.monitor.checkAndRecordSpend(parsePaymentAmount("0.5", 6)))
             .to.throw("Daily spending limit exceeded");
     });
 
@@ -76,7 +77,7 @@ describe('Safety & Auto-renewal Systems', () => {
     it('Auto-Renewal Logic (Low Balance)', async () => {
         // Manually inject a "low balance" stream into cache
         const host = "low-balance.com";
-        const lowAmount = ethers.parseEther("0.36"); // Total amount
+        const lowAmount = parsePaymentAmount("0.36", 6);
 
         // We set startTime way back so claimable is high, remaining is low.
         // rate = 0.0001
@@ -88,7 +89,7 @@ describe('Safety & Auto-renewal Systems', () => {
         (sdk as any).activeStreams.set(host, {
             streamId: 'OLD_STREAM',
             startTime: Number(startTime),
-            rate: ethers.parseEther("0.0001"),
+            rate: parsePaymentAmount("0.0001", 6),
             amount: lowAmount
         });
 

@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { FlowPaySDK, StreamMetadata } from '../src/FlowPaySDK';
 import { Wallet, ethers } from 'ethers';
+import { parsePaymentAmount } from '../src/tokenConfig';
 
 describe('FlowPaySDK Real-time Calculations', () => {
     let sdk: FlowPaySDK;
@@ -20,8 +21,8 @@ describe('FlowPaySDK Real-time Calculations', () => {
 
     it('Should calculate claimable balance correctly over time', () => {
         const startTime = 1000; // t=1000 seconds
-        const rate = ethers.parseEther("1"); // 1 token per second
-        const amount = ethers.parseEther("100"); // 100 tokens total
+        const rate = parsePaymentAmount("1", 6);
+        const amount = parsePaymentAmount("100", 6);
 
         const stream: StreamMetadata = {
             streamId: "1",
@@ -37,17 +38,17 @@ describe('FlowPaySDK Real-time Calculations', () => {
 
         // Mock Time: t=1010 (10 elapsed)
         Date.now = () => 1010 * 1000;
-        const expectedClaimable = ethers.parseEther("10");
+        const expectedClaimable = parsePaymentAmount("10", 6);
         expect(sdk.calculateClaimable(stream)).to.equal(expectedClaimable);
 
-        const expectedRemaining = ethers.parseEther("90");
+        const expectedRemaining = parsePaymentAmount("90", 6);
         expect(sdk.calculateRemaining(stream)).to.equal(expectedRemaining);
     });
 
     it('Should return 0 remaining when stream is depleted', () => {
         const startTime = 1000;
-        const rate = ethers.parseEther("1");
-        const amount = ethers.parseEther("100"); // 100 seconds worth
+        const rate = parsePaymentAmount("1", 6);
+        const amount = parsePaymentAmount("100", 6);
 
         const stream: StreamMetadata = {
             streamId: "1",
@@ -59,17 +60,16 @@ describe('FlowPaySDK Real-time Calculations', () => {
         // Mock Time: t=1200 (200 seconds elapsed, way over 100)
         Date.now = () => 1200 * 1000;
 
-        expect(sdk.calculateClaimable(stream)).to.equal(ethers.parseEther("200")); // Technically claimable is high, but capped by contract usually.
+        expect(sdk.calculateClaimable(stream)).to.equal(parsePaymentAmount("200", 6));
         // My SDK logic: elapsed * rate. It doesn't cap claimable by amount, but remaining should be 0.
 
         expect(sdk.calculateRemaining(stream)).to.equal(0n); // Should be floored at 0
     });
 
     it('Should handle micropayments precision ($0.0001/sec)', () => {
-        // Rate: 0.0001 ETH/sec = 10^14 wei/sec
-        const rate = ethers.parseUnits("0.0001", 18);
+        const rate = parsePaymentAmount("0.0001", 6);
         const startTime = 1000;
-        const amount = ethers.parseEther("1"); // 1 ETH total
+        const amount = parsePaymentAmount("1", 6);
 
         const stream: StreamMetadata = {
             streamId: "1",

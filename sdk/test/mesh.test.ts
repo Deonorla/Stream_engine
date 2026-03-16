@@ -3,6 +3,7 @@ import { FlowPaySDK } from '../src/FlowPaySDK';
 import { FlowPayProxy } from '../src/FlowPayProxy';
 import { Wallet, ethers } from 'ethers';
 import axios from 'axios';
+import { formatPaymentAmount, parsePaymentAmount } from '../src/tokenConfig';
 
 describe('Multi-Agent Service Mesh', () => {
     let proxy: FlowPayProxy;
@@ -33,7 +34,7 @@ describe('Multi-Agent Service Mesh', () => {
         // Alternative: We manually calculate what we EXPECT the logic to do.
         // logic: rate * 1.10
 
-        const rateBn = ethers.parseEther(downstreamRate);
+        const rateBn = parsePaymentAmount(downstreamRate, 6);
         const margin = rateBn * 10n / 100n;
         const expected = rateBn + margin;
 
@@ -43,20 +44,20 @@ describe('Multi-Agent Service Mesh', () => {
 
         class MockableProxy extends FlowPayProxy {
             public async probe(url: string) {
-                return ethers.parseEther(downstreamRate);
+                return parsePaymentAmount(downstreamRate, 6);
             }
 
             // Override the method to check logic
             public async calculateDynamicRate(req: any, url: string): Promise<string> {
                 const base = await this.probe(url);
                 const margin = base * BigInt(this['marginPercent']) / 100n;
-                return ethers.formatEther(base + margin);
+                return formatPaymentAmount(base + margin, 6);
             }
         }
 
         const mockProxy = new MockableProxy(sdk, 10);
         const result = await mockProxy.calculateDynamicRate({}, "http://downstream");
 
-        expect(result).to.equal(ethers.formatEther(expected));
+        expect(result).to.equal(formatPaymentAmount(expected, 6));
     });
 });

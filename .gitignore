@@ -1,26 +1,44 @@
 # Root
 node_modules/
 artifacts/
+artifacts-pvm/
 cache/
+cache-pvm/
 coverage/
 typechain/
 hardhat.cache
 .env
-.env.local
-.env.development
-.env.production
+.env.*
 !.env.example
 ignition/deployments/
+/sdk/dist/
+
+# Local chain and wallet data
+/substrate.json
+/substrate-*.json
+*.pem
+*.key
+*.crt
+*.p12
+*.pk8
+*.keystore
+*.seed
 
 # Frontend
 vite-project/node_modules/
 vite-project/dist/
 vite-project/.env
-vite-project/.env.local
-vite-project/.env.development
-vite-project/.env.production
+vite-project/.env.*
 !vite-project/.env.example
 vite-project/.vite/
+
+# Server / SDK local env
+server/.env
+server/.env.*
+!server/.env.example
+sdk/.env
+sdk/.env.*
+!sdk/.env.example
 
 # OS / editors
 .DS_Store

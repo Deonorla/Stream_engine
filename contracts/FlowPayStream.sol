@@ -15,7 +15,7 @@ interface IERC20 {
 
 /**
 * @title FlowPayStream
-* @dev A protocol for creating real-time, per-second money streams on Sepolia using MNEE tokens.
+* @dev A protocol for creating real-time, per-second money streams using an ERC-20 compatible payment token.
 */
 contract FlowPayStream {
     IERC20 public mneeToken;
@@ -42,9 +42,9 @@ contract FlowPayStream {
     event Withdrawn(uint256 indexed streamId, address indexed recipient, uint256 amount);
     event StreamCancelled(uint256 indexed streamId, address sender, address recipient, uint256 senderBalance, uint256 recipientBalance);
 
-    constructor(address _mneeToken) {
-        require(_mneeToken != address(0), "FlowPayStream: MNEE token address cannot be zero");
-        mneeToken = IERC20(_mneeToken);
+    constructor(address _paymentToken) {
+        require(_paymentToken != address(0), "FlowPayStream: payment token address cannot be zero");
+        mneeToken = IERC20(_paymentToken);
     }
 
     /**
@@ -75,7 +75,7 @@ contract FlowPayStream {
     * @dev Creates a new money stream.
     * @param recipient The address that will receive the funds.
     * @param duration The duration of the stream in seconds.
-    * @param amount The total amount of MNEE tokens to stream.
+    * @param amount The total amount of payment tokens to stream.
     * @param metadata JSON string containing agent identification and other info.
     */
     function createStream(address recipient, uint256 duration, uint256 amount, string calldata metadata) external {
@@ -83,7 +83,7 @@ contract FlowPayStream {
         require(recipient != address(0), "FlowPayStream: Recipient cannot be the zero address.");
         require(duration > 0, "FlowPayStream: Duration must be greater than 0.");
 
-        // Transfer MNEE tokens from sender to this contract
+        // Transfer payment tokens from sender to this contract
         bool success = mneeToken.transferFrom(msg.sender, address(this), amount);
         require(success, "FlowPayStream: Transfer failed. check allowance");
 

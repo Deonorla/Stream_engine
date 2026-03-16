@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { PaymentTokenConfig, formatPaymentAmount, resolvePaymentTokenConfig } from './tokenConfig';
 
 export interface SpendingLimits {
     dailyLimit: bigint;
@@ -8,6 +8,8 @@ export interface SpendingLimits {
 export class SpendingMonitor {
     private dailyLimit: bigint;
     private totalLimit: bigint;
+    private tokenSymbol: string;
+    private tokenDecimals: number;
 
     private dailySpent: bigint = 0n;
     private totalSpent: bigint = 0n;
@@ -17,9 +19,12 @@ export class SpendingMonitor {
     private renewalTimestamps: number[] = [];
     private MAX_RENEWALS_PER_MINUTE = 5;
 
-    constructor(limits: SpendingLimits) {
+    constructor(limits: SpendingLimits, tokenConfig: PaymentTokenConfig = {}) {
         this.dailyLimit = limits.dailyLimit;
         this.totalLimit = limits.totalLimit;
+        const resolvedToken = resolvePaymentTokenConfig(tokenConfig);
+        this.tokenSymbol = resolvedToken.symbol;
+        this.tokenDecimals = resolvedToken.decimals;
     }
 
     /**
@@ -29,11 +34,15 @@ export class SpendingMonitor {
         this.resetDailyIfNeeded();
 
         if (this.dailySpent + amount > this.dailyLimit) {
-            throw new Error(`Daily spending limit exceeded. Spent: ${ethers.formatEther(this.dailySpent)} / Limit: ${ethers.formatEther(this.dailyLimit)}`);
+            throw new Error(
+                `Daily spending limit exceeded. Spent: ${formatPaymentAmount(this.dailySpent, this.tokenDecimals)} / Limit: ${formatPaymentAmount(this.dailyLimit, this.tokenDecimals)} ${this.tokenSymbol}`
+            );
         }
 
         if (this.totalSpent + amount > this.totalLimit) {
-            throw new Error(`Total spending limit exceeded. Spent: ${ethers.formatEther(this.totalSpent)} / Limit: ${ethers.formatEther(this.totalLimit)}`);
+            throw new Error(
+                `Total spending limit exceeded. Spent: ${formatPaymentAmount(this.totalSpent, this.tokenDecimals)} / Limit: ${formatPaymentAmount(this.totalLimit, this.tokenDecimals)} ${this.tokenSymbol}`
+            );
         }
 
         this.dailySpent += amount;

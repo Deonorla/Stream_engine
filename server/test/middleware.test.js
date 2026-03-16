@@ -18,7 +18,10 @@ describe('x402 Middleware Integration', function () {
         const testConfig = {
             rpcUrl: "http://localhost:8545", // Dummy
             flowPayContractAddress: "0xMock",
-            mneeAddress: "0xMneeMock",
+            paymentTokenAddress: "0xUsdcMock",
+            tokenSymbol: "USDC",
+            tokenDecimals: 6,
+            recipientAddress: "0xRecipientMock",
             mockContract: mockContract, // Inject mock
             routes: {
                 '/api/weather': {
@@ -50,7 +53,12 @@ describe('x402 Middleware Integration', function () {
             expect(res.header['x-payment-required']).to.equal('true');
             expect(res.header['x-flowpay-mode']).to.equal('streaming');
             expect(res.header['x-flowpay-rate']).to.equal('0.0001');
+            expect(res.header['x-flowpay-token']).to.equal('0xUsdcMock');
+            expect(res.header['x-payment-currency']).to.equal('USDC');
+            expect(res.header['x-flowpay-recipient']).to.equal('0xRecipientMock');
             expect(res.body.requirements).to.exist;
+            expect(res.body.requirements.recipient).to.equal('0xRecipientMock');
+            expect(res.body.requirements.currency).to.equal('USDC');
         });
 
         it('should return 402 for premium route with correct pricing', async function () {

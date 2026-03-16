@@ -18,8 +18,11 @@ app.get('/api/load', (req, res) => {
             'X-Payment-Required': 'true',
             'X-FlowPay-Mode': 'streaming',
             'X-FlowPay-Rate': '0.0001',
-            'X-MNEE-Address': '0xToken',
-            'X-FlowPay-Contract': '0xContract'
+            'X-FlowPay-Token': '0xToken',
+            'X-Payment-Currency': 'USDC',
+            'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
+            'X-FlowPay-Contract': '0xContract',
+            'X-FlowPay-Token-Decimals': '6'
         }).json({
             error: "Payment Required"
         });
@@ -51,10 +54,10 @@ describe('FlowPaySDK Load & Efficiency Tests', () => {
         });
 
         // Mock createStream
-        sdk.createStream = async (contract: string, token: string, amount: bigint, duration: number) => {
+        sdk.createStream = async (contract: string, token: string, recipient: string, amount: bigint, duration: number) => {
             // console.log(`[Mock] createStream...`);
             createStreamCallCount++;
-            return { streamId: 'STREAM_1', startTime: BigInt(Date.now()) };
+            return { streamId: 'STREAM_1', startTime: BigInt(Math.floor(Date.now() / 1000)) };
         };
     });
 

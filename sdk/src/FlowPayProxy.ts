@@ -1,15 +1,17 @@
 import { Request, Response } from 'express';
 import { FlowPaySDK } from './FlowPaySDK';
-import { ethers } from 'ethers';
 import axios from 'axios';
+import { formatPaymentAmount, parsePaymentAmount, resolvePaymentTokenConfig } from './tokenConfig';
 
 export class FlowPayProxy {
     private sdk: FlowPaySDK;
     private marginPercent: number;
+    private tokenDecimals: number;
 
     constructor(sdk: FlowPaySDK, marginPercent: number = 10) {
         this.sdk = sdk;
         this.marginPercent = marginPercent;
+        this.tokenDecimals = resolvePaymentTokenConfig().decimals;
     }
 
     /**
@@ -27,11 +29,11 @@ export class FlowPayProxy {
                 const downstreamRate = error.response.headers['x-flowpay-rate'];
                 if (!downstreamRate) return "0.0001"; // Fallback
 
-                const rateBn = ethers.parseEther(downstreamRate);
+                const rateBn = parsePaymentAmount(downstreamRate, this.tokenDecimals);
                 const margin = rateBn * BigInt(this.marginPercent) / 100n;
                 const myRate = rateBn + margin;
 
-                return ethers.formatEther(myRate);
+                return formatPaymentAmount(myRate, this.tokenDecimals);
             }
             // Error probing
             console.warn("Could not probe downstream rate, defaulting.");
