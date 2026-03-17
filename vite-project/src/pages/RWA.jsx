@@ -1038,7 +1038,7 @@ export default function RWA() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     walletAddress,
-    connectWallet,
+    openWalletPicker,
     createStream,
     cancel,
     isProcessing,
@@ -1406,7 +1406,7 @@ export default function RWA() {
           activeRentals={activeRentals}
           indexedAssetCount={allAssets.length}
           studioMintCount={sessionMints.length}
-          onConnect={connectWallet}
+          onConnect={openWalletPicker}
         />
 
         <div className="min-w-0 space-y-6">
@@ -1419,7 +1419,7 @@ export default function RWA() {
           {activeTab === 'mint' && (
             <MintPanel
               walletAddress={walletAddress}
-              onConnect={connectWallet}
+              onConnect={openWalletPicker}
               onMint={handleMint}
               lastMint={latestMint}
               isMinting={isMintingAsset}

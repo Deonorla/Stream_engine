@@ -17,7 +17,6 @@ export default function Layout({ children }) {
     walletAddress,
     chainId,
     getNetworkName,
-    connectWallet,
     openWalletPicker,
     closeWalletPicker,
     isWalletPickerOpen,
@@ -37,7 +36,7 @@ export default function Layout({ children }) {
         walletAddress={walletAddress}
         chainId={chainId}
         networkName={getNetworkName(chainId)}
-        onConnect={connectWallet}
+        onConnect={openWalletPicker}
         onManageWallets={openWalletPicker}
         walletLabel={activeWallet?.name || ''}
         balance={mneeBalance}
