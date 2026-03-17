@@ -1371,6 +1371,248 @@ function DocContent({ content }) {
   return <div className="space-y-1">{blocks}</div>;
 }
 
+function StatusBanner({ isLoading, error }) {
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+        Loading the live runtime catalog. The handbook can still render from built-in defaults while data arrives.
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+        The backend catalog is offline, so this handbook is using local fallback values. Start the backend with <code className="rounded bg-black/20 px-1.5 py-0.5 font-mono text-xs">npm run start:all</code> if you want live route and contract config.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+      Live runtime data loaded. Route, token, and contract sections are reading from the current catalog.
+    </div>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">
+        {label}
+      </div>
+      <div className="mt-2 break-words text-lg font-semibold text-white">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function PlainLanguageCard({ text }) {
+  if (!text) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-cyan-400/15 bg-cyan-400/[0.08] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Plain English
+      </div>
+      <p className="mt-3 text-base leading-8 text-cyan-50/90">{text}</p>
+    </div>
+  );
+}
+
+function TakeawayPanel({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        If You Remember Three Things
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {items.map((item) => (
+          <div
+            key={item}
+            className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-white/65"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InsightGrid({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {items.map((item) => (
+        <div
+          key={item.title}
+          className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6"
+        >
+          <div className="text-sm font-semibold text-white">{item.title}</div>
+          <p className="mt-3 text-sm leading-7 text-white/60">{item.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CodeCard({ code }) {
+  if (!code) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-black/25 p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Core Logic
+      </div>
+      <pre className="mt-4 overflow-x-auto rounded-2xl bg-black/30 p-4 text-sm leading-7 text-cyan-200">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+function StepList({ title, steps = [] }) {
+  if (!steps.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        {title}
+      </div>
+      <div className="mt-4 space-y-3">
+        {steps.map((step, index) => (
+          <div
+            key={`${index + 1}-${step}`}
+            className="flex items-start gap-4 rounded-2xl border border-white/10 bg-black/20 p-4"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-400/15 text-sm font-semibold text-cyan-100">
+              {index + 1}
+            </div>
+            <div className="pt-0.5 text-sm leading-7 text-white/65">{step}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DataTable({ title, headers = [], rows = [] }) {
+  if (!rows.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        {title}
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0">
+          <thead>
+            <tr>
+              {headers.map((header) => (
+                <th
+                  key={header}
+                  className="border-b border-white/10 px-4 py-3 text-left text-[11px] uppercase tracking-[0.2em] text-white/40"
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`${title}-${index}`}>
+                {row.map((cell, cellIndex) => (
+                  <td
+                    key={`${title}-${index}-${cellIndex}`}
+                    className="border-b border-white/6 px-4 py-4 align-top text-sm leading-7 text-white/65"
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ExplorerLinks({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Explorer Links
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <a
+            key={`${item.label}-${item.value}`}
+            href={item.href}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl border border-white/10 bg-black/20 p-4 transition-colors hover:border-cyan-400/30 hover:bg-cyan-400/[0.06]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-white">{item.label}</div>
+                <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                  {item.value}
+                </div>
+              </div>
+              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-white/45" />
+            </div>
+            <div className="mt-3 text-xs text-white/45">{item.note}</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FaqList({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <details
+          key={item.question}
+          className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+        >
+          <summary className="cursor-pointer list-none text-sm font-semibold text-white">
+            {item.question}
+          </summary>
+          <p className="mt-3 text-sm leading-7 text-white/60">{item.answer}</p>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function ArchitectureDiagram({ catalog }) {
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
   const paymentAssetId = catalog?.payments?.paymentAssetId || 31337;
