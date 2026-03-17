@@ -68,7 +68,7 @@ export default function LandingHowItWorks({
                 <h3 className="text-lg font-semibold text-white mb-2">{step.title}</h3>
                 <p className="text-surface-300 text-sm leading-relaxed">{step.desc}</p>
               </div>
-              {i < STEPS.length - 1 && (
+              {i < steps.length - 1 && (
                 <div className="hidden md:flex absolute top-1/2 -right-3 z-10 items-center" aria-hidden="true">
                   <div className="w-5 h-px bg-flowpay-500/40" />
                   <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
