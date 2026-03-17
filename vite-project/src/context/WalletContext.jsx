@@ -1,13 +1,29 @@
 import { createContext, useContext, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ethers } from 'ethers';
-import { contractAddress, contractABI, mneeTokenAddress, mneeTokenABI } from '../contactInfo.js';
+import {
+  contractAddress,
+  contractABI,
+  paymentTokenAddress,
+  paymentTokenABI,
+  paymentTokenDecimals,
+  paymentTokenSymbol,
+} from '../contactInfo.js';
 import { useToast } from '../components/ui';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
+import { createWalletConnectProvider, getAvailableWallets } from '../lib/wallets.js';
 
 const WalletContext = createContext(null);
 
 const TARGET_CHAIN_ID_DEC = ACTIVE_NETWORK.chainId;
 const TARGET_CHAIN_ID_HEX = ACTIVE_NETWORK.chainIdHex;
+
+function formatAddress(address) {
+  if (!address) {
+    return 'Unavailable';
+  }
+
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
 
 export function WalletProvider({ children }) {
   const toast = useToast();
@@ -15,11 +31,16 @@ export function WalletProvider({ children }) {
   const [signer, setSigner] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
   const [chainId, setChainId] = useState(null);
-  const [status, setStatus] = useState('Not Connected');
+  const [status, setStatus] = useState('Choose a wallet to connect');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [mneeBalance, setMneeBalance] = useState('0.0');
+  const [availableWallets, setAvailableWallets] = useState([]);
+  const [activeWallet, setActiveWallet] = useState(null);
+  const [isWalletPickerOpen, setIsWalletPickerOpen] = useState(false);
 
-  // Stream state
+  const activeWalletProviderRef = useRef(null);
+
   const [incomingStreams, setIncomingStreams] = useState([]);
   const [outgoingStreams, setOutgoingStreams] = useState([]);
   const [isLoadingStreams, setIsLoadingStreams] = useState(false);
@@ -27,31 +48,75 @@ export function WalletProvider({ children }) {
 
   const contractWithProvider = useMemo(() => {
     if (!provider) return null;
-    try { return new ethers.Contract(contractAddress, contractABI, provider); }
-    catch { return null; }
+    try {
+      return new ethers.Contract(contractAddress, contractABI, provider);
+    } catch {
+      return null;
+    }
   }, [provider]);
 
   const contractWithSigner = useMemo(() => {
     if (!signer) return null;
-    try { return new ethers.Contract(contractAddress, contractABI, signer); }
-    catch { return null; }
+    try {
+      return new ethers.Contract(contractAddress, contractABI, signer);
+    } catch {
+      return null;
+    }
   }, [signer]);
 
-  const getNetworkName = (id) => {
+  const getNetworkName = useCallback((id) => {
     if (!id) return '...';
     if (id === ACTIVE_NETWORK.chainId) return ACTIVE_NETWORK.name;
     return `Chain ${id}`;
-  };
+  }, []);
 
-  const ensureCorrectNetwork = async (eth) => {
-    const currentChainIdHex = await eth.request({ method: 'eth_chainId' });
-    setChainId(parseInt(currentChainIdHex, 16));
+  const resetWalletState = useCallback(() => {
+    setProvider(null);
+    setSigner(null);
+    setWalletAddress(null);
+    setChainId(null);
+    setMneeBalance('0.0');
+    setIncomingStreams([]);
+    setOutgoingStreams([]);
+    setIsInitialLoad(true);
+    setActiveWallet(null);
+  }, []);
+
+  const refreshAvailableWallets = useCallback(async () => {
+    try {
+      const wallets = await getAvailableWallets();
+      setAvailableWallets(wallets);
+      return wallets;
+    } catch (error) {
+      console.error('Wallet discovery failed:', error);
+      setAvailableWallets([]);
+      return [];
+    }
+  }, []);
+
+  const openWalletPicker = useCallback(async () => {
+    await refreshAvailableWallets();
+    setIsWalletPickerOpen(true);
+  }, [refreshAvailableWallets]);
+
+  const closeWalletPicker = useCallback(() => {
+    setIsWalletPickerOpen(false);
+  }, []);
+
+  const ensureCorrectNetwork = useCallback(async (ethProvider) => {
+    const currentChainIdHex = await ethProvider.request({ method: 'eth_chainId' });
+    const currentChainId = parseInt(currentChainIdHex, 16);
+    setChainId(currentChainId);
+
     if (currentChainIdHex !== TARGET_CHAIN_ID_HEX) {
       try {
-        await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: TARGET_CHAIN_ID_HEX }] });
+        await ethProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: TARGET_CHAIN_ID_HEX }],
+        });
       } catch (switchError) {
         if (switchError.code === 4902) {
-          await eth.request({
+          await ethProvider.request({
             method: 'wallet_addEthereumChain',
             params: [{
               chainId: TARGET_CHAIN_ID_HEX,
@@ -61,89 +126,187 @@ export function WalletProvider({ children }) {
               blockExplorerUrls: [ACTIVE_NETWORK.explorerUrl],
             }],
           });
-        } else throw switchError;
+        } else {
+          throw switchError;
+        }
       }
     }
-  };
+  }, []);
 
-  const connectWallet = async () => {
-    if (typeof window.ethereum === 'undefined') {
-      setStatus('Please install MetaMask.');
-      toast.error('MetaMask not found', { title: 'Wallet Error' });
+  const disconnectWallet = useCallback(async ({ silent = false } = {}) => {
+    const activeProvider = activeWalletProviderRef.current;
+    if (activeWallet?.type === 'walletconnect' && activeProvider?.disconnect) {
+      try {
+        await activeProvider.disconnect();
+      } catch {
+        // Ignore disconnect errors from WalletConnect.
+      }
+    }
+
+    activeWalletProviderRef.current = null;
+    resetWalletState();
+    setStatus('Choose a wallet to connect');
+
+    if (!silent) {
+      toast.info('Wallet disconnected', { title: 'Wallet' });
+    }
+  }, [activeWallet, resetWalletState, toast]);
+
+  const connectWallet = useCallback(async (walletId) => {
+    if (!walletId) {
+      await openWalletPicker();
       return;
     }
+
+    const wallets = availableWallets.length ? availableWallets : await refreshAvailableWallets();
+    const walletOption = wallets.find((wallet) => wallet.id === walletId);
+
+    if (!walletOption) {
+      toast.error('Selected wallet was not found in this browser.', { title: 'Wallet Error' });
+      return;
+    }
+
+    if (!walletOption.isAvailable) {
+      toast.error(walletOption.description, { title: `${walletOption.name} unavailable` });
+      return;
+    }
+
+    let ethProvider = null;
+
     try {
-      const eth = window.ethereum;
-      await ensureCorrectNetwork(eth);
-      await eth.request({ method: 'eth_requestAccounts' });
-      const nextProvider = new ethers.BrowserProvider(eth);
+      setIsConnectingWallet(true);
+      setStatus(`Connecting ${walletOption.name}...`);
+
+      if (walletOption.type === 'walletconnect') {
+        ethProvider = await createWalletConnectProvider();
+      } else {
+        ethProvider = walletOption.provider;
+      }
+
+      if (!ethProvider?.request) {
+        throw new Error('Selected wallet does not expose an EVM provider.');
+      }
+
+      if (walletOption.type !== 'walletconnect') {
+        await ethProvider.request({ method: 'eth_requestAccounts' });
+      }
+
+      await ensureCorrectNetwork(ethProvider);
+
+      const nextProvider = new ethers.BrowserProvider(ethProvider);
       const nextSigner = await nextProvider.getSigner();
       const address = await nextSigner.getAddress();
+      const nextNetwork = await nextProvider.getNetwork();
+
+      activeWalletProviderRef.current = ethProvider;
       setProvider(nextProvider);
       setSigner(nextSigner);
       setWalletAddress(address);
-      setStatus('Connected');
-      toast.success(`Connected to ${address.slice(0, 6)}...${address.slice(-4)}`, { title: 'Wallet Connected' });
+      setChainId(Number(nextNetwork.chainId));
+      setActiveWallet({
+        id: walletOption.id,
+        name: walletOption.name,
+        type: walletOption.type,
+        description: walletOption.description,
+      });
+      setIsWalletPickerOpen(false);
+      setStatus(`Connected via ${walletOption.name}`);
+      toast.success(`Connected to ${formatAddress(address)} via ${walletOption.name}`, { title: 'Wallet Connected' });
     } catch (error) {
       console.error('Connection failed:', error);
-      setStatus('Connection failed.');
+      if (ethProvider?.disconnect) {
+        try {
+          await ethProvider.disconnect();
+        } catch {
+          // Ignore cleanup failures.
+        }
+      }
+      activeWalletProviderRef.current = null;
+      resetWalletState();
+      setStatus('Wallet connection failed.');
       toast.error(error?.message || 'Failed to connect wallet', { title: 'Connection Failed' });
+    } finally {
+      setIsConnectingWallet(false);
     }
-  };
+  }, [availableWallets, ensureCorrectNetwork, openWalletPicker, refreshAvailableWallets, resetWalletState, toast]);
 
   const fetchMneeBalance = useCallback(async () => {
     if (!provider || !walletAddress) return;
     try {
-      const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, provider);
-      const balance = await mneeContract.balanceOf(walletAddress);
-      setMneeBalance(ethers.formatEther(balance));
-    } catch (error) { console.error('Failed to fetch DOT balance:', error); }
+      const paymentTokenContract = new ethers.Contract(paymentTokenAddress, paymentTokenABI, provider);
+      const balance = await paymentTokenContract.balanceOf(walletAddress);
+      setMneeBalance(ethers.formatUnits(balance, paymentTokenDecimals));
+    } catch (error) {
+      console.error(`Failed to fetch ${paymentTokenSymbol} balance:`, error);
+    }
   }, [provider, walletAddress]);
 
   const mintMneeTokens = async (amount = '1000') => {
-    if (!signer || !walletAddress) { toast.warning('Please connect your wallet first'); return; }
+    if (!signer || !walletAddress) {
+      toast.warning('Please connect your wallet first');
+      return;
+    }
     try {
       setIsProcessing(true);
-      setStatus('Minting DOT tokens...');
-      const loadingToast = toast.transaction.pending('Minting DOT tokens...');
-      const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, signer);
-      const tx = await mneeContract.mint(walletAddress, ethers.parseEther(amount));
+      setStatus(`Requesting test ${paymentTokenSymbol}...`);
+      const loadingToast = toast.transaction.pending(`Requesting test ${paymentTokenSymbol}...`);
+      const mneeContract = new ethers.Contract(paymentTokenAddress, paymentTokenABI, signer);
+      const tx = await mneeContract.mint(walletAddress, ethers.parseUnits(amount, paymentTokenDecimals));
       await tx.wait();
       toast.dismiss(loadingToast);
-      toast.success(`Minted ${amount} DOT tokens!`, { title: 'Mint Successful' });
-      setStatus(`Minted ${amount} DOT tokens.`);
+      toast.success(`Minted ${amount} ${paymentTokenSymbol}!`, { title: 'Mint Successful' });
+      setStatus(`Minted ${amount} ${paymentTokenSymbol}.`);
       await fetchMneeBalance();
     } catch (error) {
       console.error('Mint failed:', error);
       toast.error(error?.shortMessage || error?.message || 'Mint failed', { title: 'Mint Failed' });
       setStatus(error?.shortMessage || error?.message || 'Mint failed.');
-    } finally { setIsProcessing(false); }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const fetchStreamsFromEvents = useCallback(async (me) => {
     if (!contractWithProvider || !provider) return { incoming: [], outgoing: [] };
     try {
       const filter = contractWithProvider.filters.StreamCreated();
-      // Limit block range to avoid RPC "exceed maximum block range" error
       const latestBlock = await provider.getBlockNumber();
-      const fromBlock = Math.max(0, latestBlock - 49000); // Stay under 50k block limit
+      const fromBlock = Math.max(0, latestBlock - 49000);
       const events = await contractWithProvider.queryFilter(filter, fromBlock, latestBlock);
-      const streamCards = await Promise.all(events.map(async (ev) => {
-        const streamId = ev.args.streamId;
-        const [sender, recipient, totalAmount, flowRate, startTime, stopTime, amountWithdrawn, isActive] = 
+      const streamCards = await Promise.all(events.map(async (event) => {
+        const streamId = event.args.streamId;
+        const [sender, recipient, totalAmount, flowRate, startTime, stopTime, amountWithdrawn, isActive, metadata] =
           Object.values(await contractWithProvider.streams(streamId));
         const now = Math.floor(Date.now() / 1000);
         const elapsed = Math.max(0, Math.min(Number(stopTime), now) - Number(startTime));
         const streamedSoFar = BigInt(elapsed) * BigInt(flowRate);
-        const claimable = isActive ? (streamedSoFar > BigInt(amountWithdrawn) ? streamedSoFar - BigInt(amountWithdrawn) : 0n) : 0n;
-        return { id: Number(streamId), sender, recipient, totalAmount: BigInt(totalAmount), flowRate: BigInt(flowRate),
-          startTime: Number(startTime), stopTime: Number(stopTime), amountWithdrawn: BigInt(amountWithdrawn),
-          isActive: Boolean(isActive), claimableInitial: claimable };
+        const claimable = isActive
+          ? (streamedSoFar > BigInt(amountWithdrawn) ? streamedSoFar - BigInt(amountWithdrawn) : 0n)
+          : 0n;
+
+        return {
+          id: Number(streamId),
+          sender,
+          recipient,
+          totalAmount: BigInt(totalAmount),
+          flowRate: BigInt(flowRate),
+          startTime: Number(startTime),
+          stopTime: Number(stopTime),
+          amountWithdrawn: BigInt(amountWithdrawn),
+          isActive: Boolean(isActive),
+          metadata,
+          claimableInitial: claimable,
+        };
       }));
-      const meLc = me?.toLowerCase();
-      return { incoming: streamCards.filter(s => s.recipient.toLowerCase() === meLc),
-               outgoing: streamCards.filter(s => s.sender.toLowerCase() === meLc) };
-    } catch (err) { console.error('Failed to fetch events:', err); return { incoming: [], outgoing: [] }; }
+      const normalizedAddress = me?.toLowerCase();
+      return {
+        incoming: streamCards.filter((stream) => stream.recipient.toLowerCase() === normalizedAddress),
+        outgoing: streamCards.filter((stream) => stream.sender.toLowerCase() === normalizedAddress),
+      };
+    } catch (error) {
+      console.error('Failed to fetch events:', error);
+      return { incoming: [], outgoing: [] };
+    }
   }, [contractWithProvider, provider]);
 
   const refreshStreams = useCallback(async () => {
@@ -168,11 +331,13 @@ export function WalletProvider({ children }) {
       setStatus('Withdrawn.');
       toast.success(`Withdrawn from Stream #${streamId}`, { title: 'Withdrawal Complete' });
       await refreshStreams();
-    } catch (e) {
-      console.error(e);
-      setStatus(e?.shortMessage || e?.message || 'Withdraw failed.');
-      toast.error(e?.shortMessage || e?.message || 'Withdraw failed', { title: 'Withdrawal Failed' });
-    } finally { setIsProcessing(false); }
+    } catch (error) {
+      console.error(error);
+      setStatus(error?.shortMessage || error?.message || 'Withdraw failed.');
+      toast.error(error?.shortMessage || error?.message || 'Withdraw failed', { title: 'Withdrawal Failed' });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const cancel = async (streamId) => {
@@ -187,37 +352,42 @@ export function WalletProvider({ children }) {
       setStatus('Stream cancelled.');
       toast.stream.cancelled(streamId);
       await refreshStreams();
-    } catch (e) {
-      console.error(e);
-      setStatus(e?.shortMessage || e?.message || 'Cancel failed.');
-      toast.error(e?.shortMessage || e?.message || 'Cancel failed', { title: 'Cancellation Failed' });
-    } finally { setIsProcessing(false); }
+    } catch (error) {
+      console.error(error);
+      setStatus(error?.shortMessage || error?.message || 'Cancel failed.');
+      toast.error(error?.shortMessage || error?.message || 'Cancel failed', { title: 'Cancellation Failed' });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const createStream = async (recipient, duration, amount) => {
+  const createStream = async (recipient, duration, amount, metadata = '{}') => {
     if (!contractWithSigner || !provider || !signer) {
       setStatus('Please connect your wallet.');
       return null;
     }
     try {
-      if (!ethers.isAddress(recipient)) { setStatus('Invalid recipient address.'); return null; }
-      const totalAmountWei = ethers.parseEther(amount.toString());
-      const dur = parseInt(duration, 10);
-      if (totalAmountWei <= 0n || !Number.isFinite(dur) || dur <= 0) {
-        setStatus('Enter a positive amount and duration.'); return null;
+      if (!ethers.isAddress(recipient)) {
+        setStatus('Invalid recipient address.');
+        return null;
       }
-      setStatus('Approving DOT...');
-      const mneeContract = new ethers.Contract(mneeTokenAddress, mneeTokenABI, signer);
-      const currentAllowance = await mneeContract.allowance(await signer.getAddress(), contractAddress);
+      const totalAmountWei = ethers.parseUnits(amount.toString(), paymentTokenDecimals);
+      const parsedDuration = parseInt(duration, 10);
+      if (totalAmountWei <= 0n || !Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+        setStatus('Enter a positive amount and duration.');
+        return null;
+      }
+      setStatus(`Approving ${paymentTokenSymbol}...`);
+      const paymentTokenContract = new ethers.Contract(paymentTokenAddress, paymentTokenABI, signer);
+      const currentAllowance = await paymentTokenContract.allowance(await signer.getAddress(), contractAddress);
       if (currentAllowance < totalAmountWei) {
-        setStatus('Approving DOT token...');
-        const approveTx = await mneeContract.approve(contractAddress, totalAmountWei);
+        const approveTx = await paymentTokenContract.approve(contractAddress, totalAmountWei);
         await approveTx.wait();
-        setStatus('DOT Approved.');
+        setStatus(`${paymentTokenSymbol} approved.`);
       }
       setStatus('Creating stream...');
       setIsProcessing(true);
-      const tx = await contractWithSigner.createStream(recipient, dur, totalAmountWei, "{}");
+      const tx = await contractWithSigner.createStream(recipient, parsedDuration, totalAmountWei, metadata);
       const receipt = await tx.wait();
       let createdId = null;
       try {
@@ -225,12 +395,17 @@ export function WalletProvider({ children }) {
         const topic = iface.getEventTopic('StreamCreated');
         for (const log of receipt.logs || []) {
           if (log.address?.toLowerCase() === contractAddress.toLowerCase() && log.topics?.[0] === topic) {
-            const parsed = iface.parseLog({ topics: Array.from(log.topics), data: log.data });
-            const sid = parsed?.args?.streamId ?? parsed?.args?.[0];
-            if (sid !== undefined && sid !== null) { createdId = Number(sid); break; }
+            const parsedLog = iface.parseLog({ topics: Array.from(log.topics), data: log.data });
+            const streamId = parsedLog?.args?.streamId ?? parsedLog?.args?.[0];
+            if (streamId !== undefined && streamId !== null) {
+              createdId = Number(streamId);
+              break;
+            }
           }
         }
-      } catch {}
+      } catch {
+        // Ignore log parsing failures.
+      }
       if (createdId !== null) {
         setStatus(`Stream created. ID #${createdId}`);
         toast.stream.created(createdId);
@@ -245,27 +420,108 @@ export function WalletProvider({ children }) {
       setStatus(error?.shortMessage || error?.message || 'Transaction failed.');
       toast.error(error?.shortMessage || error?.message || 'Transaction failed', { title: 'Stream Creation Failed' });
       return null;
-    } finally { setIsProcessing(false); }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const getClaimableBalance = async (streamId) => {
     if (!provider) return '0.0';
     try {
-      const read = new ethers.Contract(contractAddress, contractABI, provider);
-      const amount = await read.getClaimableBalance(streamId);
-      return ethers.formatEther(amount);
-    } catch { return '0.0'; }
+      const readContract = new ethers.Contract(contractAddress, contractABI, provider);
+      const amount = await readContract.getClaimableBalance(streamId);
+      return ethers.formatUnits(amount, paymentTokenDecimals);
+    } catch {
+      return '0.0';
+    }
   };
 
   const formatEth = (weiBigInt) => {
-    try { return Number(ethers.formatEther(weiBigInt)).toLocaleString(undefined, { maximumFractionDigits: 6 }); }
-    catch { return '0'; }
+    try {
+      return Number(ethers.formatUnits(weiBigInt, paymentTokenDecimals)).toLocaleString(undefined, {
+        maximumFractionDigits: 6,
+      });
+    } catch {
+      return '0';
+    }
   };
 
-  const refreshStreamsRef = useRef(refreshStreams)
-  const fetchMneeBalanceRef = useRef(fetchMneeBalance)
-  useEffect(() => { refreshStreamsRef.current = refreshStreams }, [refreshStreams])
-  useEffect(() => { fetchMneeBalanceRef.current = fetchMneeBalance }, [fetchMneeBalance])
+  const refreshStreamsRef = useRef(refreshStreams);
+  const fetchMneeBalanceRef = useRef(fetchMneeBalance);
+  useEffect(() => { refreshStreamsRef.current = refreshStreams; }, [refreshStreams]);
+  useEffect(() => { fetchMneeBalanceRef.current = fetchMneeBalance; }, [fetchMneeBalance]);
+
+  useEffect(() => {
+    refreshAvailableWallets();
+  }, [refreshAvailableWallets]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      refreshAvailableWallets();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [refreshAvailableWallets]);
+
+  useEffect(() => {
+    const activeProvider = activeWalletProviderRef.current;
+    if (!activeProvider?.on) {
+      return undefined;
+    }
+
+    const handleAccountsChanged = async (accounts) => {
+      if (!accounts?.length) {
+        await disconnectWallet({ silent: true });
+        return;
+      }
+
+      const nextProvider = new ethers.BrowserProvider(activeProvider);
+      const nextSigner = await nextProvider.getSigner();
+      setProvider(nextProvider);
+      setSigner(nextSigner);
+      setWalletAddress(accounts[0]);
+      setStatus(`Connected via ${activeWallet?.name || 'wallet'}`);
+      toast.info(`Active account changed to ${formatAddress(accounts[0])}`, { title: 'Wallet Updated' });
+    };
+
+    const handleChainChanged = async (nextChainIdHex) => {
+      const nextChainId = parseInt(nextChainIdHex, 16);
+      setChainId(nextChainId);
+
+      if (nextChainId !== TARGET_CHAIN_ID_DEC) {
+        setStatus(`Switch ${activeWallet?.name || 'wallet'} back to ${ACTIVE_NETWORK.name}.`);
+        toast.warning(`Wrong network selected. Switch back to ${ACTIVE_NETWORK.name}.`, { title: 'Network Mismatch' });
+        return;
+      }
+
+      const nextProvider = new ethers.BrowserProvider(activeProvider);
+      setProvider(nextProvider);
+      try {
+        const nextSigner = await nextProvider.getSigner();
+        setSigner(nextSigner);
+      } catch {
+        // Ignore signer refresh failures.
+      }
+      setStatus(`Connected via ${activeWallet?.name || 'wallet'}`);
+      refreshStreamsRef.current();
+      fetchMneeBalanceRef.current();
+    };
+
+    const handleDisconnect = async () => {
+      await disconnectWallet({ silent: true });
+    };
+
+    activeProvider.on('accountsChanged', handleAccountsChanged);
+    activeProvider.on('chainChanged', handleChainChanged);
+    activeProvider.on('disconnect', handleDisconnect);
+
+    return () => {
+      activeProvider.removeListener?.('accountsChanged', handleAccountsChanged);
+      activeProvider.removeListener?.('chainChanged', handleChainChanged);
+      activeProvider.removeListener?.('disconnect', handleDisconnect);
+    };
+  }, [activeWallet?.name, disconnectWallet, toast]);
 
   useEffect(() => {
     if (!walletAddress || !contractWithProvider) return;
@@ -280,15 +536,49 @@ export function WalletProvider({ children }) {
         contractWithProvider.off('StreamCreated', listener);
         contractWithProvider.off('StreamCancelled', listener);
         contractWithProvider.off('Withdrawn', listener);
-      } catch {}
+      } catch {
+        // Ignore listener cleanup failures.
+      }
     };
   }, [walletAddress, contractWithProvider]);
 
   const value = {
-    provider, signer, walletAddress, chainId, status, setStatus, isProcessing, setIsProcessing,
-    mneeBalance, incomingStreams, setIncomingStreams, outgoingStreams, isLoadingStreams, isInitialLoad,
-    contractWithProvider, contractWithSigner, getNetworkName, connectWallet, fetchMneeBalance,
-    mintMneeTokens, refreshStreams, withdraw, cancel, createStream, getClaimableBalance, formatEth, toast
+    provider,
+    signer,
+    walletAddress,
+    chainId,
+    status,
+    setStatus,
+    isProcessing,
+    setIsProcessing,
+    isConnectingWallet,
+    mneeBalance,
+    incomingStreams,
+    setIncomingStreams,
+    outgoingStreams,
+    isLoadingStreams,
+    isInitialLoad,
+    contractWithProvider,
+    contractWithSigner,
+    getNetworkName,
+    connectWallet,
+    disconnectWallet,
+    openWalletPicker,
+    closeWalletPicker,
+    isWalletPickerOpen,
+    availableWallets,
+    activeWallet,
+    refreshAvailableWallets,
+    fetchMneeBalance,
+    mintMneeTokens,
+    refreshStreams,
+    withdraw,
+    cancel,
+    createStream,
+    getClaimableBalance,
+    formatEth,
+    toast,
+    paymentTokenSymbol,
   };
 
   return <WalletContext.Provider value={value}>{children}</WalletContext.Provider>;
@@ -296,6 +586,6 @@ export function WalletProvider({ children }) {
 
 export const useWallet = () => {
   const context = useContext(WalletContext);
-  if (!context) throw new Error('useWallet must be used within WalletProvider');
+  if (!context) throw new Error('useWallet must be used within a WalletProvider');
   return context;
 };

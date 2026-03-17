@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, ArrowRightLeft, Bot, BookOpen } from 'lucide-react';
+import { paymentTokenSymbol } from '../contactInfo';
 
 const defaultTabs = [
   { id: 'dashboard', path: '/app',        icon: LayoutDashboard, label: 'Dashboard'     },
@@ -9,7 +10,16 @@ const defaultTabs = [
   { id: 'docs',      path: '/app/docs',    icon: BookOpen,        label: 'Docs'          },
 ];
 
-export default function Header({ walletAddress, chainId, networkName, onConnect, balance, tabs = defaultTabs }) {
+export default function Header({
+  walletAddress,
+  chainId,
+  networkName,
+  onConnect,
+  onManageWallets,
+  walletLabel,
+  balance,
+  tabs = defaultTabs,
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const activeTab = [...tabs].sort((a, b) => b.path.length - a.path.length)
@@ -64,14 +74,30 @@ export default function Header({ walletAddress, chainId, networkName, onConnect,
                   {networkName}
                 </div>
               )}
+              {walletLabel && (
+                <button
+                  type="button"
+                  onClick={onManageWallets}
+                  className="px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 text-xs text-white/70 hover:text-white transition-colors"
+                >
+                  {walletLabel}
+                </button>
+              )}
               {balance && (
                 <div className="px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 font-mono text-xs text-flowpay-300">
-                  {parseFloat(balance).toFixed(4)} DOT
+                  {parseFloat(balance).toFixed(4)} {paymentTokenSymbol}
                 </div>
               )}
               <div className="px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 font-mono text-xs text-surface-300">
                 {walletAddress.slice(0, 6)}…{walletAddress.slice(-4)}
               </div>
+              <button
+                type="button"
+                onClick={onManageWallets}
+                className="px-3 py-1.5 rounded-lg border border-white/10 text-xs text-white/50 hover:text-white transition-colors"
+              >
+                Switch
+              </button>
             </>
           ) : (
             <button
@@ -117,6 +143,15 @@ export default function Header({ walletAddress, chainId, networkName, onConnect,
           {!walletAddress && (
             <button onClick={() => { onConnect(); setMenuOpen(false) }} className="mt-2 px-5 py-3 bg-flowpay-500 hover:bg-flowpay-600 text-white font-semibold rounded-lg text-sm transition-all duration-300">
               Connect Wallet
+            </button>
+          )}
+          {walletAddress && (
+            <button
+              type="button"
+              onClick={() => { onManageWallets?.(); setMenuOpen(false); }}
+              className="mt-2 px-5 py-3 border border-white/10 text-white/70 font-semibold rounded-lg text-sm transition-all duration-300 hover:text-white"
+            >
+              Switch Wallet
             </button>
           )}
         </div>
