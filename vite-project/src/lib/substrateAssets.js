@@ -237,3 +237,51 @@ export async function readNativeAssetBalance(address, assetId) {
   const storageHex = await rpcCall('state_getStorage', [storageKey]);
   return decodeAssetBalance(storageHex);
 }
+
+/**
+ * Convert a 20-byte EVM address to the 32-byte mapped Substrate AccountId
+ * used by Westend Asset Hub (H160 padded with 0xEE bytes).
+ */
+function evmToSubstrateAccountId(evmAddress) {
+  const hex = evmAddress.slice(2).toLowerCase();
+  return `0x${hex}${'ee'.repeat(12)}`;
+}
+
+/**
+ * Approve a spender to transfer a native Substrate asset on behalf of the signer.
+ * Uses assets.approveTransfer extrinsic via the Talisman/polkadot.js Substrate extension.
+ */
+export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAddress, amount) {
+  const { ApiPromise, WsProvider } = await import('@polkadot/api');
+  const { web3Enable, web3FromAddress, web3Accounts } = await import('@polkadot/extension-dapp');
+
+  await web3Enable('Stream Engine');
+
+  const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
+
+  const accounts = await web3Accounts();
+  const account = accounts.find(
+    (a) => a.meta?.ethereum?.toLowerCase() === evmAddress.toLowerCase()
+      || a.address?.toLowerCase() === evmAddress.toLowerCase()
+  ) || accounts[0];
+
+  if (!account) throw new Error('No Substrate account found for this EVM address');
+
+  const injector = await web3FromAddress(account.address);
+
+  // Convert 20-byte EVM spender address to 32-byte AccountId
+  const spenderAccountId = evmToSubstrateAccountId(spenderEvmAddress);
+
+  const tx = api.tx.assets.approveTransfer(assetId, spenderAccountId, amount);
+  await new Promise((resolve, reject) => {
+    tx.signAndSend(account.address, { signer: injector.signer }, ({ status, dispatchError }) => {
+      if (dispatchError) {
+        reject(new Error(dispatchError.toString()));
+      } else if (status.isInBlock || status.isFinalized) {
+        resolve();
+      }
+    }).catch(reject);
+  });
+
+  await api.disconnect();
+}

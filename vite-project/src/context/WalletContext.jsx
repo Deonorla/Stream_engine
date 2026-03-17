@@ -308,7 +308,7 @@ export function WalletProvider({ children }) {
       setStatus('Withdrawing...');
       setIsProcessing(true);
       const loadingToast = toast.transaction.pending('Processing withdrawal...');
-      const tx = await contractWithSigner.withdrawFromStream(streamId, { gasLimit: 300000n });
+      const tx = await contractWithSigner.withdrawFromStream(streamId);
       await tx.wait();
       toast.dismiss(loadingToast);
       setStatus('Withdrawn.');
@@ -329,7 +329,7 @@ export function WalletProvider({ children }) {
       setStatus('Cancelling stream...');
       setIsProcessing(true);
       const loadingToast = toast.transaction.pending('Cancelling stream...');
-      const tx = await contractWithSigner.cancelStream(streamId, { gasLimit: 300000n });
+      const tx = await contractWithSigner.cancelStream(streamId);
       await tx.wait();
       toast.dismiss(loadingToast);
       setStatus('Stream cancelled.');
@@ -362,25 +362,15 @@ export function WalletProvider({ children }) {
       }
       setStatus(`Approving ${paymentTokenSymbol}...`);
       const paymentTokenContract = new ethers.Contract(paymentTokenAddress, paymentTokenABI, signer);
-      // The USDC precompile on Westend Asset Hub may not support allowance() — always approve
-      let needsApproval = true;
-      try {
-        const currentAllowance = await paymentTokenContract.allowance(await signer.getAddress(), contractAddress);
-        needsApproval = currentAllowance < totalAmountWei;
-      } catch {
-        // precompile doesn't support allowance(), proceed with approve
-      }
-      if (needsApproval) {
-        const approveTx = await paymentTokenContract.approve(contractAddress, totalAmountWei, {
-          gasLimit: 200000n,
-        });
+      const currentAllowance = await paymentTokenContract.allowance(await signer.getAddress(), contractAddress);
+      if (currentAllowance < totalAmountWei) {
+        const approveTx = await paymentTokenContract.approve(contractAddress, totalAmountWei);
         await approveTx.wait();
         setStatus(`${paymentTokenSymbol} approved.`);
-      }      setStatus('Creating stream...');
+      }
+      setStatus('Creating stream...');
       setIsProcessing(true);
-      const tx = await contractWithSigner.createStream(recipient, parsedDuration, totalAmountWei, metadata, {
-        gasLimit: 500000n,
-      });
+      const tx = await contractWithSigner.createStream(recipient, parsedDuration, totalAmountWei, metadata);
       const receipt = await tx.wait();
       let createdId = null;
       try {
