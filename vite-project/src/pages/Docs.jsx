@@ -19,6 +19,88 @@ import {
 import { useProtocolCatalog } from "../hooks/useProtocolCatalog";
 import { ACTIVE_NETWORK } from "../networkConfig.js";
 
+const DEPLOYED_CONTRACT_DEFAULTS = {
+  stream: {
+    name: "FlowPayStream",
+    address: "0x75edbf3d9857521f5fb2f581c896779f5110a8a0",
+    role: "Reusable payment stream rail for x402-compatible API and access payments.",
+  },
+  rwaHub: {
+    name: "FlowPayRWAHub",
+    address: "0x1286a0fe3413dd70083df2d654677a7c39096753",
+    role: "Main RWA orchestrator for minting, yield funding, claims, flash advance, and admin actions.",
+  },
+  assetNft: {
+    name: "FlowPayAssetNFT",
+    address: "0x0340b3f493bae901f740c494b2f7744f5fffe348",
+    role: "ERC-721 digital twin contract for productive real-world rental assets.",
+  },
+  assetRegistry: {
+    name: "FlowPayAssetRegistry",
+    address: "0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f",
+    role: "Onchain provenance registry for CID hashes, tag hashes, issuer data, and active stream linkage.",
+  },
+  assetStream: {
+    name: "FlowPayAssetStream",
+    address: "0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396",
+    role: "Asset-linked yield engine that keeps future revenue coupled to NFT ownership.",
+  },
+  complianceGuard: {
+    name: "FlowPayComplianceGuard",
+    address: "0x72a979756061c5993a4c9c95e87519e9492dd721",
+    role: "Compliance and freeze control layer for regulated RWA actions.",
+  },
+};
+
+function getDeployedContractDescriptors(catalog) {
+  return [
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.stream,
+      address:
+        catalog?.payments?.contractAddress || DEPLOYED_CONTRACT_DEFAULTS.stream.address,
+      note:
+        "This is the contract the payment runtime uses for sender budgets, claims, and stream cancellation.",
+    },
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.rwaHub,
+      address: catalog?.rwa?.hubAddress || DEPLOYED_CONTRACT_DEFAULTS.rwaHub.address,
+      note:
+        "This is the user-facing entrypoint for the RWA subsystem. It ties together minting, yield funding, claims, compliance, and freezes.",
+    },
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.assetNft,
+      address:
+        catalog?.rwa?.assetNFTAddress || DEPLOYED_CONTRACT_DEFAULTS.assetNft.address,
+      note:
+        "This NFT is the digital twin. Ownership of this token is what future uncaptured yield follows.",
+    },
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.assetRegistry,
+      address:
+        catalog?.rwa?.assetRegistryAddress
+        || DEPLOYED_CONTRACT_DEFAULTS.assetRegistry.address,
+      note:
+        "This registry stores the authenticity facts the verifier checks: metadata hash, verification tag hash, issuer, and stream linkage.",
+    },
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.assetStream,
+      address:
+        catalog?.rwa?.assetStreamAddress
+        || DEPLOYED_CONTRACT_DEFAULTS.assetStream.address,
+      note:
+        "This contract is where productive RWA logic becomes real. It tracks time-based yield and supports flash-advance behavior.",
+    },
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.complianceGuard,
+      address:
+        catalog?.rwa?.complianceGuardAddress
+        || DEPLOYED_CONTRACT_DEFAULTS.complianceGuard.address,
+      note:
+        "This guard blocks claims or funding when compliance rules or freeze controls say the action should not proceed.",
+    },
+  ];
+}
+
 function buildRouteRows(routes = [], tokenSymbol = "USDC") {
   if (!routes.length) {
     return [
@@ -36,38 +118,23 @@ function buildRouteRows(routes = [], tokenSymbol = "USDC") {
 }
 
 function buildContractRows(catalog) {
-  return [
-    ["Stream contract", catalog?.payments?.contractAddress || "Not configured"],
-    ["RWA Hub", catalog?.rwa?.hubAddress || "Not configured"],
-    ["Asset NFT", catalog?.rwa?.assetNFTAddress || "Not configured"],
-    ["Asset Registry", catalog?.rwa?.assetRegistryAddress || "Not configured"],
-    ["Asset Stream", catalog?.rwa?.assetStreamAddress || "Not configured"],
-    [
-      "Compliance Guard",
-      catalog?.rwa?.complianceGuardAddress || "Not configured",
-    ],
-  ];
+  return getDeployedContractDescriptors(catalog).map((contract) => [
+    contract.name,
+    contract.address || "Not configured",
+    contract.role,
+  ]);
 }
 
 function buildContractLinks(catalog) {
   const explorerBase = String(
     ACTIVE_NETWORK.explorerUrl || "https://westmint.subscan.io",
   ).replace(/\/$/, "");
-  const contracts = [
-    ["Stream contract", catalog?.payments?.contractAddress],
-    ["RWA Hub", catalog?.rwa?.hubAddress],
-    ["Asset NFT", catalog?.rwa?.assetNFTAddress],
-    ["Asset Registry", catalog?.rwa?.assetRegistryAddress],
-    ["Asset Stream", catalog?.rwa?.assetStreamAddress],
-    ["Compliance Guard", catalog?.rwa?.complianceGuardAddress],
-  ];
-
-  return contracts
-    .filter(([, address]) => Boolean(address))
-    .map(([label, address]) => ({
-      label,
-      value: address,
-      href: `${explorerBase}/account/${address}`,
+  return getDeployedContractDescriptors(catalog)
+    .filter((contract) => Boolean(contract.address))
+    .map((contract) => ({
+      label: contract.name,
+      value: contract.address,
+      href: `${explorerBase}/account/${contract.address}`,
       note: "View on explorer",
     }));
 }
@@ -863,11 +930,15 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "RWA contracts",
-          body: "The NFT contract represents the digital twin, the registry stores provenance facts, the asset stream contract handles yield, and the hub orchestrates user-facing actions.",
+          body: "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores provenance facts, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
         },
         {
           title: "Middleware and APIs",
           body: "The backend exposes route catalogs, verification endpoints, metadata pinning, and asset activity views. Middleware is what turns onchain state into actual web access.",
+        },
+        {
+          title: "Why productive RWAs need this architecture",
+          body: "Most onchain RWAs today are passive wrappers around assets that do not naturally produce cash flow. Stream Engine focuses on productive assets like houses, fleets, and heavy machinery because they can be rented, measured, refunded when returned early, and paired with IoT or smart-lock controls.",
         },
         {
           title: "Trust boundary",
@@ -916,27 +987,63 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "Live contract map",
-          headers: ["Contract", "Address"],
+          headers: ["Solidity Contract", "Address", "What it does"],
           rows: buildContractRows(catalog),
         },
         {
           title: "Primary contract responsibilities",
-          headers: ["Contract", "Job"],
+          headers: ["Contract", "Why it exists", "What breaks without it"],
           rows: [
-            ["FlowPayStream", "Create, cancel, and settle payment streams"],
-            ["FlowPayAssetNFT", "Mint the rental asset NFT"],
+            [
+              "FlowPayStream",
+              "Create, cancel, and settle reusable payment streams",
+              "Agents fall back to repeated checkout and high-fee per-request settlement",
+            ],
+            [
+              "FlowPayAssetNFT",
+              "Mint the productive rental asset NFT",
+              "There is no durable digital twin for the real asset",
+            ],
             [
               "FlowPayAssetRegistry",
               "Store CID hash, tag hash, issuer, and active stream mapping",
+              "Verifiers cannot prove that QR, NFC, and IPFS metadata match onchain truth",
             ],
             [
               "FlowPayAssetStream",
               "Handle asset-linked yield and flash advance behavior",
+              "Future rental revenue cannot be streamed or coupled cleanly to NFT ownership",
             ],
-            ["FlowPayComplianceGuard", "Store compliance and freeze state"],
+            [
+              "FlowPayComplianceGuard",
+              "Store compliance and freeze state",
+              "Admins cannot block claims or withdrawals when policy or regulation requires intervention",
+            ],
             [
               "FlowPayRWAHub",
               "Coordinate minting, funding, claims, and admin actions",
+              "Frontend and backend would need to orchestrate too many raw contract calls directly",
+            ],
+          ],
+        },
+        {
+          title: "Why the RWA side is different from passive tokenization",
+          headers: ["RWA model", "What ownership gives you", "Why Stream Engine prefers it"],
+          rows: [
+            [
+              "Passive asset NFT",
+              "Mainly provenance and resale exposure",
+              "Useful for authenticity, but weak for ongoing operational finance",
+            ],
+            [
+              "Productive rental NFT",
+              "Provenance plus future rental yield rights",
+              "Lets revenue follow ownership and makes streaming economically meaningful",
+            ],
+            [
+              "IoT-aware rental asset",
+              "Ownership, verification, and machine-enforced access control",
+              "A car, lock, or machine can react to stream state and cut access when funding ends",
             ],
           ],
         },
@@ -978,6 +1085,12 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             "Why include the contract addresses directly in the handbook?",
           answer:
             "Because readers should not have to trust screenshots or slide decks. They should be able to open the live deployed addresses themselves and verify that the system is actually implemented as Solidity contracts onchain.",
+        },
+        {
+          question:
+            "Why not just use one NFT contract for the entire RWA story?",
+          answer:
+            "Because productive RWAs are not just ownership records. They need ownership, provenance, verification hashes, rental income streaming, and compliance controls. Keeping those responsibilities separate makes the system easier to audit and reason about.",
         },
       ],
     },
@@ -1258,6 +1371,213 @@ function DocContent({ content }) {
   return <div className="space-y-1">{blocks}</div>;
 }
 
+function ArchitectureDiagram({ catalog }) {
+  const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
+  const paymentAssetId = catalog?.payments?.paymentAssetId || 31337;
+
+  const tiers = [
+    {
+      title: "People, Agents, and Devices",
+      items: [
+        {
+          title: "AI agents + API clients",
+          body: "Consume paid routes through x402 negotiation and stream reuse.",
+        },
+        {
+          title: "Owners, renters, auditors",
+          body: "Mint productive assets, rent them, and verify provenance.",
+        },
+        {
+          title: "IoT / smart access",
+          body: "Locks, vehicles, or machinery can react to live stream state.",
+        },
+      ],
+    },
+    {
+      title: "App and Service Layer",
+      items: [
+        {
+          title: "Frontend",
+          body: "Wallet connection, Docs, RWA Studio, renting, verification, and stream controls.",
+        },
+        {
+          title: "Backend + x402 middleware",
+          body: "Route catalog, paywall enforcement, IPFS pinning, verification APIs, and indexed activity.",
+        },
+        {
+          title: "Indexer + verification service",
+          body: "Reconstructs activity trails and compares QR, NFC, CID, and registry facts.",
+        },
+      ],
+    },
+    {
+      title: "Onchain Solidity Layer",
+      items: [
+        {
+          title: "FlowPayStream",
+          body: "Reusable API payment streams for x402-compatible route access.",
+        },
+        {
+          title: "RWA contract suite",
+          body: "FlowPayRWAHub + AssetNFT + AssetRegistry + AssetStream + ComplianceGuard.",
+        },
+        {
+          title: `Circle ${tokenSymbol} asset`,
+          body: `Native payment asset ${paymentAssetId} used for settlement and rental yield operations.`,
+        },
+      ],
+    },
+    {
+      title: "External Truth and Proof",
+      items: [
+        {
+          title: "IPFS metadata",
+          body: "Stores standard metadata JSON and media referenced by CID.",
+        },
+        {
+          title: "QR / NFC payloads",
+          body: "Carry verification inputs that map physical assets to onchain truth.",
+        },
+        {
+          title: "Explorer / public chain history",
+          body: "Lets anyone inspect the deployed Solidity contracts independently.",
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Full System Diagram
+      </div>
+      <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 md:p-6">
+        <div className="space-y-4">
+          {tiers.map((tier, index) => (
+            <div key={tier.title}>
+              <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-white/35">
+                {tier.title}
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                {tier.items.map((item) => (
+                  <div
+                    key={item.title}
+                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                  >
+                    <div className="text-sm font-semibold text-white">
+                      {item.title}
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-white/55">
+                      {item.body}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {index < tiers.length - 1 ? (
+                <div className="flex justify-center py-3">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200">
+                    Flows down into
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeployedContractCards({ catalog }) {
+  const explorerBase = String(
+    ACTIVE_NETWORK.explorerUrl || "https://westmint.subscan.io",
+  ).replace(/\/$/, "");
+  const contracts = getDeployedContractDescriptors(catalog);
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Live Deployed Solidity Contracts
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {contracts.map((contract) => (
+          <div
+            key={contract.name}
+            className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-white">
+                  {contract.name}
+                </div>
+                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-cyan-300">
+                  Solidity contract
+                </div>
+              </div>
+              <a
+                href={`${explorerBase}/account/${contract.address}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-xs text-white/55 transition-colors hover:text-white"
+              >
+                Explorer
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-black/25 p-3 font-mono text-xs text-cyan-200 break-all">
+              {contract.address}
+            </div>
+
+            <p className="mt-4 text-sm leading-6 text-white/60">
+              {contract.role}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-white/45">
+              {contract.note}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionButton({ section, isActive, onClick }) {
+  const Icon = section.icon || BookOpen;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "w-full rounded-2xl border px-4 py-3 text-left transition-all",
+        isActive
+          ? "border-cyan-400/40 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
+          : "border-white/8 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.05]",
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={[
+            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+            isActive
+              ? "border-cyan-400/30 bg-cyan-400/15 text-cyan-200"
+              : "border-white/10 bg-black/20 text-white/55",
+          ].join(" ")}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white">{section.title}</div>
+          <div className="mt-1 text-xs leading-5 text-white/45">
+            {section.summary}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function Docs() {
   const { catalog, isLoading, error } = useProtocolCatalog();
   const { section } = useParams();
@@ -1391,6 +1711,10 @@ export default function Docs() {
 
             <InsightGrid items={activeSection.points} />
 
+            {activeSection.id === "architecture" ? (
+              <ArchitectureDiagram catalog={catalog} />
+            ) : null}
+
             {activeSection.code ? <CodeCard code={activeSection.code} /> : null}
 
             {activeSection.steps?.length ? (
@@ -1408,6 +1732,10 @@ export default function Docs() {
                 rows={table.rows}
               />
             ))}
+
+            {activeSection.id === "architecture" ? (
+              <DeployedContractCards catalog={catalog} />
+            ) : null}
 
             <ExplorerLinks items={activeSection.links} />
 
