@@ -21,6 +21,8 @@ export interface MintAssetParams {
 }
 
 export class FlowPayRWAClient {
+    private TOKEN_APPROVAL_GAS_LIMIT = 500000n;
+    private ASSET_STREAM_CREATION_GAS_LIMIT = 1500000n;
     private apiBaseUrl: string;
     private hubAddress?: string;
     private streamAddress?: string;
@@ -110,14 +112,26 @@ export class FlowPayRWAClient {
 
         const ownerAddress = await signer.getAddress();
         const token = new Contract(this.tokenAddress, this.ERC20_ABI, signer);
-        const allowance: bigint = await token.allowance(ownerAddress, this.streamAddress);
-        if (allowance < totalAmount) {
-            const approveTx = await token.approve(this.streamAddress, totalAmount);
+        let shouldApprove = true;
+        try {
+            const allowance: bigint = await token.allowance(ownerAddress, this.streamAddress);
+            shouldApprove = allowance < totalAmount;
+        } catch (error: any) {
+            console.warn("[FlowPayRWAClient] Unable to read token allowance. Falling back to direct approval.");
+            console.warn(`[FlowPayRWAClient] Allowance read error: ${error?.shortMessage || error?.message || error}`);
+        }
+
+        if (shouldApprove) {
+            const approveTx = await token.approve(this.streamAddress, totalAmount, {
+                gasLimit: this.TOKEN_APPROVAL_GAS_LIMIT,
+            });
             await approveTx.wait();
         }
 
         const hub = new Contract(this.hubAddress, this.HUB_ABI, signer);
-        const tx = await hub.createAssetYieldStream(tokenId, totalAmount, duration);
+        const tx = await hub.createAssetYieldStream(tokenId, totalAmount, duration, {
+            gasLimit: this.ASSET_STREAM_CREATION_GAS_LIMIT,
+        });
         return tx.wait();
     }
 

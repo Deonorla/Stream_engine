@@ -1,77 +1,33 @@
 # Deployment Overview
 
-FlowPay can be deployed to various Ethereum networks.
+The supported deployment target for this repo is **Westend Asset Hub**.
 
-## Supported Networks
+## Supported Runtime
 
-| Network | Status | Chain ID |
-|---------|--------|----------|
-| Sepolia Testnet | ✅ Active | 11155111 |
-| Ethereum Mainnet | 🔜 Coming | 1 |
+| Network | Status | Chain ID | Gas | Payment Asset |
+|---------|--------|----------|-----|---------------|
+| Westend Asset Hub | Active | `420420421` | `WND` | `Circle USDC (31337)` |
 
-## Current Deployment
-
-**Sepolia Testnet:**
+## Deployed Contracts
 
 | Contract | Address |
 |----------|---------|
-| MockMNEE | `0x96B1FE54Ee89811f46ecE4a347950E0D682D3896` |
-| FlowPayStream | `0x155A00fBE3D290a8935ca4Bf5244283685Bb0035` |
+| FlowPayStream | `0x75edbf3d9857521f5fb2f581c896779f5110a8a0` |
+| FlowPayAssetNFT | `0x0340b3f493bae901f740c494b2f7744f5fffe348` |
+| FlowPayAssetRegistry | `0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f` |
+| FlowPayComplianceGuard | `0x72a979756061c5993a4c9c95e87519e9492dd721` |
+| FlowPayAssetStream | `0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396` |
+| FlowPayRWAHub | `0x1286a0fe3413dd70083df2d654677a7c39096753` |
 
-## Deployment Guides
-
-- [Sepolia Testnet](sepolia.md) - Development and testing
-- [Production Checklist](production.md) - Mainnet preparation
-
-## Quick Deploy
-
-```bash
-# Deploy to Sepolia
-npm run deploy:sepolia
-
-# Or manually
-npx hardhat run scripts/deploy.js --network sepolia
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────┐
-│           Deployment Stack              │
-├─────────────────────────────────────────┤
-│                                         │
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │  MockMNEE   │  │  FlowPayStream  │   │
-│  │  (ERC-20)   │──│  (Streaming)    │   │
-│  └─────────────┘  └─────────────────┘   │
-│         │                 │             │
-│         └────────┬────────┘             │
-│                  │                      │
-│                  ▼                      │
-│         ┌───────────────┐               │
-│         │   Ethereum    │               │
-│         │   Network     │               │
-│         └───────────────┘               │
-│                                         │
-└─────────────────────────────────────────┘
-```
-
-## Environment Variables
-
-Required for deployment:
+## Deploy Commands
 
 ```bash
-PRIVATE_KEY=0x...          # Deployer wallet
-SEPOLIA_RPC_URL=https://...  # RPC endpoint
-ETHERSCAN_API_KEY=...      # For verification (optional)
+npm run deploy:westend:substrate
+npm run deploy:rwa:westend:substrate
 ```
 
-## Post-Deployment
+## Notes
 
-After deploying:
-
-1. **Verify contracts** on Etherscan
-2. **Update frontend** with new addresses
-3. **Update SDK** configuration
-4. **Test** all functionality
-5. **Document** deployment details
+- the verified path uses native Substrate `revive` reads and writes
+- Circle test USDC lives on Westend Asset Hub as asset id `31337`
+- legacy `westmint` script names still exist as aliases for compatibility

@@ -75,7 +75,7 @@ export default function AgentConsolePage() {
     isInitialLoad,
     outgoingStreams,
     incomingStreams,
-    mneeBalance,
+    paymentBalance,
     getNetworkName,
     chainId,
     contractWithProvider,
@@ -172,13 +172,13 @@ export default function AgentConsolePage() {
     { icon: Bot, label: 'Agent ID', value: agentConfig.agentId || 'Unassigned', color: 'flowpay' },
     { icon: RefreshCw, label: 'Protected Routes', value: serviceEndpoints.length, color: 'accent' },
     { icon: Play, label: 'Active Streams', value: outgoingStreams.filter((stream) => stream.isActive).length, color: 'success' },
-    { icon: StopCircle, label: 'Wallet Balance', value: `${Number(mneeBalance).toFixed(2)} ${paymentTokenSymbol}`, color: 'warning' },
-  ]), [agentConfig.agentId, mneeBalance, outgoingStreams, serviceEndpoints.length]);
+    { icon: StopCircle, label: 'Wallet Balance', value: `${Number(paymentBalance).toFixed(2)} ${paymentTokenSymbol}`, color: 'warning' },
+  ]), [agentConfig.agentId, paymentBalance, outgoingStreams, serviceEndpoints.length]);
 
   const alerts = useMemo(() => {
     const nextAlerts = [];
     const dailyLimit = Number(agentConfig.spendingLimits?.daily || agentConfig.spendingLimits?.dailyLimit || 0);
-    const balance = Number(mneeBalance || 0);
+    const balance = Number(paymentBalance || 0);
 
     if (dailyLimit > 0 && spending.daily >= dailyLimit * 0.75) {
       nextAlerts.push({
@@ -222,7 +222,7 @@ export default function AgentConsolePage() {
     }
 
     return nextAlerts;
-  }, [agentConfig.spendingLimits, catalogError, mneeBalance, outgoingStreams, spending.daily]);
+  }, [agentConfig.spendingLimits, catalogError, paymentBalance, outgoingStreams, spending.daily]);
 
   const healthChecks = useMemo(() => ([
     { name: 'Wallet Connected', status: walletAddress ? 'ok' : 'error' },

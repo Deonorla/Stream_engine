@@ -1,39 +1,33 @@
 # Smart Contracts
 
-FlowPay uses two main smart contracts deployed on Ethereum Sepolia.
+Stream Engine uses Solidity contracts deployed on **Westend Asset Hub**.
 
-## Deployed Contracts
+## Payment Rail
 
-| Contract | Address | Description |
-|----------|---------|-------------|
-| FlowPayStream | `0x155A00fBE3D290a8935ca4Bf5244283685Bb0035` | Payment streaming |
-| MockMNEE | `0x96B1FE54Ee89811f46ecE4a347950E0D682D3896` | Test ERC-20 token |
+| Contract | Purpose |
+|----------|---------|
+| `FlowPayStream` | reusable payment streams for x402-protected services |
 
-## Contract Overview
+## RWA Suite
 
-### FlowPayStream
+| Contract | Purpose |
+|----------|---------|
+| `FlowPayAssetNFT` | rental asset NFT |
+| `FlowPayAssetRegistry` | provenance and verification hashes |
+| `FlowPayComplianceGuard` | compliance / freeze state |
+| `FlowPayAssetStream` | asset-bound yield streams |
+| `FlowPayRWAHub` | orchestration layer |
 
-The core payment streaming contract that enables:
-- Creating payment streams
-- Withdrawing streamed funds
-- Cancelling streams
-- Querying stream state
+## Payment Asset
 
-### MockMNEE
+The contracts use **Circle USDC** on Westend Asset Hub:
 
-A test ERC-20 token for development:
-- Standard ERC-20 interface
-- Public mint function
-- 18 decimals
-
-## Verification
-
-Contracts are verified on Sepolia Etherscan:
-- [FlowPayStream on Etherscan](https://sepolia.etherscan.io/address/0x155A00fBE3D290a8935ca4Bf5244283685Bb0035)
-- [MockMNEE on Etherscan](https://sepolia.etherscan.io/address/0x96B1FE54Ee89811f46ecE4a347950E0D682D3896)
+- asset id: `31337`
+- decimals: `6`
+- precompile: `0x00007a6900000000000000000000000001200000`
 
 ## Next Steps
 
 - [FlowPayStream Details](flowpaystream.md)
-- [MockMNEE Details](mock-mnee.md)
+- [Circle USDC Integration](circle-usdc.md)
 - [Events & Errors](events-errors.md)

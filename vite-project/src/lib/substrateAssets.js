@@ -253,21 +253,47 @@ function evmToSubstrateAccountId(evmAddress) {
  */
 export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAddress, amount) {
   const { ApiPromise, WsProvider } = await import('@polkadot/api');
-  const { web3Enable, web3FromAddress, web3Accounts } = await import('@polkadot/extension-dapp');
-
-  await web3Enable('Stream Engine');
+  const injectedWeb3 = window.injectedWeb3 || {};
+  const extensionEntries = Object.entries(injectedWeb3);
+  if (!extensionEntries.length) {
+    throw new Error('No Substrate wallet extension is available for native asset approval.');
+  }
 
   const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
+  const mappedAccountId = evmToSubstrateAccountId(evmAddress);
+  const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
 
-  const accounts = await web3Accounts();
+  const enabledExtensions = (await Promise.all(
+    extensionEntries.map(async ([source, extension]) => {
+      try {
+        const injected = await extension.enable('Stream Engine');
+        const accounts = await injected.accounts.get();
+        return accounts.map((account) => ({
+          ...account,
+          source,
+          injected,
+        }));
+      } catch {
+        return [];
+      }
+    }),
+  )).flat();
+
+  const accounts = enabledExtensions;
   const account = accounts.find(
     (a) => a.meta?.ethereum?.toLowerCase() === evmAddress.toLowerCase()
+      || a.address?.toLowerCase() === mappedAccountAddress.toLowerCase()
       || a.address?.toLowerCase() === evmAddress.toLowerCase()
-  ) || accounts[0];
+  );
 
-  if (!account) throw new Error('No Substrate account found for this EVM address');
+  if (!account) {
+    throw new Error(`No Substrate account found for EVM wallet ${evmAddress}. Connect the mapped account ${mappedAccountAddress} in Talisman or polkadot.js.`);
+  }
 
-  const injector = await web3FromAddress(account.address);
+  const injector = account.injected;
+  if (!injector?.signer) {
+    throw new Error(`Substrate signer is unavailable for account ${account.address}`);
+  }
 
   // Convert 20-byte EVM spender address to 32-byte AccountId
   const spenderAccountId = evmToSubstrateAccountId(spenderEvmAddress);

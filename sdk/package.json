@@ -1,7 +1,7 @@
 {
-    "name": "flowpay-sdk",
+    "name": "stream-engine-sdk",
     "version": "1.0.0",
-    "description": "TypeScript SDK for FlowPay negotiation - The Streaming Extension for x402",
+    "description": "TypeScript SDK for Stream Engine x402 negotiation and stream settlement",
     "main": "dist/FlowPaySDK.js",
     "types": "dist/FlowPaySDK.d.ts",
     "scripts": {

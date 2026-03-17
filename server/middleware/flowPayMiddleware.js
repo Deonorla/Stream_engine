@@ -20,7 +20,7 @@ const {
  * @param {string} config.privateKey Optional private key for server-side signing if needed (not used for verification)
  */
 const flowPayMiddleware = (config) => {
-    const paymentTokenAddress = config.paymentTokenAddress || config.mneeAddress || '';
+    const paymentTokenAddress = config.paymentTokenAddress || '';
     const tokenSymbol = config.tokenSymbol || 'USDC';
     const tokenDecimals = Number.isFinite(Number(config.tokenDecimals)) ? Number(config.tokenDecimals) : 6;
     const useSubstrateReads = Boolean(
@@ -210,7 +210,7 @@ const flowPayMiddleware = (config) => {
 };
 
 function send402Response(res, routeConfig, config, requiredAmount) {
-    const paymentTokenAddress = config.paymentTokenAddress || config.mneeAddress || '';
+    const paymentTokenAddress = config.paymentTokenAddress || '';
     const tokenSymbol = config.tokenSymbol || 'USDC';
     const tokenDecimals = Number.isFinite(Number(config.tokenDecimals)) ? Number(config.tokenDecimals) : 6;
 
@@ -220,7 +220,6 @@ function send402Response(res, routeConfig, config, requiredAmount) {
     res.set('X-FlowPay-Token', paymentTokenAddress);
     res.set('X-FlowPay-Token-Decimals', String(tokenDecimals));
     res.set('X-Payment-Currency', tokenSymbol);
-    res.set('X-MNEE-Address', paymentTokenAddress);
     res.set('X-FlowPay-Contract', config.flowPayContractAddress || '');
     res.set('X-FlowPay-Recipient', config.recipientAddress || '');
 

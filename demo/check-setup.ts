@@ -1,103 +1,88 @@
 /**
  * Quick setup verification script
- * Run: npx ts-node demo/check-setup.ts
+ * Run: npx ts-node --project demo/tsconfig.json demo/check-setup.ts
  */
-import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
+import { ethers } from 'ethers';
 
 dotenv.config();
 
-const FLOWPAYSTREAM_ADDRESS = '0x155A00fBE3D290a8935ca4Bf5244283685Bb0035';
-const MOCK_MNEE_ADDRESS = '0x96B1FE54Ee89811f46ecE4a347950E0D682D3896';
-// Use a more reliable RPC endpoint
-const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createFlowPayRuntimeConfig } = require('../utils/polkadot');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createSubstrateApi, loadSubstrateSigner } = require('../utils/substrate');
 
-async function checkSetup() {
-    console.log("🔍 FlowPay Demo Setup Check\n");
-
-    // 1. Check environment variables
-    console.log("1️⃣  Environment Variables:");
-    const privateKey = process.env.PRIVATE_KEY_1;
-    const geminiKey = process.env.GEMINI_API_KEY;
-
-    if (privateKey) {
-        console.log("   ✅ PRIVATE_KEY_1: Found");
-    } else {
-        console.log("   ❌ PRIVATE_KEY_1: Missing - Add to .env file");
-    }
-
-    if (geminiKey) {
-        console.log("   ✅ GEMINI_API_KEY: Found");
-    } else {
-        console.log("   ⚠️  GEMINI_API_KEY: Missing - AI features will use fallback heuristics");
-    }
-
-    if (!privateKey) {
-        console.log("\n❌ Cannot continue without PRIVATE_KEY_1");
-        return;
-    }
-
-    // 2. Check network connection
-    console.log("\n2️⃣  Network Connection:");
-    try {
-        const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-        const network = await provider.getNetwork();
-        console.log(`   ✅ Connected to: ${network.name} (chainId: ${network.chainId})`);
-    } catch (e: any) {
-        console.log(`   ❌ Failed to connect: ${e.message}`);
-        return;
-    }
-
-    // 3. Check wallet
-    console.log("\n3️⃣  Wallet:");
-    const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-    const wallet = new ethers.Wallet(
-        privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`,
-        provider
-    );
-    console.log(`   📍 Address: ${wallet.address}`);
-
-    // 4. Check ETH balance (for gas)
-    const ethBalance = await provider.getBalance(wallet.address);
-    console.log(`   ⛽ ETH Balance: ${ethers.formatEther(ethBalance)} ETH`);
-    if (ethBalance < ethers.parseEther("0.01")) {
-        console.log("   ⚠️  Low ETH balance - Get Sepolia ETH from a faucet");
-    }
-
-    // 5. Check MNEE balance
-    console.log("\n4️⃣  MNEE Token:");
-    const mneeContract = new ethers.Contract(
-        MOCK_MNEE_ADDRESS,
-        ['function balanceOf(address) view returns (uint256)'],
-        provider
-    );
-    const mneeBalance = await mneeContract.balanceOf(wallet.address);
-    console.log(`   💰 MNEE Balance: ${ethers.formatEther(mneeBalance)} MNEE`);
-    if (mneeBalance < ethers.parseEther("1")) {
-        console.log("   ⚠️  Low MNEE balance - Demo will auto-mint or use frontend to mint");
-    }
-
-    // 6. Check contracts exist
-    console.log("\n5️⃣  Contracts:");
-    const flowPayStreamCode = await provider.getCode(FLOWPAYSTREAM_ADDRESS);
-    const mneeCode = await provider.getCode(MOCK_MNEE_ADDRESS);
-
-    if (flowPayStreamCode !== '0x') {
-        console.log(`   ✅ FlowPayStream: ${FLOWPAYSTREAM_ADDRESS}`);
-    } else {
-        console.log(`   ❌ FlowPayStream not deployed at ${FLOWPAYSTREAM_ADDRESS}`);
-    }
-
-    if (mneeCode !== '0x') {
-        console.log(`   ✅ MockMNEE: ${MOCK_MNEE_ADDRESS}`);
-    } else {
-        console.log(`   ❌ MockMNEE not deployed at ${MOCK_MNEE_ADDRESS}`);
-    }
-
-    console.log("\n✅ Setup check complete!");
-    console.log("\nTo run the demo:");
-    console.log("   Terminal 1: npx ts-node demo/provider.ts");
-    console.log("   Terminal 2: npx ts-node demo/consumer.ts");
+function requireEnv(name: string) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required`);
+  }
+  return value;
 }
 
-checkSetup().catch(console.error);
+async function getAssetBalance(api: any, assetId: number, account: string) {
+  const assetAccount = await api.query.assets.account(assetId, account);
+  if (assetAccount.isNone) {
+    return 0n;
+  }
+  return BigInt(assetAccount.unwrap().balance.toString());
+}
+
+async function checkSetup() {
+  const runtime = createFlowPayRuntimeConfig();
+  const provider = new ethers.JsonRpcProvider(runtime.rpcUrl);
+  const isWestendAssetHub = Number(runtime.chainId) === 420420421 || runtime.networkName === 'Westend Asset Hub';
+
+  console.log('Stream Engine demo setup check\n');
+
+  console.log('1. Environment');
+  console.log(`   FLOWPAY_CONTRACT_ADDRESS: ${process.env.FLOWPAY_CONTRACT_ADDRESS ? 'Found' : 'Missing'}`);
+  console.log(`   FLOWPAY_PAYMENT_TOKEN_ADDRESS: ${process.env.FLOWPAY_PAYMENT_TOKEN_ADDRESS ? 'Found' : 'Missing'}`);
+  console.log(`   FLOWPAY_RECIPIENT_ADDRESS: ${process.env.FLOWPAY_RECIPIENT_ADDRESS ? 'Found' : 'Missing'}`);
+  console.log(`   SUBSTRATE_PASSWORD: ${process.env.SUBSTRATE_PASSWORD ? 'Found' : 'Missing'}`);
+  console.log(`   GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'Found' : 'Missing (fallback heuristics only)'}`);
+
+  requireEnv('FLOWPAY_CONTRACT_ADDRESS');
+  requireEnv('FLOWPAY_PAYMENT_TOKEN_ADDRESS');
+  requireEnv('FLOWPAY_RECIPIENT_ADDRESS');
+  requireEnv('SUBSTRATE_PASSWORD');
+
+  console.log('\n2. Network');
+  const network = await provider.getNetwork();
+  console.log(`   Connected to: ${runtime.networkName}`);
+  console.log(`   Chain ID: ${network.chainId}`);
+  console.log(`   RPC URL: ${runtime.rpcUrl}`);
+
+  console.log('\n3. Contracts');
+  const contractCode = await provider.getCode(process.env.FLOWPAY_CONTRACT_ADDRESS!);
+  const tokenCode = await provider.getCode(process.env.FLOWPAY_PAYMENT_TOKEN_ADDRESS!);
+  console.log(`   Stream contract deployed: ${contractCode !== '0x' ? 'Yes' : 'No'}`);
+  console.log(`   Payment token reachable: ${tokenCode !== '0x' ? 'Yes' : 'No'}`);
+
+  console.log('\n4. Substrate signer');
+  const { api } = await createSubstrateApi();
+  try {
+    const { pair, evmAddress } = await loadSubstrateSigner();
+    const systemAccount = await api.query.system.account(pair.address);
+    const usdcBalance = await getAssetBalance(api, runtime.paymentAssetId, pair.address);
+    console.log(`   Substrate account: ${pair.address}`);
+    console.log(`   Mapped EVM alias: ${evmAddress}`);
+    console.log(`   WND balance: ${ethers.formatUnits(systemAccount.data.free.toString(), 18)} WND`);
+    console.log(`   ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(usdcBalance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
+    if (isWestendAssetHub) {
+      console.log('   Recommended CLI demo mode: substrate');
+      console.log('   Note: the Westend ETH-RPC path is not reliable for native Circle USDC precompile calls in this demo.');
+    }
+  } finally {
+    await api.disconnect();
+  }
+
+  console.log('\n5. Demo commands');
+  console.log('   Terminal 1: npx ts-node --project demo/tsconfig.json demo/provider.ts');
+  console.log('   Terminal 2: npx ts-node --project demo/tsconfig.json demo/consumer.ts');
+}
+
+checkSetup().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

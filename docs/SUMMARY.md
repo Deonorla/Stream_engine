@@ -20,7 +20,7 @@
 
 * [Overview](contracts/README.md)
 * [FlowPayStream](contracts/flowpaystream.md)
-* [MockMNEE Token](contracts/mock-mnee.md)
+* [Circle USDC Integration](contracts/circle-usdc.md)
 * [Events & Errors](contracts/events-errors.md)
 
 ## SDK Reference
@@ -41,7 +41,7 @@
 ## Deployment
 
 * [Overview](deployment/README.md)
-* [Sepolia Testnet](deployment/sepolia.md)
+* [Westend Asset Hub](deployment/westend.md)
 * [Production Checklist](deployment/production.md)
 
 ## Guides

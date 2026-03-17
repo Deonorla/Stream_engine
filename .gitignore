@@ -16,6 +16,7 @@ ignition/deployments/
 # Local chain and wallet data
 /substrate.json
 /substrate-*.json
+/substrate*.json
 *.pem
 *.key
 *.crt

@@ -1,4 +1,4 @@
-// Polkadot-only chain strip — no Aptos, no MNEE
+// Polkadot-only chain strip
 const ITEMS = [
   { icon: '🔴', label: 'Polkadot'        },
   { icon: '⚡', label: 'x402 Protocol'   },

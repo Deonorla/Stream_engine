@@ -178,9 +178,9 @@ function shortAddress(address = '') {
 
 export default function Streams() {
   const {
-    walletAddress, mneeBalance, isProcessing, isInitialLoad, isLoadingStreams,
+    walletAddress, paymentBalance, isProcessing, isInitialLoad, isLoadingStreams,
     incomingStreams, setIncomingStreams, outgoingStreams,
-    fetchMneeBalance, createStream, withdraw, cancel,
+    fetchPaymentBalance, createStream, withdraw, cancel,
     formatEth, getClaimableBalance, setStatus, toast
   } = useWallet();
   const { catalog } = useProtocolCatalog();
@@ -362,7 +362,7 @@ export default function Streams() {
               <Coins className="w-5 h-5" /> {paymentTokenDisplayName} Balance
             </h3>
             <p className="text-2xl font-mono text-cyan-300">
-              {Number(mneeBalance).toLocaleString(undefined, { maximumFractionDigits: 4 })} {paymentTokenSymbol}
+              {Number(paymentBalance).toLocaleString(undefined, { maximumFractionDigits: 4 })} {paymentTokenSymbol}
             </p>
             <p className="text-xs text-white/50 mt-1 font-mono truncate">
               Token: {paymentTokenAddress}
@@ -372,7 +372,7 @@ export default function Streams() {
             <button
               type="button"
               className="btn-default min-h-[44px] px-4"
-              onClick={fetchMneeBalance}
+              onClick={fetchPaymentBalance}
               disabled={isProcessing}
             >
               Refresh

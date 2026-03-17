@@ -1,6 +1,6 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("dotenv").config();
-const { createFlowPayRuntimeConfig, createWestmintRuntimeConfig } = require("./utils/polkadot");
+const { createFlowPayRuntimeConfig, createWestendRuntimeConfig } = require("./utils/polkadot");
 
 const usePolkadotToolchain = process.env.FLOWPAY_USE_POLKADOT_SOLIDITY_TOOLCHAIN === "true";
 if (usePolkadotToolchain) {
@@ -11,34 +11,35 @@ const solidityVersion = usePolkadotToolchain
   : "0.8.20";
 
 const flowPayRuntime = createFlowPayRuntimeConfig();
-const westmintRuntime = createWestmintRuntimeConfig();
+const westendRuntime = createWestendRuntimeConfig();
 
 const baseNetworks = {
-  sepolia: {
-    url: process.env.SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
-    accounts:
-      process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    chainId: 11155111,
-  },
   polkadot: {
     url: flowPayRuntime.rpcUrl,
     accounts:
       process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     chainId: flowPayRuntime.chainId,
   },
-  westmint: {
-    url: westmintRuntime.rpcUrl,
+  westend: {
+    url: westendRuntime.rpcUrl,
     accounts:
       process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
-    chainId: westmintRuntime.chainId,
+    chainId: westendRuntime.chainId,
   },
 };
 
+baseNetworks.westmint = baseNetworks.westend;
+
 const networks = usePolkadotToolchain
   ? {
-      sepolia: baseNetworks.sepolia,
       polkadot: {
         ...baseNetworks.polkadot,
+        polkadot: {
+          target: "evm",
+        },
+      },
+      westend: {
+        ...baseNetworks.westend,
         polkadot: {
           target: "evm",
         },

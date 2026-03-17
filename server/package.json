@@ -1,7 +1,7 @@
 {
-    "name": "flowpay-middleware-server",
+    "name": "stream-engine-server",
     "version": "1.0.0",
-    "description": "x402 Express Middleware server for FlowPay",
+    "description": "x402 Express middleware server for Stream Engine",
     "main": "index.js",
     "scripts": {
         "start": "node index.js",

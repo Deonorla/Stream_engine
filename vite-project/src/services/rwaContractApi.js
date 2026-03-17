@@ -1,4 +1,10 @@
 import { Contract, ethers } from 'ethers';
+import { ACTIVE_NETWORK } from '../networkConfig.js';
+import { paymentAssetId } from '../contactInfo.js';
+import { substrateApproveTransfer } from '../lib/substrateAssets.js';
+
+const TOKEN_APPROVAL_GAS_LIMIT = 500000n;
+const ASSET_STREAM_CREATION_GAS_LIMIT = 1500000n;
 
 const HUB_ABI = [
   'function createAssetYieldStream(uint256 tokenId, uint256 totalAmount, uint256 duration) external returns (uint256)',
@@ -44,15 +50,49 @@ export async function approveAndCreateAssetYieldStream({
   requireAddress('RWA hub address', hubAddress);
 
   const ownerAddress = await signer.getAddress();
-  const token = new Contract(tokenAddress, ERC20_ABI, signer);
-  const allowance = await token.allowance(ownerAddress, streamAddress);
-  if (allowance < totalAmount) {
-    const approveTx = await token.approve(streamAddress, totalAmount);
-    await approveTx.wait();
+  if (ACTIVE_NETWORK.chainId === 420420421) {
+    try {
+      await substrateApproveTransfer(ownerAddress, paymentAssetId, streamAddress, totalAmount);
+    } catch (error) {
+      console.warn('[rwaContractApi] Native asset approval failed. Falling back to EVM approval.', error);
+      const token = new Contract(tokenAddress, ERC20_ABI, signer);
+      let shouldApprove = true;
+      try {
+        const allowance = await token.allowance(ownerAddress, streamAddress);
+        shouldApprove = allowance < totalAmount;
+      } catch (allowanceError) {
+        console.warn('[rwaContractApi] Unable to read token allowance. Falling back to direct approval.', allowanceError);
+      }
+
+      if (shouldApprove) {
+        const approveTx = await token.approve(streamAddress, totalAmount, {
+          gasLimit: TOKEN_APPROVAL_GAS_LIMIT,
+        });
+        await approveTx.wait();
+      }
+    }
+  } else {
+    const token = new Contract(tokenAddress, ERC20_ABI, signer);
+    let shouldApprove = true;
+    try {
+      const allowance = await token.allowance(ownerAddress, streamAddress);
+      shouldApprove = allowance < totalAmount;
+    } catch (error) {
+      console.warn('[rwaContractApi] Unable to read token allowance. Falling back to direct approval.', error);
+    }
+
+    if (shouldApprove) {
+      const approveTx = await token.approve(streamAddress, totalAmount, {
+        gasLimit: TOKEN_APPROVAL_GAS_LIMIT,
+      });
+      await approveTx.wait();
+    }
   }
 
   const hub = new Contract(hubAddress, HUB_ABI, signer);
-  const tx = await hub.createAssetYieldStream(tokenId, totalAmount, duration);
+  const tx = await hub.createAssetYieldStream(tokenId, totalAmount, duration, {
+    gasLimit: ASSET_STREAM_CREATION_GAS_LIMIT,
+  });
   return tx.wait();
 }
 
@@ -111,4 +151,3 @@ export async function readClaimableYield({ provider, hubAddress, tokenId }) {
   const hub = new Contract(hubAddress, HUB_ABI, provider);
   return hub.claimableYield(tokenId);
 }
-

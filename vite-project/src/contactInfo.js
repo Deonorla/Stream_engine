@@ -8,11 +8,7 @@ export const contractAddress = env.VITE_CONTRACT_ADDRESS
   || '0x75edbf3d9857521f5fb2f581c896779f5110a8a0';
 
 export const paymentTokenAddress = env.VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS
-  || env.VITE_MNEE_TOKEN_ADDRESS
   || '0x00007a6900000000000000000000000001200000';
-
-// Compatibility export for older components that still import `mneeTokenAddress`.
-export const mneeTokenAddress = paymentTokenAddress;
 
 export const paymentTokenSymbol = env.VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL || 'USDC';
 export const paymentTokenDisplayName = env.VITE_FLOWPAY_PAYMENT_TOKEN_NAME || 'Circle USDC';
@@ -23,7 +19,7 @@ export const rwaApiBaseUrl = env.VITE_RWA_API_URL || 'http://localhost:3001';
 // 2. Uses the Vercel Environment Variable for the ABI if it exists, otherwise falls back to the hardcoded ABI.
 const hardcodedABI = [
   {
-    "inputs": [{ "internalType": "address", "name": "_mneeToken", "type": "address" }],
+    "inputs": [{ "internalType": "address", "name": "_paymentToken", "type": "address" }],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -105,7 +101,7 @@ const hardcodedABI = [
   },
   {
     "inputs": [],
-    "name": "mneeToken",
+    "name": "paymentToken",
     "outputs": [{ "internalType": "contract IERC20", "name": "", "type": "address" }],
     "stateMutability": "view",
     "type": "function"
@@ -134,7 +130,7 @@ export const contractABI = (typeof import.meta !== 'undefined' && import.meta.en
   : hardcodedABI;
 
 // Circle USDC precompile ABI subset.
-export const mneeTokenABI = [
+export const paymentTokenABI = [
   {
     "inputs": [],
     "stateMutability": "nonpayable",
@@ -195,16 +191,6 @@ export const mneeTokenABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      { "internalType": "address", "name": "to", "type": "address" },
-      { "internalType": "uint256", "name": "amount", "type": "uint256" }
-    ],
-    "name": "mint",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "name",
     "outputs": [{ "internalType": "string", "name": "", "type": "string" }],
@@ -247,5 +233,3 @@ export const mneeTokenABI = [
     "type": "function"
   }
 ];
-
-export const paymentTokenABI = mneeTokenABI;

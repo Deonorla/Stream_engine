@@ -1,142 +1,245 @@
+import fs from 'fs';
+import path from 'path';
 import { FlowPaySDK } from '../sdk/src/FlowPaySDK';
+import { FlowPaySubstrateAdapter } from '../sdk/src/FlowPaySubstrateAdapter';
 import { ethers } from 'ethers';
 import * as dotenv from 'dotenv';
 
-// Load environment variables
 dotenv.config();
 
-// Contract addresses on Sepolia
-const FLOWPAYSTREAM_ADDRESS = '0x155A00fBE3D290a8935ca4Bf5244283685Bb0035';
-const MOCK_MNEE_ADDRESS = '0x96B1FE54Ee89811f46ecE4a347950E0D682D3896';
-// Use a more reliable RPC endpoint
-const SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createFlowPayRuntimeConfig } = require('../utils/polkadot');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { createSubstrateApi, loadSubstrateSigner } = require('../utils/substrate');
 
-/**
- * Demo Consumer: "The AI Agent Application"
- * 
- * This demonstrates an AI agent that:
- * 1. Connects to Sepolia testnet with a real wallet
- * 2. Automatically negotiates x402 payments
- * 3. Creates real MNEE payment streams on-chain
- * 4. Accesses premium API content
- */
-async function runDemo() {
-    console.log("🚀 Starting FlowPay Demo Consumer (Real Blockchain Mode)...\n");
-
-    // Get private key from environment
-    const privateKey = process.env.PRIVATE_KEY_1;
-    if (!privateKey) {
-        throw new Error("PRIVATE_KEY_1 not found in .env file");
-    }
-
-    // Verify Gemini API key is available
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
-        console.warn("⚠️  GEMINI_API_KEY not found - AI decision features will be limited");
-    }
-
-    // 1. Initialize SDK with real Sepolia configuration
-    console.log("📡 Connecting to Sepolia testnet...");
-    const sdk = new FlowPaySDK({
-        privateKey: privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`,
-        rpcUrl: SEPOLIA_RPC_URL,
-        agentId: 'Demo-Consumer-Agent-v1',
-        spendingLimits: {
-            dailyLimit: ethers.parseEther("100"),  // 100 MNEE daily limit
-            totalLimit: ethers.parseEther("1000") // 1000 MNEE total limit
-        }
-    });
-
-    // Get wallet address
-    const provider = new ethers.JsonRpcProvider(SEPOLIA_RPC_URL);
-    const wallet = new ethers.Wallet(privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`, provider);
-    console.log(`✅ Agent Wallet: ${wallet.address}`);
-
-    // 2. Check MNEE balance before starting
-    console.log("\n--- Checking MNEE Balance ---");
-    const mneeContract = new ethers.Contract(
-        MOCK_MNEE_ADDRESS,
-        ['function balanceOf(address) view returns (uint256)', 'function mint(address, uint256)'],
-        wallet
-    );
-
-    let balance = await mneeContract.balanceOf(wallet.address);
-    console.log(`💰 Current MNEE Balance: ${ethers.formatEther(balance)} MNEE`);
-
-    // If balance is low, mint some test tokens
-    if (balance < ethers.parseEther("10")) {
-        console.log("\n⚠️  Low balance detected. Minting test MNEE tokens...");
-        try {
-            const mintTx = await mneeContract.mint(wallet.address, ethers.parseEther("100"));
-            console.log(`📝 Mint transaction: ${mintTx.hash}`);
-            await mintTx.wait();
-            balance = await mneeContract.balanceOf(wallet.address);
-            console.log(`✅ New MNEE Balance: ${ethers.formatEther(balance)} MNEE`);
-        } catch (e: any) {
-            console.error("❌ Minting failed:", e.message);
-            console.log("   You may need to get MNEE tokens from another source.");
-        }
-    }
-
-    // 3. Target the provider's premium API
-    const TARGET_URL = 'http://localhost:3005/api/premium';
-
-    console.log(`\n--- [Step 1] Making Request to ${TARGET_URL} ---`);
-    console.log("This will trigger the x402 payment flow if the provider requires payment.\n");
-
-    try {
-        // This handles the full x402 flow:
-        // 1. Initial request → 402 Payment Required
-        // 2. SDK reads payment requirements from headers
-        // 3. AI brain decides: stream vs direct payment
-        // 4. SDK approves MNEE tokens
-        // 5. SDK creates payment stream on-chain
-        // 6. SDK retries request with stream ID
-        // 7. Provider validates stream and returns content
-        const response = await sdk.makeRequest(TARGET_URL);
-        console.log("✅ REQUEST SUCCESS!");
-        console.log("📦 Response:", JSON.stringify(response.data, null, 2));
-    } catch (e: any) {
-        if (e.message.includes('ECONNREFUSED')) {
-            console.error("❌ Connection refused. Make sure the provider is running:");
-            console.error("   npx ts-node demo/provider.ts");
-        } else {
-            console.error("❌ Request Failed:", e.message);
-        }
-        return;
-    }
-
-    // 4. Demonstrate stream reuse (efficiency)
-    console.log(`\n--- [Step 2] Subsequent Requests (Stream Reuse) ---`);
-    console.log("Sending 3 rapid requests to demonstrate stream reuse...\n");
-
-    for (let i = 1; i <= 3; i++) {
-        try {
-            const response = await sdk.makeRequest(TARGET_URL);
-            console.log(`✅ Request ${i}: Success (Stream reused - no new transaction!)`);
-        } catch (e: any) {
-            console.error(`❌ Request ${i} failed:`, e.message);
-        }
-    }
-
-    // 5. Report metrics
-    const metrics = sdk.getMetrics();
-    console.log(`\n📊 Efficiency Report:`);
-    console.log(`   Total Requests Made: ${metrics.requestsSent}`);
-    console.log(`   Blockchain Transactions: ${metrics.signersTriggered}`);
-    console.log(`   ⚡ Transactions Saved: ${metrics.requestsSent - metrics.signersTriggered}`);
-
-    // 6. Final balance check
-    const finalBalance = await mneeContract.balanceOf(wallet.address);
-    console.log(`\n💰 Final MNEE Balance: ${ethers.formatEther(finalBalance)} MNEE`);
-    console.log(`   Spent: ${ethers.formatEther(balance - finalBalance)} MNEE`);
-
-    console.log("\n🎉 Demo Complete!");
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required for the demo consumer`);
+  }
+  return value;
 }
 
-// Run the demo
+async function getSubstrateUsdcBalance(assetId: number, account: string): Promise<bigint> {
+  const { api } = await createSubstrateApi();
+  try {
+    const assetAccount = await api.query.assets.account(assetId, account);
+    if (assetAccount.isNone) {
+      return 0n;
+    }
+    return BigInt(assetAccount.unwrap().balance.toString());
+  } finally {
+    await api.disconnect();
+  }
+}
+
+function resolveAccountJson() {
+  const jsonPath = process.env.SUBSTRATE_JSON_PATH || './substrate.json';
+  const absolutePath = path.isAbsolute(jsonPath) ? jsonPath : path.resolve(process.cwd(), jsonPath);
+  return fs.readFileSync(absolutePath, 'utf8');
+}
+
+function hasSubstrateSignerConfig() {
+  return Boolean(process.env.SUBSTRATE_SURI)
+    || Boolean(process.env.SUBSTRATE_JSON_PATH)
+    || fs.existsSync(path.resolve(process.cwd(), 'substrate.json'));
+}
+
+function isWestendAssetHub(runtime: any) {
+  return Number(runtime.chainId) === 420420421 || runtime.networkName === 'Westend Asset Hub';
+}
+
+async function resolveSignerMode(runtime: any, hasPrivateKey: boolean): Promise<'substrate' | 'evm'> {
+  const requestedMode = (process.env.DEMO_SIGNER_MODE || '').trim().toLowerCase();
+  const substrateAvailable = hasSubstrateSignerConfig();
+
+  if (requestedMode === 'substrate') {
+    return 'substrate';
+  }
+  if (requestedMode === 'evm') {
+    return 'evm';
+  }
+
+  if (process.env.DEMO_USE_SUBSTRATE_ADAPTER === 'true') {
+    return 'substrate';
+  }
+  if (process.env.DEMO_USE_SUBSTRATE_ADAPTER === 'false') {
+    return 'evm';
+  }
+
+  if (!substrateAvailable) {
+    return 'evm';
+  }
+  if (!hasPrivateKey) {
+    return 'substrate';
+  }
+
+  if (isWestendAssetHub(runtime)) {
+    return 'substrate';
+  }
+
+  const { api } = await createSubstrateApi();
+  try {
+    const { pair } = await loadSubstrateSigner();
+    const systemAccount = await api.query.system.account(pair.address);
+    const assetAccount = await api.query.assets.account(runtime.paymentAssetId, pair.address);
+    const wndBalance = BigInt(systemAccount.data.free.toString());
+    const usdcBalance = assetAccount.isNone ? 0n : BigInt(assetAccount.unwrap().balance.toString());
+
+    if (wndBalance > 0n && usdcBalance > 0n) {
+      return 'substrate';
+    }
+    return 'evm';
+  } finally {
+    await api.disconnect();
+  }
+}
+
+/**
+ * Demo Consumer: agentic x402 client
+ *
+ * This demonstrates an AI agent that:
+ * 1. calls a protected API route
+ * 2. receives HTTP 402 with payment terms
+ * 3. opens a reusable stream if needed
+ * 4. retries automatically against the paid route
+ * 5. reuses the stream on subsequent requests
+ */
+async function runDemo() {
+  const runtime = createFlowPayRuntimeConfig();
+  const targetUrl = process.env.DEMO_TARGET_URL || 'http://127.0.0.1:3005/api/premium';
+  const privateKey = process.env.PRIVATE_KEY || '';
+  const signerMode = await resolveSignerMode(runtime, Boolean(privateKey));
+  const useSubstrateAdapter = signerMode === 'substrate';
+
+  console.log('Starting Stream Engine demo consumer...\n');
+  console.log(`Target URL: ${targetUrl}`);
+  console.log(`Network: ${runtime.networkName}`);
+  console.log(`Payment token: ${runtime.paymentTokenSymbol}`);
+  console.log(`Signer mode: ${signerMode}`);
+
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn('GEMINI_API_KEY not found. The SDK will use fallback heuristics for payment strategy.');
+  }
+
+  let sdk: FlowPaySDK;
+
+  if (useSubstrateAdapter) {
+    const adapter = new FlowPaySubstrateAdapter({
+      substrateRpcUrl: process.env.POLKADOT_SUBSTRATE_RPC_URL || process.env.SUBSTRATE_RPC_URL || 'wss://westend-asset-hub-rpc.polkadot.io',
+      accountJson: resolveAccountJson(),
+      password: requireEnv('SUBSTRATE_PASSWORD'),
+    });
+
+    const { pair, evmAddress } = await loadSubstrateSigner();
+    const usdcBalance = await getSubstrateUsdcBalance(runtime.paymentAssetId, pair.address);
+
+    console.log(`Substrate signer: ${pair.address}`);
+    console.log(`Mapped EVM alias: ${evmAddress}`);
+    console.log(`Current ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(usdcBalance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
+
+    if (usdcBalance <= 0n) {
+      throw new Error(
+        `Selected substrate signer has 0 ${runtime.paymentTokenSymbol}. Fund the substrate signer used by substrate.json (or SUBSTRATE_JSON_PATH / SUBSTRATE_SURI). On Westend Asset Hub, this CLI demo must use the native substrate signer path because the ETH-RPC path does not reliably support the Circle USDC asset precompile.`
+      );
+    }
+
+    sdk = new FlowPaySDK({
+      rpcUrl: runtime.rpcUrl,
+      agentId: 'stream-engine-demo-agent',
+      adapter,
+      token: {
+        symbol: runtime.paymentTokenSymbol,
+        decimals: runtime.paymentTokenDecimals,
+      },
+      spendingLimits: {
+        dailyLimit: ethers.parseUnits('100', runtime.paymentTokenDecimals),
+        totalLimit: ethers.parseUnits('1000', runtime.paymentTokenDecimals),
+      },
+    });
+  } else {
+    if (!privateKey) {
+      throw new Error('Set PRIVATE_KEY or provide substrate signer env vars for the demo consumer.');
+    }
+
+    if (isWestendAssetHub(runtime)) {
+      throw new Error(
+        'EVM signer mode is not supported for this CLI demo on Westend Asset Hub. The current ETH-RPC path rejects native Circle USDC precompile calls and raw approve transactions. Fund a substrate signer and run with DEMO_SIGNER_MODE=substrate instead.'
+      );
+    }
+
+    const normalizedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
+    const provider = new ethers.JsonRpcProvider(runtime.rpcUrl);
+    const wallet = new ethers.Wallet(normalizedKey, provider);
+    const tokenContract = new ethers.Contract(
+      runtime.paymentTokenAddress,
+      ['function balanceOf(address) view returns (uint256)'],
+      provider
+    );
+    console.log(`EVM signer: ${wallet.address}`);
+    try {
+      const balance = await tokenContract.balanceOf(wallet.address);
+      console.log(`Current ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(balance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
+    } catch (error: any) {
+      console.warn(`Unable to read ${runtime.paymentTokenSymbol} balance through ETH RPC on this network. Continuing with EVM signer.`);
+      console.warn(`Balance read error: ${error?.shortMessage || error?.message || error}`);
+    }
+
+    sdk = new FlowPaySDK({
+      privateKey: normalizedKey,
+      rpcUrl: runtime.rpcUrl,
+      agentId: 'stream-engine-demo-agent',
+      token: {
+        symbol: runtime.paymentTokenSymbol,
+        decimals: runtime.paymentTokenDecimals,
+      },
+      spendingLimits: {
+        dailyLimit: ethers.parseUnits('100', runtime.paymentTokenDecimals),
+        totalLimit: ethers.parseUnits('1000', runtime.paymentTokenDecimals),
+      },
+    });
+  }
+
+  console.log('\n[Step 1] Initial paid request');
+  console.log('This should trigger the x402 flow, create or reuse a stream, then retry automatically.\n');
+
+  try {
+    const response = await sdk.makeRequest(targetUrl);
+    console.log('Request succeeded.');
+    console.log(JSON.stringify(response.data, null, 2));
+  } catch (e: any) {
+    if (e.message?.includes('ECONNREFUSED')) {
+      console.error('Connection refused. Start the provider first:');
+      console.error('   npx ts-node --project demo/tsconfig.json demo/provider.ts');
+      return;
+    }
+
+    throw e;
+  }
+
+  console.log('\n[Step 2] Rapid follow-up requests');
+  console.log('These should reuse the existing stream instead of opening a new one.\n');
+
+  for (let i = 1; i <= 3; i += 1) {
+    const response = await sdk.makeRequest(targetUrl);
+    console.log(`Request ${i}: success`);
+    console.log(`   paidWith: ${response.data?.paidWith || `stream:${response.data?.streamId}`}`);
+  }
+
+  const metrics = sdk.getMetrics();
+  console.log('\nEfficiency report:');
+  console.log(`   Total requests made: ${metrics.requestsSent}`);
+  console.log(`   Payment negotiations / signers triggered: ${metrics.signersTriggered}`);
+  console.log(`   Reuse wins: ${metrics.requestsSent - metrics.signersTriggered}`);
+
+  console.log('\nDemo complete.');
+}
+
 if (require.main === module) {
-    runDemo().catch(console.error);
+  runDemo().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }
 
 export default runDemo;

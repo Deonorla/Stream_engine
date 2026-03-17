@@ -1,50 +1,30 @@
-# FlowPay Documentation
+# Stream Engine Documentation
 
-Welcome to FlowPay - **The Streaming Extension for x402**.
+Stream Engine is an x402-compatible payment and settlement stack for AI agents and rental RWAs on **Westend Asset Hub**.
 
-FlowPay is a hybrid payment protocol that solves the N+1 Signature Problem for AI agent payments using MNEE token streams on Ethereum.
+## Current Runtime
 
-## What is FlowPay?
+| Item | Value |
+|------|-------|
+| Network | `Westend Asset Hub` |
+| Chain ID | `420420421` |
+| Gas token | `WND` |
+| Payment asset | `Circle USDC` |
+| Asset ID | `31337` |
+| Payment model | `x402` negotiation + reusable streaming settlement |
 
-FlowPay enables AI agents to pay for API services using continuous payment streams instead of individual transactions. This dramatically reduces gas costs and improves efficiency.
+## What This Docs Set Covers
 
-### Key Innovation
+- how x402 signaling works in Stream Engine
+- how reusable payment streams reduce agent payment overhead
+- how the Westend deployment is configured
+- how the SDK, middleware, and contracts fit together
+- how rental RWA minting, verification, and yield streaming work
 
-**2 on-chain transactions** (Open + Close) regardless of request volume.
+## Recommended Reading Order
 
-| Traditional Approach | FlowPay Approach |
-|---------------------|------------------|
-| 100 requests = 100 signatures | 100 requests = 2 signatures |
-| High gas costs | 95% gas savings |
-| Slow, blocking | Fast, non-blocking |
-
-## Quick Links
-
-- [Getting Started](getting-started/README.md)
-- [Architecture](architecture/README.md)
-- [Smart Contracts](contracts/README.md)
-- [SDK Reference](sdk/README.md)
-- [API Reference](api/README.md)
-- [Deployment Guide](deployment/README.md)
-
-## Current Deployment (Sepolia Testnet)
-
-| Contract | Address |
-|----------|---------|
-| MockMNEE | `0x96B1FE54Ee89811f46ecE4a347950E0D682D3896` |
-| FlowPayStream | `0x155A00fBE3D290a8935ca4Bf5244283685Bb0035` |
-
-## Features
-
-- ✅ **x402 Protocol Support** - Standard HTTP payment negotiation
-- ✅ **MNEE Token Streams** - Continuous payment flows
-- ✅ **AI-Powered Decisions** - Gemini AI chooses optimal payment mode
-- ✅ **Multi-Agent Support** - Mesh network for agent collaboration
-- ✅ **Safety Controls** - Spending limits and emergency stops
-- ✅ **Real-time Dashboard** - Monitor streams and analytics
-
-## Community
-
-- [GitHub Repository](https://github.com/your-org/flowpay)
-- [Discord Community](https://discord.gg/flowpay)
-- [Twitter](https://twitter.com/flowpay)
+1. [Getting Started](getting-started/README.md)
+2. [Architecture Overview](architecture/README.md)
+3. [Smart Contracts](contracts/README.md)
+4. [SDK Reference](sdk/README.md)
+5. [Deployment](deployment/README.md)

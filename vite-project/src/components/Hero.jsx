@@ -153,7 +153,7 @@ const StatisticsBanner = ({ stats }) => {
         <div className="text-2xl md:text-3xl font-bold text-gradient-accent">
           <AnimatedCounter end={stats.totalDOT} duration={2500} prefix="$" suffix="K" />
         </div>
-        <div className="text-xs text-white/60 mt-1">DOT Streamed</div>
+        <div className="text-xs text-white/60 mt-1">USDC Streamed</div>
       </div>
 
       <div className="text-center p-4 rounded-xl glass hover-glow">
@@ -173,7 +173,7 @@ const StatisticsBanner = ({ stats }) => {
   );
 };
 
-export default function Hero({ networkName = 'Ethereum Sepolia', stats }) {
+export default function Hero({ networkName = 'Westend Asset Hub', stats }) {
   // Default mock stats if not provided
   const defaultStats = {
     totalStreams: 1247,
@@ -212,7 +212,7 @@ export default function Hero({ networkName = 'Ethereum Sepolia', stats }) {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg md:text-xl text-white/70 leading-relaxed">
-              AI agents pay for services with continuous DOT streams.
+              AI agents pay for services with continuous Circle USDC streams.
               <span className="text-flowpay-400 font-semibold"> One signature, unlimited requests.</span>
             </p>
 

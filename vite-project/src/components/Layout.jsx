@@ -23,7 +23,7 @@ export default function Layout({ children }) {
     isWalletPickerOpen,
     availableWallets,
     activeWallet,
-    mneeBalance,
+    paymentBalance,
     status,
     isProcessing,
     isConnectingWallet,
@@ -40,7 +40,7 @@ export default function Layout({ children }) {
         onConnect={openWalletPicker}
         onManageWallets={openWalletPicker}
         walletLabel={activeWallet?.name || ''}
-        balance={mneeBalance}
+        balance={paymentBalance}
         tabs={tabs}
       />
 

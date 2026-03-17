@@ -1,4 +1,4 @@
-## FlowPay Frontend
+## Stream Engine Frontend
 Small notes:
 - Tailwind config is CJS (`tailwind.config.cjs`) for better Windows compatibility.
 - PostCSS config is CJS (`postcss.config.cjs`).
@@ -15,8 +15,12 @@ npm install
 
 Create a `.env` file in `vite-project/` with:
 ```
-VITE_CONTRACT_ADDRESS=0xYourDeployedAddress
-VITE_TARGET_CHAIN_ID=2810
+VITE_CONTRACT_ADDRESS=0x75edbf3d9857521f5fb2f581c896779f5110a8a0
+VITE_FLOWPAY_CHAIN_ID=420420421
+VITE_FLOWPAY_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
+VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
+VITE_FLOWPAY_PAYMENT_ASSET_ID=31337
+VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
 ```
 
 3. Run
@@ -30,15 +34,8 @@ npm run build
 npm run preview
 ```
 
-# React + Vite
+The frontend assumes:
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- Westend Asset Hub
+- Circle USDC as the payment asset
+- backend API at `http://localhost:3001`

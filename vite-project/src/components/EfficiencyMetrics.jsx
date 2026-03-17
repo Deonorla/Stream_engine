@@ -209,7 +209,7 @@ export function EfficiencyMetrics({ metrics }) {
                             colors={['bg-error-500 shadow-glow-error', 'bg-success-500 shadow-glow-success']}
                         />
                         <p className="mt-4 text-[10px] text-white/40 italic">
-                            Estimated based on Ethereum Sepolia current gas prices and x402 contract overhead.
+                            Estimated from current Westend Asset Hub transaction costs and Stream Engine route overhead.
                         </p>
                     </div>
 

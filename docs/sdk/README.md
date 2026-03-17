@@ -28,8 +28,10 @@ import { FlowPaySDK } from './FlowPaySDK';
 const sdk = new FlowPaySDK({
   privateKey: process.env.PRIVATE_KEY,
   rpcUrl: 'https://westend-asset-hub-eth-rpc.polkadot.io',
-  contractAddress: process.env.FLOWPAY_CONTRACT_ADDRESS,
-  mneeAddress: '0x00007a6900000000000000000000000001200000'
+  token: {
+    symbol: 'USDC',
+    decimals: 6,
+  }
 });
 
 // The SDK makes the request, parses the 402 response,

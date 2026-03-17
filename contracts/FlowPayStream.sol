@@ -18,7 +18,7 @@ interface IERC20 {
 * @dev A protocol for creating real-time, per-second money streams using an ERC-20 compatible payment token.
 */
 contract FlowPayStream {
-    IERC20 public mneeToken;
+    IERC20 public paymentToken;
 
     // Structure to hold all data for a single stream
     struct Stream {
@@ -44,7 +44,7 @@ contract FlowPayStream {
 
     constructor(address _paymentToken) {
         require(_paymentToken != address(0), "FlowPayStream: payment token address cannot be zero");
-        mneeToken = IERC20(_paymentToken);
+        paymentToken = IERC20(_paymentToken);
     }
 
     /**
@@ -84,7 +84,7 @@ contract FlowPayStream {
         require(duration > 0, "FlowPayStream: Duration must be greater than 0.");
 
         // Transfer payment tokens from sender to this contract
-        bool success = mneeToken.transferFrom(msg.sender, address(this), amount);
+        bool success = paymentToken.transferFrom(msg.sender, address(this), amount);
         require(success, "FlowPayStream: Transfer failed. check allowance");
 
         uint256 streamId = nextStreamId++;
@@ -123,7 +123,7 @@ contract FlowPayStream {
 
         stream.amountWithdrawn += claimableAmount;
         
-        bool success = mneeToken.transfer(stream.recipient, claimableAmount);
+        bool success = paymentToken.transfer(stream.recipient, claimableAmount);
         require(success, "FlowPayStream: Transfer failed.");
 
         emit Withdrawn(streamId, stream.recipient, claimableAmount);
@@ -144,12 +144,12 @@ contract FlowPayStream {
         stream.isActive = false;
 
         if (recipientBalance > 0) {
-            bool success = mneeToken.transfer(stream.recipient, recipientBalance);
+            bool success = paymentToken.transfer(stream.recipient, recipientBalance);
             require(success, "FlowPayStream: Recipient transfer failed on cancel.");
         }
 
         if (senderBalance > 0) {
-            bool success = mneeToken.transfer(stream.sender, senderBalance);
+            bool success = paymentToken.transfer(stream.sender, senderBalance);
             require(success, "FlowPayStream: Sender refund failed on cancel.");
         }
 

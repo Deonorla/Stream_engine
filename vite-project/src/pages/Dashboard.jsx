@@ -121,7 +121,7 @@ export default function Dashboard() {
   const {
     outgoingStreams, incomingStreams,
     isInitialLoad, isLoadingStreams,
-    walletAddress, mneeBalance, formatEth
+    walletAddress, paymentBalance, formatEth
   } = useWallet();
   const { catalog } = useProtocolCatalog();
   const [liveRwaAssets, setLiveRwaAssets] = useState([]);
@@ -181,7 +181,7 @@ export default function Dashboard() {
 
       {/* ── Top stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Coins}         label={`${paymentTokenSymbol} Balance`} value={Number(mneeBalance).toFixed(2)}  sub={catalog?.network?.name || 'Westend Asset Hub'} color="text-cyan-400" />
+        <StatCard icon={Coins}         label={`${paymentTokenSymbol} Balance`} value={Number(paymentBalance).toFixed(2)}  sub={catalog?.network?.name || 'Westend Asset Hub'} color="text-cyan-400" />
         <StatCard icon={ArrowUpRight}  label="Outgoing Streams" value={outgoingStreams.length}           sub={`${totalOutflow.toFixed(2)} ${paymentTokenSymbol}`} color="text-blue-400"    to="/app/streams" />
         <StatCard icon={ArrowDownLeft} label="Incoming Streams" value={incomingStreams.length}           sub="claimable now"                    color="text-emerald-400" to="/app/streams" />
         <StatCard icon={Building2}     label="RWA Assets"       value={liveRwaAssets.length}               sub={`${rwaStreamed.toFixed(2)} ${paymentTokenSymbol}`}  color="text-purple-400"  to="/app/rwa" />

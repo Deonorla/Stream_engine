@@ -1,172 +1,47 @@
 # Events & Errors
 
-Reference for FlowPayStream contract events and error messages.
+Reference for the payment stream contract event surface.
 
-## Events
+## Core Events
 
-### StreamCreated
+### `StreamCreated`
 
-Emitted when a new stream is created.
+Emitted when a sender opens a new stream.
 
-```solidity
-event StreamCreated(
-    uint256 indexed streamId,
-    address indexed sender,
-    address indexed recipient,
-    uint256 totalAmount,
-    uint256 startTime,
-    uint256 stopTime,
-    string metadata
-)
-```
+Key fields:
 
-**Parameters:**
-| Name | Indexed | Description |
-|------|---------|-------------|
-| streamId | Yes | Unique stream identifier |
-| sender | Yes | Stream creator address |
-| recipient | Yes | Payment receiver address |
-| totalAmount | No | Total MNEE locked |
-| startTime | No | Stream start timestamp |
-| stopTime | No | Stream end timestamp |
-| metadata | No | JSON metadata string |
+- `streamId`
+- `sender`
+- `recipient`
+- `totalAmount`
+- `startTime`
+- `stopTime`
+- `metadata`
 
-**Example Log:**
-```javascript
-{
-  event: 'StreamCreated',
-  args: {
-    streamId: 42n,
-    sender: '0x1234...',
-    recipient: '0x5678...',
-    totalAmount: 10000000000000000000n, // 10 MNEE
-    startTime: 1704067200n,
-    stopTime: 1704070800n,
-    metadata: '{"purpose":"API access"}'
-  }
-}
-```
+### `Withdrawn`
 
-### Withdrawn
+Emitted when the recipient withdraws accrued USDC from a stream.
 
-Emitted when funds are withdrawn from a stream.
+### `StreamCancelled`
 
-```solidity
-event Withdrawn(
-    uint256 indexed streamId,
-    address indexed recipient,
-    uint256 amount
-)
-```
+Emitted when a stream is cancelled and balances are split between sender and recipient.
 
-**Parameters:**
-| Name | Indexed | Description |
-|------|---------|-------------|
-| streamId | Yes | Stream identifier |
-| recipient | Yes | Withdrawal recipient |
-| amount | No | Amount withdrawn |
+## Typical Errors
 
-### StreamCancelled
+| Error | Meaning |
+|------|---------|
+| `Total amount must be greater than 0` | stream budget is zero |
+| `Recipient cannot be the zero address` | invalid recipient |
+| `Duration must be greater than 0` | invalid duration |
+| `flowRate would be zero` | amount too small for duration at 6 decimals |
+| `Transfer failed. check allowance` | token approval missing |
+| `Caller is not the recipient` | wrong wallet is trying to withdraw |
+| `Caller cannot cancel this stream` | only sender or recipient may cancel |
 
-Emitted when a stream is cancelled.
-
-```solidity
-event StreamCancelled(
-    uint256 indexed streamId,
-    address sender,
-    address recipient,
-    uint256 senderBalance,
-    uint256 recipientBalance
-)
-```
-
-**Parameters:**
-| Name | Indexed | Description |
-|------|---------|-------------|
-| streamId | Yes | Stream identifier |
-| sender | No | Original sender |
-| recipient | No | Original recipient |
-| senderBalance | No | Amount returned to sender |
-| recipientBalance | No | Amount sent to recipient |
-
-## Error Messages
-
-### Stream Creation Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `FlowPayStream: Total amount must be greater than 0.` | Amount is zero | Provide positive amount |
-| `FlowPayStream: Recipient cannot be the zero address.` | Invalid recipient | Use valid address |
-| `FlowPayStream: Duration must be greater than 0.` | Duration is zero | Provide positive duration |
-| `FlowPayStream: flowRate would be zero.` | Amount too small for duration | Increase amount or decrease duration |
-| `FlowPayStream: Transfer failed. check allowance` | Insufficient approval | Approve tokens first |
-
-### Withdrawal Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `FlowPayStream: Stream is not active.` | Stream ended or cancelled | Check stream status |
-| `FlowPayStream: Caller is not the recipient.` | Wrong caller | Use recipient wallet |
-| `FlowPayStream: No funds to withdraw.` | Nothing claimable yet | Wait for funds to stream |
-| `FlowPayStream: Transfer failed.` | Token transfer issue | Check contract balance |
-
-### Cancellation Errors
-
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `FlowPayStream: Stream already cancelled.` | Already inactive | No action needed |
-| `FlowPayStream: Caller cannot cancel this stream.` | Not sender or recipient | Use authorized wallet |
-| `FlowPayStream: Recipient transfer failed on cancel.` | Transfer issue | Check token state |
-| `FlowPayStream: Sender refund failed on cancel.` | Transfer issue | Check token state |
-
-## Listening to Events
-
-### Using ethers.js
+## Listener Example
 
 ```javascript
-// Listen for new streams
-contract.on('StreamCreated', (streamId, sender, recipient, amount, start, stop, metadata) => {
-  console.log(`New stream #${streamId} created`);
-  console.log(`From: ${sender} To: ${recipient}`);
-  console.log(`Amount: ${ethers.formatEther(amount)} MNEE`);
+contract.on('StreamCreated', (streamId, sender, recipient, amount) => {
+  console.log(`Stream #${streamId} opened with ${amount} base units`);
 });
-
-// Listen for withdrawals
-contract.on('Withdrawn', (streamId, recipient, amount) => {
-  console.log(`Withdrawal from stream #${streamId}`);
-  console.log(`${ethers.formatEther(amount)} MNEE to ${recipient}`);
-});
-
-// Listen for cancellations
-contract.on('StreamCancelled', (streamId, sender, recipient, senderBal, recipientBal) => {
-  console.log(`Stream #${streamId} cancelled`);
-});
-```
-
-### Querying Past Events
-
-```javascript
-// Get all streams created by an address
-const filter = contract.filters.StreamCreated(null, myAddress);
-const events = await contract.queryFilter(filter, 0, 'latest');
-
-events.forEach(event => {
-  console.log(`Stream #${event.args.streamId}`);
-});
-```
-
-## Error Handling
-
-```javascript
-try {
-  await contract.createStream(recipient, duration, amount, metadata);
-} catch (error) {
-  if (error.message.includes('flowRate would be zero')) {
-    console.log('Amount too small for duration');
-  } else if (error.message.includes('check allowance')) {
-    console.log('Need to approve tokens first');
-  } else {
-    console.log('Unknown error:', error.message);
-  }
-}
 ```
