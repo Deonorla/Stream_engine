@@ -19,6 +19,7 @@
 2. Fund the signer with:
    - `WND` for gas
    - Circle test `USDC` asset `31337`
+   - On **Westend Asset Hub**, fund the **Substrate signer** used by `substrate.json` (or `SUBSTRATE_JSON_PATH` / `SUBSTRATE_SURI`). The CLI demo uses the native `revive` path on this network.
 
 3. Verify setup:
    ```bash
@@ -53,6 +54,8 @@ The consumer:
 6. retries automatically
 7. sends follow-up requests that reuse the existing stream
 
+On Westend Asset Hub, the CLI consumer should use `DEMO_SIGNER_MODE=substrate` if you want to force the intended path explicitly.
+
 ---
 
 ## What the Demo Proves
@@ -82,3 +85,4 @@ The consumer:
 **"SUBSTRATE_PASSWORD is required"**: add the password for `substrate.json`.  
 **"Insufficient USDC balance"**: fund asset `31337` on Westend Asset Hub.  
 **"Transaction failed"**: check that the signer has enough `WND` and `USDC`.  
+**"EVM signer mode is not supported"**: use a funded Substrate signer for the CLI demo on Westend Asset Hub.  

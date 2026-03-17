@@ -39,6 +39,62 @@ function resolveAccountJson() {
   return fs.readFileSync(absolutePath, 'utf8');
 }
 
+function hasSubstrateSignerConfig() {
+  return Boolean(process.env.SUBSTRATE_SURI)
+    || Boolean(process.env.SUBSTRATE_JSON_PATH)
+    || fs.existsSync(path.resolve(process.cwd(), 'substrate.json'));
+}
+
+function isWestendAssetHub(runtime: any) {
+  return Number(runtime.chainId) === 420420421 || runtime.networkName === 'Westend Asset Hub';
+}
+
+async function resolveSignerMode(runtime: any, hasPrivateKey: boolean): Promise<'substrate' | 'evm'> {
+  const requestedMode = (process.env.DEMO_SIGNER_MODE || '').trim().toLowerCase();
+  const substrateAvailable = hasSubstrateSignerConfig();
+
+  if (requestedMode === 'substrate') {
+    return 'substrate';
+  }
+  if (requestedMode === 'evm') {
+    return 'evm';
+  }
+
+  if (process.env.DEMO_USE_SUBSTRATE_ADAPTER === 'true') {
+    return 'substrate';
+  }
+  if (process.env.DEMO_USE_SUBSTRATE_ADAPTER === 'false') {
+    return 'evm';
+  }
+
+  if (!substrateAvailable) {
+    return 'evm';
+  }
+  if (!hasPrivateKey) {
+    return 'substrate';
+  }
+
+  if (isWestendAssetHub(runtime)) {
+    return 'substrate';
+  }
+
+  const { api } = await createSubstrateApi();
+  try {
+    const { pair } = await loadSubstrateSigner();
+    const systemAccount = await api.query.system.account(pair.address);
+    const assetAccount = await api.query.assets.account(runtime.paymentAssetId, pair.address);
+    const wndBalance = BigInt(systemAccount.data.free.toString());
+    const usdcBalance = assetAccount.isNone ? 0n : BigInt(assetAccount.unwrap().balance.toString());
+
+    if (wndBalance > 0n && usdcBalance > 0n) {
+      return 'substrate';
+    }
+    return 'evm';
+  } finally {
+    await api.disconnect();
+  }
+}
+
 /**
  * Demo Consumer: agentic x402 client
  *
@@ -53,18 +109,14 @@ async function runDemo() {
   const runtime = createFlowPayRuntimeConfig();
   const targetUrl = process.env.DEMO_TARGET_URL || 'http://127.0.0.1:3005/api/premium';
   const privateKey = process.env.PRIVATE_KEY || '';
-  const useSubstrateAdapter =
-    process.env.DEMO_USE_SUBSTRATE_ADAPTER !== 'false'
-    && (
-      Boolean(process.env.SUBSTRATE_JSON_PATH)
-      || fs.existsSync(path.resolve(process.cwd(), 'substrate.json'))
-      || Boolean(process.env.SUBSTRATE_SURI)
-    );
+  const signerMode = await resolveSignerMode(runtime, Boolean(privateKey));
+  const useSubstrateAdapter = signerMode === 'substrate';
 
   console.log('Starting Stream Engine demo consumer...\n');
   console.log(`Target URL: ${targetUrl}`);
   console.log(`Network: ${runtime.networkName}`);
   console.log(`Payment token: ${runtime.paymentTokenSymbol}`);
+  console.log(`Signer mode: ${signerMode}`);
 
   if (!process.env.GEMINI_API_KEY) {
     console.warn('GEMINI_API_KEY not found. The SDK will use fallback heuristics for payment strategy.');
@@ -86,6 +138,12 @@ async function runDemo() {
     console.log(`Mapped EVM alias: ${evmAddress}`);
     console.log(`Current ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(usdcBalance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
 
+    if (usdcBalance <= 0n) {
+      throw new Error(
+        `Selected substrate signer has 0 ${runtime.paymentTokenSymbol}. Fund the substrate signer used by substrate.json (or SUBSTRATE_JSON_PATH / SUBSTRATE_SURI). On Westend Asset Hub, this CLI demo must use the native substrate signer path because the ETH-RPC path does not reliably support the Circle USDC asset precompile.`
+      );
+    }
+
     sdk = new FlowPaySDK({
       rpcUrl: runtime.rpcUrl,
       agentId: 'stream-engine-demo-agent',
@@ -104,6 +162,12 @@ async function runDemo() {
       throw new Error('Set PRIVATE_KEY or provide substrate signer env vars for the demo consumer.');
     }
 
+    if (isWestendAssetHub(runtime)) {
+      throw new Error(
+        'EVM signer mode is not supported for this CLI demo on Westend Asset Hub. The current ETH-RPC path rejects native Circle USDC precompile calls and raw approve transactions. Fund a substrate signer and run with DEMO_SIGNER_MODE=substrate instead.'
+      );
+    }
+
     const normalizedKey = privateKey.startsWith('0x') ? privateKey : `0x${privateKey}`;
     const provider = new ethers.JsonRpcProvider(runtime.rpcUrl);
     const wallet = new ethers.Wallet(normalizedKey, provider);
@@ -112,10 +176,14 @@ async function runDemo() {
       ['function balanceOf(address) view returns (uint256)'],
       provider
     );
-    const balance = await tokenContract.balanceOf(wallet.address);
-
     console.log(`EVM signer: ${wallet.address}`);
-    console.log(`Current ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(balance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
+    try {
+      const balance = await tokenContract.balanceOf(wallet.address);
+      console.log(`Current ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(balance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
+    } catch (error: any) {
+      console.warn(`Unable to read ${runtime.paymentTokenSymbol} balance through ETH RPC on this network. Continuing with EVM signer.`);
+      console.warn(`Balance read error: ${error?.shortMessage || error?.message || error}`);
+    }
 
     sdk = new FlowPaySDK({
       privateKey: normalizedKey,

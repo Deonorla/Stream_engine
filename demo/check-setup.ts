@@ -31,6 +31,7 @@ async function getAssetBalance(api: any, assetId: number, account: string) {
 async function checkSetup() {
   const runtime = createFlowPayRuntimeConfig();
   const provider = new ethers.JsonRpcProvider(runtime.rpcUrl);
+  const isWestendAssetHub = Number(runtime.chainId) === 420420421 || runtime.networkName === 'Westend Asset Hub';
 
   console.log('Stream Engine demo setup check\n');
 
@@ -68,6 +69,10 @@ async function checkSetup() {
     console.log(`   Mapped EVM alias: ${evmAddress}`);
     console.log(`   WND balance: ${ethers.formatUnits(systemAccount.data.free.toString(), 18)} WND`);
     console.log(`   ${runtime.paymentTokenSymbol} balance: ${ethers.formatUnits(usdcBalance, runtime.paymentTokenDecimals)} ${runtime.paymentTokenSymbol}`);
+    if (isWestendAssetHub) {
+      console.log('   Recommended CLI demo mode: substrate');
+      console.log('   Note: the Westend ETH-RPC path is not reliable for native Circle USDC precompile calls in this demo.');
+    }
   } finally {
     await api.disconnect();
   }

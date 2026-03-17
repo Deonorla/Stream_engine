@@ -41,6 +41,7 @@ export class FlowPaySDK {
         "function createStream(address recipient, uint256 duration, uint256 amount, string metadata) external",
         "function isStreamActive(uint256 streamId) external view returns (bool)",
         "function paymentToken() external view returns (address)",
+        "function streams(uint256 streamId) external view returns (address sender, address recipient, uint256 totalAmount, uint256 flowRate, uint256 startTime, uint256 stopTime, uint256 amountWithdrawn, bool isActive, string metadata)",
         "event StreamCreated(uint256 indexed streamId, address indexed sender, address indexed recipient, uint256 totalAmount, uint256 startTime, uint256 stopTime, string metadata)"
     ];
 
@@ -342,9 +343,16 @@ export class FlowPaySDK {
         }
 
         const token = new Contract(paymentTokenAddress, this.ERC20_ABI, this.wallet);
-        const allowance = await token.allowance(this.wallet.address, contractAddress);
+        let shouldApprove = true;
+        try {
+            const allowance = await token.allowance(this.wallet.address, contractAddress);
+            shouldApprove = allowance < amount;
+        } catch (error: any) {
+            console.warn("[FlowPaySDK] Unable to read token allowance through RPC. Falling back to unconditional approval.");
+            console.warn(`[FlowPaySDK] Allowance read error: ${error?.shortMessage || error?.message || error}`);
+        }
 
-        if (allowance < amount) {
+        if (shouldApprove) {
             console.log(`[FlowPaySDK] Approving ${this.tokenSymbol}...`);
             const txApprove = await token.approve(contractAddress, amount);
             await txApprove.wait();

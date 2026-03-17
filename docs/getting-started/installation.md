@@ -37,4 +37,6 @@ That starts:
 npx ts-node --project demo/tsconfig.json demo/check-setup.ts
 npx ts-node --project demo/tsconfig.json demo/provider.ts
 npx ts-node --project demo/tsconfig.json demo/consumer.ts
+
+On Westend Asset Hub, the CLI demo should use a funded native Substrate signer. The ETH-RPC path is not reliable enough for native Circle USDC precompile calls in this demo flow.
 ```
