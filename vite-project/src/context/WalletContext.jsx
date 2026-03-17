@@ -25,6 +25,7 @@ import {
   disconnectInjectedSubstrateWallet,
   inspectSubstrateApprovalAccount,
   readNativeAssetBalance,
+  normalizeContractAddressInput,
   substrateApproveTransfer,
   substrateApproveTransferForSession,
   substrateCallContract,
@@ -656,9 +657,17 @@ export function WalletProvider({ children }) {
       return null;
     }
     try {
-      if (!ethers.isAddress(recipient)) {
-        setStatus("Invalid recipient address.");
-        return null;
+      const normalizedRecipient = normalizeContractAddressInput(recipient);
+      let metadataString = metadata;
+      try {
+        const parsedMetadata = JSON.parse(metadata || "{}");
+        metadataString = JSON.stringify({
+          ...parsedMetadata,
+          recipientInput: recipient,
+          resolvedRecipient: normalizedRecipient,
+        });
+      } catch {
+        metadataString = metadata;
       }
       const totalAmountWei = ethers.parseUnits(
         amount.toString(),
@@ -716,14 +725,14 @@ export function WalletProvider({ children }) {
           contractAddress,
           abi: contractABI,
           functionName: 'createStream',
-          args: [recipient, parsedDuration, totalAmountWei, metadata],
+          args: [normalizedRecipient, parsedDuration, totalAmountWei, metadataString],
         });
       } else {
         const tx = await contractWithSigner.createStream(
-          recipient,
+          normalizedRecipient,
           parsedDuration,
           totalAmountWei,
-          metadata,
+          metadataString,
           {
             gasLimit: STREAM_CREATION_GAS_LIMIT,
           },

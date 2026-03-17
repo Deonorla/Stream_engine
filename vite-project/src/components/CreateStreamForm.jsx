@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, Calendar, CalendarDays, Settings, Coins, Rocket } from 'lucide-react';
 import { paymentTokenDisplayName, paymentTokenSymbol } from '../contactInfo';
+import { isSupportedAddressInput, normalizeContractAddressInput } from '../lib/substrateAssets.js';
 
 // Duration presets in seconds
 const DURATION_PRESETS = [
@@ -39,33 +40,50 @@ const ProgressStep = ({ step, currentStep, label }) => {
 
 // Recipient Input with validation
 const RecipientInput = ({ value, onChange, isValid }) => {
-  const isEthAddress = /^0x[a-fA-F0-9]{40}$/.test(value);
+  const isResolved = isSupportedAddressInput(value);
   const showValidation = value.length > 0;
+  let resolvedRecipient = '';
+
+  if (showValidation && isResolved) {
+    try {
+      resolvedRecipient = normalizeContractAddressInput(value);
+    } catch {
+      resolvedRecipient = '';
+    }
+  }
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-white/80">Recipient EVM Address</label>
+      <label className="text-sm font-medium text-white/80">Recipient Address</label>
       <div className="relative">
         <input
           type="text"
           className={`
             input-default pr-12
-            ${showValidation && isEthAddress ? 'border-success-500/50 focus:border-success-500' : ''}
-            ${showValidation && !isEthAddress ? 'border-error-500/50 focus:border-error-500' : ''}
+            ${showValidation && isResolved ? 'border-success-500/50 focus:border-success-500' : ''}
+            ${showValidation && !isResolved ? 'border-error-500/50 focus:border-error-500' : ''}
           `}
-          placeholder="0x..."
+          placeholder="0x... or 5F..."
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-          {showValidation && isEthAddress && (
+          {showValidation && isResolved && (
             <span className="text-success-400">✓</span>
           )}
-          {showValidation && !isEthAddress && value.length > 2 && (
+          {showValidation && !isResolved && value.length > 2 && (
             <span className="text-error-400">✗</span>
           )}
         </div>
       </div>
+      <div className="text-xs leading-5 text-white/45">
+        Enter an EVM `0x...` address or a Substrate `5...` / SS58 address. Stream Engine will resolve Substrate recipients to the contract-compatible address automatically.
+      </div>
+      {showValidation && isResolved && resolvedRecipient && resolvedRecipient !== value ? (
+        <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/5 px-3 py-2 text-xs text-cyan-200">
+          Resolved onchain recipient: <span className="font-mono break-all">{resolvedRecipient}</span>
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -205,7 +223,7 @@ export default function CreateStreamForm({
   const [selectedDuration, setSelectedDuration] = useState(DURATION_PRESETS[1]);
   const [customDuration, setCustomDuration] = useState('');
 
-  const isRecipientValid = /^0x[a-fA-F0-9]{40}$/.test(recipient);
+  const isRecipientValid = isSupportedAddressInput(recipient);
 
   const effectiveDuration = selectedDuration?.value || parseInt(customDuration) || 0;
 

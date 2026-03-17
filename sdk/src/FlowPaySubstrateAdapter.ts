@@ -4,6 +4,7 @@ import { u8aToHex } from "@polkadot/util";
 import { cryptoWaitReady, decodeAddress } from "@polkadot/util-crypto";
 import { ethers, Interface, InterfaceAbi } from "ethers";
 import { FlowPayTransactionAdapter, StreamCreationResult } from "./transactionAdapter";
+import { normalizeRecipientAddress } from "./addressUtils";
 
 export interface FlowPaySubstrateAdapterConfig {
     rpcUrl?: string;
@@ -69,7 +70,8 @@ export class FlowPaySubstrateAdapter implements FlowPayTransactionAdapter {
     }
 
     async transferToken(tokenAddress: string, recipient: string, amount: bigint) {
-        const result = await this.callContract(tokenAddress, this.ERC20_ABI, "transfer", [recipient, amount]);
+        const resolvedRecipient = normalizeRecipientAddress(recipient);
+        const result = await this.callContract(tokenAddress, this.ERC20_ABI, "transfer", [resolvedRecipient, amount]);
         return {
             hash: (result as { txHash?: string }).txHash,
         };
@@ -83,9 +85,10 @@ export class FlowPaySubstrateAdapter implements FlowPayTransactionAdapter {
         metadata: string,
         abi: InterfaceAbi
     ): Promise<StreamCreationResult> {
+        const resolvedRecipient = normalizeRecipientAddress(recipient);
         const iface = new Interface(abi);
         const previousLatestStreamId = await this.findLatestStreamId(contractAddress, iface);
-        await this.callContract(contractAddress, abi, "createStream", [recipient, duration, amount, metadata]);
+        await this.callContract(contractAddress, abi, "createStream", [resolvedRecipient, duration, amount, metadata]);
         const streamId = previousLatestStreamId + 1;
         const stream = await this.readContract<any>(contractAddress, abi, "streams", [streamId]);
 

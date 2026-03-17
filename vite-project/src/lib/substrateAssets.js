@@ -299,6 +299,32 @@ export function accountIdToEvmAddress(addressOrBytes) {
   return ethers.getAddress(`0x${digest.slice(-40)}`);
 }
 
+export function normalizeContractAddressInput(address) {
+  const value = String(address || '').trim();
+  if (!value) {
+    throw new Error('Address is required.');
+  }
+
+  if (isHexAddress(value, 42)) {
+    return ethers.getAddress(value);
+  }
+
+  try {
+    return accountIdToEvmAddress(value);
+  } catch {
+    throw new Error('Enter a valid EVM or Substrate address.');
+  }
+}
+
+export function isSupportedAddressInput(address) {
+  try {
+    normalizeContractAddressInput(address);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Convert a 20-byte EVM address to the 32-byte mapped Substrate AccountId
  * used by Westend Asset Hub (H160 padded with 0xEE bytes).

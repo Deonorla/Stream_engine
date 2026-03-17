@@ -4,6 +4,7 @@ import { GeminiPaymentBrain } from './GeminiPaymentBrain';
 import { SpendingMonitor, SpendingLimits } from './SpendingMonitor';
 import { PaymentTokenConfig, formatPaymentAmount, parsePaymentAmount, resolvePaymentTokenConfig } from './tokenConfig';
 import { FlowPayTransactionAdapter } from './transactionAdapter';
+import { normalizeRecipientAddress } from './addressUtils';
 
 export interface FlowPayConfig {
     privateKey?: string;
@@ -301,13 +302,16 @@ export class FlowPaySDK {
         metadata: any = {}
     ): Promise<{ streamId: string, startTime: bigint }> {
         const flowPay = new Contract(contractAddress, this.MIN_ABI, this.wallet || this.provider);
+        const resolvedRecipient = normalizeRecipientAddress(recipient);
 
         // Metadata Construction
         const enrichedMetadata = {
             ...metadata,
             agentId: this.agentId || "anonymous",
             timestamp: Date.now(),
-            client: "FlowPaySDK/1.0"
+            client: "FlowPaySDK/1.0",
+            recipientInput: recipient,
+            resolvedRecipient,
         };
         const metadataString = JSON.stringify(enrichedMetadata);
 
@@ -334,10 +338,10 @@ export class FlowPaySDK {
             console.log(`[FlowPaySDK] Approving ${this.tokenSymbol} through adapter...`);
             await this.adapter.approveToken(paymentTokenAddress, contractAddress, amount);
             console.log("[FlowPaySDK] Approved.");
-            console.log(`[FlowPaySDK] Creating stream to ${recipient}...`);
+            console.log(`[FlowPaySDK] Creating stream to ${resolvedRecipient}...`);
             return this.adapter.createStream(
                 contractAddress,
-                recipient,
+                resolvedRecipient,
                 duration,
                 amount,
                 metadataString,
@@ -366,9 +370,9 @@ export class FlowPaySDK {
             console.log("[FlowPaySDK] Approved.");
         }
 
-        console.log(`[FlowPaySDK] Creating stream to ${recipient}...`);
+        console.log(`[FlowPaySDK] Creating stream to ${resolvedRecipient}...`);
 
-        const tx = await flowPay.createStream(recipient, duration, amount, metadataString);
+        const tx = await flowPay.createStream(resolvedRecipient, duration, amount, metadataString);
         const receipt = await tx.wait();
 
         // Parse event to get ID
@@ -412,6 +416,7 @@ export class FlowPaySDK {
         tokenDecimals: number = this.tokenDecimals
     ): Promise<AxiosResponse> {
         if (this.isPaused) throw new Error("FlowPaySDK is paused.");
+        const resolvedRecipient = normalizeRecipientAddress(recipient);
 
         // SAFETY CHECK
         this.monitor.checkAndRecordSpend(amount);
@@ -420,7 +425,7 @@ export class FlowPaySDK {
         console.log(`[FlowPaySDK] Executing Direct Payment of ${formatPaymentAmount(amount, tokenDecimals)} ${tokenSymbol}`);
 
         if (this.adapter) {
-            const tx = await this.adapter.transferToken(tokenAddress, recipient, amount);
+            const tx = await this.adapter.transferToken(tokenAddress, resolvedRecipient, amount);
             txHash = (tx as { hash?: string }).hash || "";
             if (txHash) {
                 console.log(`[FlowPaySDK] Direct Payment Sent: ${txHash}`);
@@ -431,7 +436,7 @@ export class FlowPaySDK {
             }
 
             const token = new Contract(tokenAddress, this.ERC20_ABI, this.wallet);
-            const tx = await token.transfer(recipient, amount);
+            const tx = await token.transfer(resolvedRecipient, amount);
             await tx.wait();
             txHash = tx.hash;
 
