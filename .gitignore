@@ -46,6 +46,7 @@ sdk/.env.*
 Thumbs.db
 .vscode/
 .idea/
+.history/
 node_modules
 .env
 

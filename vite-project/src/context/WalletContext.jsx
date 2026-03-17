@@ -727,11 +727,28 @@ export function WalletProvider({ children }) {
     if (!walletAddress || !contractWithProvider) return;
     refreshStreamsRef.current();
     fetchPaymentBalanceRef.current();
+    const listener = () => {
+      refreshStreamsRef.current();
+      fetchPaymentBalanceRef.current();
+    };
+    contractWithProvider.on('StreamCreated', listener);
+    contractWithProvider.on('StreamCancelled', listener);
+    contractWithProvider.on('Withdrawn', listener);
     const interval = setInterval(() => {
       refreshStreamsRef.current();
       fetchPaymentBalanceRef.current();
     }, 15000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearInterval(interval);
+      try {
+        contractWithProvider.off('StreamCreated', listener);
+        contractWithProvider.off('StreamCancelled', listener);
+        contractWithProvider.off('Withdrawn', listener);
+      } catch {
+        // Ignore listener cleanup failures.
+      }
+    };
   }, [walletAddress, contractWithProvider]);
 
   const value = {

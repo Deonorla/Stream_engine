@@ -11,6 +11,7 @@ export interface FlowPayConfig {
     apiKey?: string;
     token?: PaymentTokenConfig;
     adapter?: FlowPayTransactionAdapter;
+    requestTimeoutMs?: number;
 
     spendingLimits?: SpendingLimits;
     agentId?: string;
@@ -36,6 +37,7 @@ export class FlowPaySDK {
     private isPaused: boolean = false;
     private tokenSymbol: string;
     private tokenDecimals: number;
+    private requestTimeoutMs: number;
 
     private MIN_ABI = [
         "function createStream(address recipient, uint256 duration, uint256 amount, string metadata) external",
@@ -62,6 +64,7 @@ export class FlowPaySDK {
         const tokenConfig = resolvePaymentTokenConfig(config.token);
         this.tokenSymbol = tokenConfig.symbol;
         this.tokenDecimals = tokenConfig.decimals;
+        this.requestTimeoutMs = config.requestTimeoutMs ?? 1500;
         // Initialize Gemini Brain (requires separate key? reusing apiKey for simplify, but in reality likely different)
         // For Hackathon, let's assume config.apiKey is the FlowPay key, but we might pass a separate 'geminiKey' in config?
         // Let's assume config might have `geminiKey` added to interface or we use env var?
@@ -168,7 +171,11 @@ export class FlowPaySDK {
                 }
             }
 
-            const enhancedOptions = { ...options, headers };
+            const enhancedOptions = {
+                timeout: options.timeout ?? this.requestTimeoutMs,
+                ...options,
+                headers,
+            };
 
             // 1. Attempt request
             return await axios(url, enhancedOptions);
