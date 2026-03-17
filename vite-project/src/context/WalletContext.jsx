@@ -308,7 +308,7 @@ export function WalletProvider({ children }) {
       setStatus('Withdrawing...');
       setIsProcessing(true);
       const loadingToast = toast.transaction.pending('Processing withdrawal...');
-      const tx = await contractWithSigner.withdrawFromStream(streamId);
+      const tx = await contractWithSigner.withdrawFromStream(streamId, { gasLimit: 300000n });
       await tx.wait();
       toast.dismiss(loadingToast);
       setStatus('Withdrawn.');
@@ -329,7 +329,7 @@ export function WalletProvider({ children }) {
       setStatus('Cancelling stream...');
       setIsProcessing(true);
       const loadingToast = toast.transaction.pending('Cancelling stream...');
-      const tx = await contractWithSigner.cancelStream(streamId);
+      const tx = await contractWithSigner.cancelStream(streamId, { gasLimit: 300000n });
       await tx.wait();
       toast.dismiss(loadingToast);
       setStatus('Stream cancelled.');
