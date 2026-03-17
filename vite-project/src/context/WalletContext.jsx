@@ -308,39 +308,14 @@ export function WalletProvider({ children }) {
   );
 
   const fetchPaymentBalance = useCallback(async () => {
-    if (!provider || !walletAddress) return;
+    if (!walletAddress) return;
     try {
-      const paymentTokenContract = new ethers.Contract(
-        paymentTokenAddress,
-        paymentTokenABI,
-        provider,
-      );
-      const balance = await paymentTokenContract.balanceOf(walletAddress);
+      const balance = await readNativeAssetBalance(walletAddress, paymentAssetId);
       setPaymentBalance(ethers.formatUnits(balance, paymentTokenDecimals));
     } catch (error) {
       console.error(`Failed to fetch ${paymentTokenSymbol} balance:`, error);
-      try {
-        const nativeAssetBalance = await readNativeAssetBalance(
-          walletAddress,
-          paymentAssetId,
-        );
-        setPaymentBalance(
-          ethers.formatUnits(nativeAssetBalance, paymentTokenDecimals),
-        );
-      } catch (fallbackError) {
-        console.error(
-          `Failed to fetch ${paymentTokenSymbol} balance via EVM fallback:`,
-          fallbackError,
-        );
-      }
     }
-  }, [
-    paymentAssetId,
-    paymentTokenDecimals,
-    paymentTokenSymbol,
-    provider,
-    walletAddress,
-  ]);
+  }, [paymentAssetId, paymentTokenDecimals, paymentTokenSymbol, walletAddress]);
 
   const requestTestFunds = async () => {
     toast.info(
@@ -702,19 +677,11 @@ export function WalletProvider({ children }) {
     if (!walletAddress || !contractWithProvider) return;
     refreshStreamsRef.current();
     fetchPaymentBalanceRef.current();
-    const listener = () => refreshStreamsRef.current();
-    contractWithProvider.on("StreamCreated", listener);
-    contractWithProvider.on("StreamCancelled", listener);
-    contractWithProvider.on("Withdrawn", listener);
-    return () => {
-      try {
-        contractWithProvider.off("StreamCreated", listener);
-        contractWithProvider.off("StreamCancelled", listener);
-        contractWithProvider.off("Withdrawn", listener);
-      } catch {
-        // Ignore listener cleanup failures.
-      }
-    };
+    const interval = setInterval(() => {
+      refreshStreamsRef.current();
+      fetchPaymentBalanceRef.current();
+    }, 15000);
+    return () => clearInterval(interval);
   }, [walletAddress, contractWithProvider]);
 
   const value = {

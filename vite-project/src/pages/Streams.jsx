@@ -417,7 +417,7 @@ export default function Streams() {
             setAmountEth={setAmountEth}
             durationSeconds={durationSeconds}
             setDurationSeconds={setDurationSeconds}
-            balance={mneeBalance}
+            balance={paymentBalance}
             onSubmit={handleCreateStream}
           />
         </CollapsibleSection>
