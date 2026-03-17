@@ -392,14 +392,12 @@ export function WalletProvider({ children }) {
             };
           }),
         );
+        const seen = new Set();
+        const unique = streamCards.filter(s => !seen.has(s.id) && seen.add(s.id));
         const normalizedAddress = me?.toLowerCase();
         return {
-          incoming: streamCards.filter(
-            (stream) => stream.recipient.toLowerCase() === normalizedAddress,
-          ),
-          outgoing: streamCards.filter(
-            (stream) => stream.sender.toLowerCase() === normalizedAddress,
-          ),
+          incoming: unique.filter(s => s.recipient.toLowerCase() === normalizedAddress),
+          outgoing: unique.filter(s => s.sender.toLowerCase() === normalizedAddress),
         };
       } catch (error) {
         console.error("Failed to fetch events:", error);
@@ -727,28 +725,11 @@ export function WalletProvider({ children }) {
     if (!walletAddress || !contractWithProvider) return;
     refreshStreamsRef.current();
     fetchPaymentBalanceRef.current();
-    const listener = () => {
-      refreshStreamsRef.current();
-      fetchPaymentBalanceRef.current();
-    };
-    contractWithProvider.on('StreamCreated', listener);
-    contractWithProvider.on('StreamCancelled', listener);
-    contractWithProvider.on('Withdrawn', listener);
     const interval = setInterval(() => {
       refreshStreamsRef.current();
       fetchPaymentBalanceRef.current();
     }, 15000);
-
-    return () => {
-      clearInterval(interval);
-      try {
-        contractWithProvider.off('StreamCreated', listener);
-        contractWithProvider.off('StreamCancelled', listener);
-        contractWithProvider.off('Withdrawn', listener);
-      } catch {
-        // Ignore listener cleanup failures.
-      }
-    };
+    return () => clearInterval(interval);
   }, [walletAddress, contractWithProvider]);
 
   const value = {

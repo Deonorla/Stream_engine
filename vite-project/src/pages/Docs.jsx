@@ -342,7 +342,7 @@ function DocContent({ content }) {
       const cells = line.split('|').filter(c => c.trim() && !c.trim().match(/^[-:]+$/));
       if (cells.length) {
         tableRows.push(
-          <tr key={i} className="border-b border-white/5 last:border-0">
+          <tr key={tableRows.length} className="border-b border-white/5 last:border-0">
             {cells.map((c, j) => (
               <td key={j} className={`px-3 py-2 text-sm ${j === 0 ? 'text-white/80 font-medium' : 'text-white/50'}`}>
                 {c.trim().replace(/`([^`]+)`/g, (_, m) => m)}
@@ -355,15 +355,15 @@ function DocContent({ content }) {
     }
     if (inTable) flushTable();
 
-    if (line.startsWith('# '))  { blocks.push(<h1 key={i} className="text-2xl font-bold text-white mb-3 mt-2">{line.slice(2)}</h1>); return; }
-    if (line.startsWith('## ')) { blocks.push(<h2 key={i} className="text-lg font-semibold text-white mb-2 mt-6 pb-2 border-b border-white/10">{line.slice(3)}</h2>); return; }
-    if (line.startsWith('### ')){ blocks.push(<h3 key={i} className="text-sm font-semibold text-cyan-300 mb-2 mt-4">{line.slice(4)}</h3>); return; }
-    if (line.startsWith('- ') || line.startsWith('* ')) { blocks.push(<li key={i} className="text-white/60 text-sm ml-5 list-disc leading-relaxed">{line.slice(2)}</li>); return; }
-    if (line === '') { blocks.push(<div key={i} className="h-2" />); return; }
+    if (line.startsWith('# '))  { blocks.push(<h1 key={blocks.length} className="text-2xl font-bold text-white mb-3 mt-2">{line.slice(2)}</h1>); return; }
+    if (line.startsWith('## ')) { blocks.push(<h2 key={blocks.length} className="text-lg font-semibold text-white mb-2 mt-6 pb-2 border-b border-white/10">{line.slice(3)}</h2>); return; }
+    if (line.startsWith('### ')){ blocks.push(<h3 key={blocks.length} className="text-sm font-semibold text-cyan-300 mb-2 mt-4">{line.slice(4)}</h3>); return; }
+    if (line.startsWith('- ') || line.startsWith('* ')) { blocks.push(<li key={blocks.length} className="text-white/60 text-sm ml-5 list-disc leading-relaxed">{line.slice(2)}</li>); return; }
+    if (line === '') { blocks.push(<div key={blocks.length} className="h-2" />); return; }
     // inline code
     const parts = line.split(/`([^`]+)`/);
     blocks.push(
-      <p key={i} className="text-white/60 text-sm leading-relaxed">
+      <p key={blocks.length} className="text-white/60 text-sm leading-relaxed">
         {parts.map((p, j) => j % 2 === 1
           ? <code key={j} className="bg-white/10 text-cyan-300 px-1 py-0.5 rounded text-xs font-mono">{p}</code>
           : p
