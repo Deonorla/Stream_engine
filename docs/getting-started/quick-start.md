@@ -1,118 +1,84 @@
 # Quick Start
 
-Get FlowPay running in under 5 minutes.
+Get Stream Engine running locally in a few minutes.
 
-## Step 1: Connect Your Wallet
+## Step 1: Install and start the stack
 
-1. Open the FlowPay dashboard
-2. Click "Connect Wallet"
-3. Select MetaMask and approve the connection
-4. Ensure you're on Sepolia testnet
+```bash
+npm run install:all
+npm run start:all
+```
 
-## Step 2: Get Test Tokens
+This starts:
 
-You need MNEE tokens to create streams:
+- frontend on `http://localhost:5173`
+- backend on `http://localhost:3001`
 
-1. Navigate to the "Streams" tab
-2. Click "Mint 1000 MNEE" button
-3. Approve the transaction in MetaMask
-4. Wait for confirmation
+## Step 2: Connect a wallet
 
-## Step 3: Create Your First Stream
+1. Open the app
+2. Click **Connect Wallet**
+3. Choose a supported wallet
+4. Ensure the wallet is pointed at Westend Asset Hub
 
-```javascript
-// Using the SDK
+## Step 3: Understand the paid request flow
+
+The request flow is:
+
+1. agent requests a protected resource
+2. API returns `HTTP 402 Payment Required`
+3. x402-style response describes payment terms
+4. Stream Engine decides direct settlement vs streaming
+5. payment is satisfied
+6. request is retried
+
+That is the key architectural split:
+
+- `x402` handles payment discovery
+- Stream Engine handles payment execution
+
+## Step 4: Create a stream
+
+```typescript
 import { FlowPaySDK } from './sdk/src/FlowPaySDK';
 
 const sdk = new FlowPaySDK({
   privateKey: process.env.PRIVATE_KEY,
-  rpcUrl: 'https://rpc.sepolia.org',
-  contractAddress: '0x155A00fBE3D290a8935ca4Bf5244283685Bb0035',
-  mneeAddress: '0x96B1FE54Ee89811f46ecE4a347950E0D682D3896'
+  rpcUrl: 'https://westend-asset-hub-eth-rpc.polkadot.io',
+  contractAddress: process.env.FLOWPAY_CONTRACT_ADDRESS,
+  mneeAddress: '0x00007a6900000000000000000000000001200000'
 });
 
-// Create a stream
 const streamId = await sdk.createStream({
   recipient: '0x...provider_address',
-  amount: '10', // 10 MNEE
-  duration: 3600, // 1 hour
+  amount: '10',
+  duration: 3600,
   metadata: JSON.stringify({ purpose: 'API access' })
 });
-
-console.log(`Stream created: #${streamId}`);
 ```
 
-## Step 4: Make API Requests
+## Step 5: Make a paid request
 
-Once your stream is active, make requests to x402-enabled APIs:
-
-```javascript
-// The SDK handles x402 negotiation automatically
-const response = await sdk.request('https://api.provider.com/premium', {
-  method: 'GET',
-  headers: { 'Content-Type': 'application/json' }
-});
-
-// First request: SDK detects 402, creates stream, retries
-// Subsequent requests: Use existing stream (no new signatures!)
+```typescript
+const response = await sdk.request('https://api.provider.com/premium');
 ```
 
-## Step 5: Monitor Your Stream
+For repeated usage, the runtime can reuse an existing stream instead of forcing a fresh payment each time.
 
-View your active streams in the dashboard:
+## Step 6: Inspect the app
 
-1. Go to "Streams" tab
-2. See "Outgoing Streams" section
-3. Monitor flow rate and remaining balance
-4. Cancel anytime to reclaim unused funds
+Use:
 
-## Using the Dashboard
+- **Streams** to create or inspect payment streams
+- **Agent Console** to inspect route policy and runtime decisions
+- **RWA Studio** to mint, verify, and manage rental assets
+- **Docs** to inspect live chain and contract configuration
 
-### Create Stream via UI
+## What to expect
 
-1. Enter recipient address
-2. Set amount (in MNEE)
-3. Set duration (in seconds)
-4. Click "Create Stream"
-5. Approve token allowance (first time only)
-6. Confirm stream creation
-
-### Withdraw Funds
-
-If you're receiving a stream:
-
-1. Go to "Incoming Streams"
-2. Click "Withdraw" on any active stream
-3. Confirm the transaction
-4. Funds are transferred to your wallet
-
-## Example: Complete Flow
-
-```javascript
-// 1. Initialize SDK
-const sdk = new FlowPaySDK(config);
-
-// 2. Check if stream exists for provider
-const existingStream = await sdk.getActiveStream(providerAddress);
-
-if (!existingStream) {
-  // 3. Create new stream
-  await sdk.createStream({
-    recipient: providerAddress,
-    amount: '100',
-    duration: 86400 // 24 hours
-  });
-}
-
-// 4. Make requests (stream ID attached automatically)
-for (let i = 0; i < 100; i++) {
-  const data = await sdk.request(`${providerUrl}/api/data`);
-  console.log(`Request ${i + 1}:`, data);
-}
-
-// 5. Close stream when done (optional - reclaim unused funds)
-await sdk.cancelStream(streamId);
-```
+- free routes should respond immediately
+- paid routes should return `402` until payment is satisfied
+- RWA registry should load without blocking the whole frontend on cold start
 
 ## What's Next?
 

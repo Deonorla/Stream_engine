@@ -1,6 +1,17 @@
 # SDK Reference
 
-The FlowPay SDK enables AI agents to make streaming payments.
+The SDK is the agent runtime for Stream Engine.
+
+Its core job is not just "send tokens." Its job is to turn `x402` payment requirements into usable agent behavior.
+
+## Mental Model
+
+- `x402` provides payment negotiation
+- the SDK parses those requirements
+- the SDK chooses direct settlement or streaming
+- Stream Engine contracts execute the chosen payment path
+
+That means the SDK is the decision and execution bridge between HTTP paywalls and onchain settlement.
 
 ## Installation
 
@@ -16,12 +27,13 @@ import { FlowPaySDK } from './FlowPaySDK';
 
 const sdk = new FlowPaySDK({
   privateKey: process.env.PRIVATE_KEY,
-  rpcUrl: 'https://rpc.sepolia.org',
-  contractAddress: '0x155A00fBE3D290a8935ca4Bf5244283685Bb0035',
-  mneeAddress: '0x96B1FE54Ee89811f46ecE4a347950E0D682D3896'
+  rpcUrl: 'https://westend-asset-hub-eth-rpc.polkadot.io',
+  contractAddress: process.env.FLOWPAY_CONTRACT_ADDRESS,
+  mneeAddress: '0x00007a6900000000000000000000000001200000'
 });
 
-// Make a request - SDK handles x402 automatically
+// The SDK makes the request, parses the 402 response,
+// decides how to pay, then retries automatically.
 const response = await sdk.request('https://api.provider.com/premium');
 ```
 
@@ -29,50 +41,44 @@ const response = await sdk.request('https://api.provider.com/premium');
 
 | Component | Description |
 |-----------|-------------|
-| [FlowPaySDK](flowpay-sdk.md) | Main SDK class |
-| [GeminiPaymentBrain](gemini-payment-brain.md) | AI decision engine |
-| [SpendingMonitor](spending-monitor.md) | Safety controls |
+| [FlowPaySDK](flowpay-sdk.md) | Main agent payment runtime |
+| [GeminiPaymentBrain](gemini-payment-brain.md) | Payment strategy and optimization layer |
+| [SpendingMonitor](spending-monitor.md) | Safety controls and limits |
 | [FlowPayProxy](flowpay-proxy.md) | Multi-agent support |
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────┐
-│              FlowPaySDK                  │
-├─────────────────────────────────────────┤
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │   Request   │  │  Stream Manager │   │
-│  │   Handler   │  │                 │   │
-│  └─────────────┘  └─────────────────┘   │
-│         │                 │             │
-│         ▼                 ▼             │
-│  ┌─────────────┐  ┌─────────────────┐   │
-│  │   x402      │  │   Contract      │   │
-│  │   Parser    │  │   Interface     │   │
-│  └─────────────┘  └─────────────────┘   │
-│         │                 │             │
-│         ▼                 ▼             │
-│  ┌─────────────────────────────────┐    │
-│  │      GeminiPaymentBrain         │    │
-│  │      (Decision Engine)          │    │
-│  └─────────────────────────────────┘    │
-│                   │                     │
-│                   ▼                     │
-│  ┌─────────────────────────────────┐    │
-│  │       SpendingMonitor           │    │
-│  │       (Safety Controls)         │    │
-│  └─────────────────────────────────┘    │
-└─────────────────────────────────────────┘
+```text
+Agent Request
+  -> SDK request layer
+  -> x402 parser
+  -> payment strategy decision
+  -> stream or direct settlement
+  -> request retry
 ```
 
-## Features
+## What the SDK Handles
 
-- ✅ Automatic x402 negotiation
-- ✅ Stream creation and management
-- ✅ AI-powered payment decisions
-- ✅ Spending limits and safety controls
-- ✅ Multi-agent mesh support
-- ✅ TypeScript support
+- automatic `x402` negotiation
+- route-aware direct vs streaming decisions
+- stream creation and cancellation
+- budget and spending guardrails
+- compatibility with both EVM and Substrate-oriented transaction flows
+
+## Why This Matters
+
+Without this runtime, every paid provider would force agents to learn custom payment logic.
+
+With this runtime:
+
+- an agent can hit a paid route
+- parse a standard 402 response
+- satisfy payment automatically
+- continue working without human checkout flow friction
+
+## Compatibility Note
+
+The product is now **Stream Engine**, but some exported classes still keep earlier FlowPay names for compatibility with the existing codebase.
 
 ## Next Steps
 

@@ -2,159 +2,157 @@
 
 ## General
 
-### What is FlowPay?
+### What is Stream Engine?
 
-FlowPay is a payment streaming protocol that enables AI agents to pay for API services using continuous MNEE token streams instead of individual transactions.
+Stream Engine is an `x402`-compatible payment and settlement stack for AI agents and rental RWAs.
 
-### What problem does FlowPay solve?
+It combines:
 
-FlowPay solves the **N+1 Signature Problem**: traditionally, N API requests require N payment signatures. FlowPay reduces this to just 2 signatures (open stream + close stream) regardless of request volume.
+- machine-readable HTTP payment discovery
+- reusable payment streams for agent workloads
+- verification, provenance, and yield streaming for rental assets
 
-### What is the x402 protocol?
+### What problem does Stream Engine solve?
 
-x402 is a protocol for HTTP-based payment negotiation using the 402 (Payment Required) status code. It allows servers to request payment and clients to provide payment proof in a standardized way.
+It solves the agent payment efficiency problem.
+
+Without a reusable settlement rail, a naive paid API flow can require a fresh onchain payment for every request. Stream Engine reduces that repeated execution overhead by letting an agent open one stream and reuse it across many requests.
+
+### Is Stream Engine replacing x402?
+
+No.
+
+`x402` is the paywall handshake.
+Stream Engine is the settlement layer behind that handshake.
+
+The clean model is:
+
+- `x402` says: "payment is required, here are the terms"
+- `Stream Engine` says: "satisfy that requirement with direct settlement or a reusable stream"
+
+### Why is x402 useful here?
+
+Because agents need a standard way to discover:
+
+- that payment is required
+- which token is accepted
+- who should be paid
+- how much is required
+- what proof the server expects
+
+That is the role of `HTTP 402 Payment Required` plus machine-readable headers.
 
 ## Technical
 
-### Which networks are supported?
+### Which network is the current target?
 
-Currently, FlowPay is deployed on Ethereum Sepolia testnet. Mainnet deployment is planned.
+The verified deployment target is **Polkadot Westend Asset Hub**.
 
-### What token does FlowPay use?
+### What payment asset does Stream Engine use?
 
-FlowPay uses MNEE (Mock Native Electronic Economy) tokens. On testnet, you can mint free test tokens.
+Circle test **USDC** on Westend Asset Hub:
 
-### How is the flow rate calculated?
+- asset id: `31337`
+- decimals: `6`
 
-```
+### What does the middleware do?
+
+The middleware is the enforcement bridge between HTTP and onchain state.
+
+Its job is to:
+
+1. inspect the request
+2. determine whether the route is free, direct-pay, or streaming
+3. return a 402 response when payment is required
+4. verify stream or payment proof when the client retries
+5. serve the resource when payment requirements are satisfied
+
+### Does Stream Engine require a new payment for every API call?
+
+Not when streaming is used.
+
+The point of the system is to keep the `x402` negotiation layer while avoiding a fresh onchain payment for every repeated call.
+
+### How is stream balance calculated?
+
+```text
 flowRate = totalAmount / duration
+claimable = (flowRate * secondsElapsed) - amountWithdrawn
 ```
 
-For example, 3600 MNEE over 1 hour = 1 MNEE per second.
+### Can a sender cancel a stream early?
 
-### Can I cancel a stream?
+Yes.
 
-Yes, both the sender and recipient can cancel a stream at any time. The recipient receives the streamed amount, and the sender receives the remaining balance.
+When a stream is cancelled:
 
-### What happens when a stream expires?
+- the recipient keeps what has already accrued
+- the sender recovers unused balance
 
-When a stream reaches its stop time, no more funds flow. The recipient can still withdraw any unclaimed balance.
+## Agent Usage
 
-## Usage
+### Why is this especially useful for AI agents?
 
-### How do I get test MNEE tokens?
+Agents need:
 
-1. Connect your wallet to the FlowPay dashboard
-2. Go to the "Streams" tab
-3. Click "Mint 1000 MNEE"
-4. Confirm the transaction
+- programmatic payment discovery
+- automatic authorization
+- low-friction repeated access
+- clear limits and controls
 
-### How do I create a stream?
+Human billing flows tolerate checkout pages and manual confirmations. Agent workloads do not.
 
-**Via Dashboard:**
-1. Go to "Streams" tab
-2. Enter recipient address, amount, and duration
-3. Click "Create Stream"
-4. Approve token allowance (first time)
-5. Confirm stream creation
+### What does the SDK actually do?
 
-**Via SDK:**
-```typescript
-const streamId = await sdk.createStream({
-  recipient: '0x...',
-  amount: '10',
-  duration: 3600
-});
-```
+The SDK is the runtime that:
 
-### How do I withdraw from a stream?
+1. makes a request
+2. receives a 402 response
+3. parses the payment terms
+4. decides direct settlement vs streaming
+5. executes the payment path
+6. retries the request
 
-Only the recipient can withdraw:
+### Does Stream Engine only work for streaming payments?
 
-```typescript
-await sdk.withdrawFromStream(streamId);
-```
+No.
 
-Or use the dashboard's "Withdraw" button.
+The architecture supports both:
 
-### How do I integrate FlowPay as a provider?
+- direct settlement for low-frequency routes
+- reusable streaming for high-frequency routes
 
-Use the x402 middleware:
+That is why route mode and runtime policy both matter.
 
-```javascript
-const { flowPayMiddleware } = require('./middleware/flowPayMiddleware');
+## RWA
 
-app.use('/api/premium', flowPayMiddleware({
-  pricePerRequest: '0.001',
-  recipientAddress: '0x...'
-}));
-```
+### How do RWAs fit into Stream Engine?
 
-## Troubleshooting
+The RWA lane uses the same payment and streaming mindset for rental assets:
 
-### "Insufficient funds for gas"
+- owners keep the NFT and financial rights
+- renters stream payment for real-world access
+- metadata is pinned to IPFS
+- QR or NFC payloads can be verified against the onchain registry and indexed activity
 
-You need Sepolia ETH for gas fees. Get free testnet ETH from:
-- https://sepoliafaucet.com
-- https://faucet.sepolia.dev
+### What does verification check?
 
-### "MNEE transfer failed"
+Verification checks:
 
-1. Check you have enough MNEE balance
-2. Ensure you've approved the FlowPayStream contract to spend your tokens
-3. Verify the contract addresses are correct
+1. metadata from IPFS
+2. CID and tag hashes against the registry
+3. indexed activity history for provenance
 
-### "Stream is not active"
+## Compatibility
 
-The stream may have:
-- Expired (reached stop time)
-- Been cancelled
-- Never existed
+### Why do I still see "FlowPay" names in code and contracts?
 
-Check the stream status on the dashboard or via `sdk.getStream(streamId)`.
+Because some identifiers are kept for compatibility while the product is now branded as **Stream Engine**.
 
-### "Caller is not the recipient"
+Examples include:
 
-Only the stream recipient can withdraw funds. Make sure you're using the correct wallet.
+- `FlowPaySDK`
+- `FlowPayStream`
+- `FlowPayRWAHub`
 
-## Security
-
-### Is FlowPay audited?
-
-FlowPay is currently in testnet phase. A security audit is planned before mainnet deployment.
-
-### What are the spending limits?
-
-The SDK includes a SpendingMonitor with configurable limits:
-- Daily spending limit
-- Per-request limit
-- Emergency stop threshold
-
-### Can I lose funds?
-
-Funds in a stream are locked in the smart contract. You can always:
-- Withdraw streamed funds (as recipient)
-- Cancel and reclaim remaining funds (as sender)
-
-## Integration
-
-### Does FlowPay work with any AI framework?
-
-Yes, FlowPay is framework-agnostic. It works with:
-- LangChain
-- AutoGPT
-- Custom agents
-- Any HTTP client
-
-### Can multiple agents share a stream?
-
-Not directly. Each agent should create its own streams. However, the FlowPayProxy component enables multi-agent coordination.
-
-### What's the minimum stream amount?
-
-The minimum depends on duration. The flow rate must be at least 1 wei per second:
-```
-minAmount = duration (in seconds)
-```
-
-For a 1-hour stream, minimum is 3600 wei (very small).
+Those names are implementation-era carryovers, not the product name.

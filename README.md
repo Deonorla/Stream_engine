@@ -1,11 +1,29 @@
-# FlowPay on Polkadot Westend Asset Hub
+# Stream Engine on Polkadot Westend Asset Hub
 
-FlowPay combines two product lanes on one stack:
+**Stream Engine** is an `x402`-compatible payment and settlement stack for AI agents.
 
-- `x402` payment streaming for agent-to-API usage
+It combines two product lanes on one runtime:
+
+- agent-to-API payments using `x402` discovery plus reusable payment streams
 - rental RWA issuance with IPFS metadata, verification, compliance, and yield streaming
 
 The current deployment target is `Westend Asset Hub`, using Circle test `USDC` as the payment and yield asset for both lanes.
+
+## x402 + Stream Engine
+
+The clean mental model is:
+
+- `x402` is the paywall handshake
+- `Stream Engine` is the settlement engine behind that handshake
+
+In practice:
+
+- `x402` tells an agent that payment is required
+- `x402` describes the terms: token, route mode, recipient, and proof format
+- `Stream Engine` decides whether to satisfy that requirement with direct settlement or a reusable payment stream
+- the middleware verifies the chosen payment state and turns it into API access
+
+So Stream Engine does **not** replace `x402`. It makes `x402` economically usable for high-frequency agent traffic.
 
 ## Current target
 
@@ -19,13 +37,15 @@ The current deployment target is `Westend Asset Hub`, using Circle test `USDC` a
 - Decimals: `6`
 - Asset precompile: `0x00007a6900000000000000000000000001200000`
 
-## What FlowPay does now
+## What Stream Engine does now
 
 ### Agent payments
 
-- middleware emits `x402`-style payment requirements
+- middleware emits standardized `HTTP 402 Payment Required` responses
+- agents discover payment terms through an `x402`-style flow instead of custom provider logic
 - the SDK or dashboard approves Circle USDC once
 - `FlowPayStream` creates a reusable stream instead of signing every request
+- subsequent requests reference the active stream, and the middleware validates that stream onchain
 
 ### Rental RWAs
 
@@ -39,8 +59,46 @@ The current deployment target is `Westend Asset Hub`, using Circle test `USDC` a
 - Solidity contracts deployed through Polkadot's smart-contract stack
 - native Substrate `revive` reads and writes for Westend compatibility
 - React/Vite frontend with Polkadot wallet extension support
-- Express backend for x402 middleware, IPFS uploads, verification, and indexing
+- Express backend for `x402` middleware, IPFS uploads, verification, and indexing
 - TypeScript SDK with both EVM and Substrate transaction adapters
+
+## Why this matters for agents
+
+Human payment flows tolerate:
+
+- checkout pages
+- manual confirmations
+- subscriptions
+- custom billing integrations
+
+Agents do not.
+
+Agents need:
+
+- machine-readable payment discovery
+- automatic authorization
+- low-friction repeated usage
+- clear spending controls
+- predictable failure modes
+
+`x402` provides the payment negotiation layer.
+Stream Engine provides the low-friction settlement layer.
+
+That is why the combination works.
+
+## Request lifecycle
+
+```text
+Agent request
+  -> API returns HTTP 402
+  -> x402-style response describes payment terms
+  -> SDK/runtime decides direct payment vs streaming
+  -> Stream Engine opens or reuses a stream
+  -> middleware verifies stream state
+  -> API serves the resource
+```
+
+For repeated usage, the important optimization is that many API requests can reuse one stream lifecycle instead of requiring a fresh onchain payment each time.
 
 ## Quick start
 
@@ -116,8 +174,7 @@ This validates:
 ### 5. Start the app
 
 ```bash
-npm --prefix server run dev
-npm --prefix vite-project run dev
+npm run start:all
 ```
 
 Open [http://localhost:5173](http://localhost:5173).
@@ -157,4 +214,4 @@ These are the latest live contract addresses from the native Westend deployment 
 
 - Circle's public test faucet currently exposes Polkadot test USDC on Westend Asset Hub, which is why the verified path uses Westend rather than Polkadot Hub TestNet.
 - The backend and smoke scripts already use native Substrate `revive` calls for Westend compatibility.
-- Some legacy compatibility aliases still exist in the repo (`mneeTokenAddress`, old EVM env fallbacks), but the active flow is Westend + Circle USDC.
+- Some legacy compatibility aliases still exist in the repo (`FlowPaySDK`, `FlowPayStream`, `mneeTokenAddress`, old env names), but the active product/runtime is **Stream Engine** on Westend with Circle USDC.

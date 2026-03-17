@@ -54,8 +54,19 @@ It combines:
 | Layer | What it does |
 |-------|-------------|
 | **x402 negotiation** | Agents discover paid endpoints through standard HTTP 402 flows. |
-| **${tokenSymbol} streaming** | One approval powers continuous machine payments and instant cancellation refunds. |
+| **${tokenSymbol} settlement** | One approval powers continuous machine payments and instant cancellation refunds. |
 | **RWA Studio** | Mint, verify, rent, and monitor rental assets with IPFS-backed provenance. |
+
+## Mental Model
+
+| Layer | Role |
+|------|------|
+| **x402** | Payment negotiation and paywall signaling |
+| **Stream Engine** | Stream-based settlement and authorization |
+| **Middleware** | Verifies payment state and turns it into API access |
+
+Stream Engine does **not** replace x402.
+It uses x402 as the machine-readable paywall handshake, then satisfies that payment requirement through direct settlement or reusable streaming.
 
 ## Runtime
 
@@ -77,7 +88,7 @@ ${buildContractTable(catalog)}
 git clone https://github.com/ola-893/flowpay.git
 cd flowpay
 npm run install:all
-npm run dev
+npm run start:all
 \`\`\`
 
 Launch the app, connect a Westend-compatible EVM wallet, and fund payment streams with Circle ${tokenSymbol} on asset id \`${paymentAssetId}\`.`,
@@ -87,7 +98,37 @@ Launch the app, connect a Westend-compatible EVM wallet, and fund payment stream
       title: 'Payment Streams',
       content: `# Payment Streams
 
-## How Streaming Works
+## x402 vs Streaming
+
+\`x402\` is the negotiation layer.
+
+It tells an agent:
+
+- payment is required
+- which route is paid
+- which token is accepted
+- who gets paid
+- which payment mode is supported
+
+Streaming is the settlement layer.
+
+Instead of forcing a new onchain payment for every request, Stream Engine lets an agent open one reusable stream and satisfy repeated route access against that stream.
+
+## Why this matters
+
+Without streaming, a naive x402 flow can still become:
+
+1. Request
+2. 402
+3. Onchain payment
+4. Retry request
+5. Repeat for every call
+
+That breaks down for high-frequency agent workloads.
+
+Stream Engine keeps the x402 handshake, but replaces repeated payment execution with one stream lifecycle.
+
+## How Stream Settlement Works
 
 Circle ${tokenSymbol} is approved to the stream contract and released per-second to the configured recipient.
 
@@ -105,6 +146,15 @@ Claimable = (flow_rate × seconds_elapsed) − amount_withdrawn
 5. Confirm the stream transaction
 
 The recipient can withdraw as value accrues. The sender can cancel early and recover unused balance.
+
+## Agent Flow
+
+1. Agent calls a protected route
+2. API returns HTTP 402
+3. x402-style response describes payment terms
+4. Stream Engine runtime chooses direct settlement or streaming
+5. Middleware verifies the active stream or direct payment proof
+6. API returns the resource
 
 ## Live Route Policy
 
@@ -167,11 +217,22 @@ The product is **Stream Engine**, but some exported class names still use older 
 
 | Capability | Description |
 |-----------|-------------|
-| \`fetch(url)\` | Makes HTTP requests and handles 402 payment flows |
-| \`createStream(opts)\` | Creates a ${tokenSymbol} payment stream |
+| \`fetch(url)\` | Makes HTTP requests and handles x402-style 402 payment negotiation |
+| \`createStream(opts)\` | Creates a reusable ${tokenSymbol} payment stream |
 | \`cancelStream(id)\` | Cancels a stream and refunds unused balance |
 | \`getBalance()\` | Reads current token balance |
 | \`optimizeSpending()\` | Lets the runtime choose streaming vs direct settlement |
+
+## Design Role
+
+The SDK is the bridge between:
+
+- machine-readable x402 payment requirements
+- agent budget policy
+- actual settlement execution
+
+That means the SDK is not just a wallet wrapper.
+It is the runtime that takes a 402 response, interprets the payment requirements, chooses the cheapest safe payment path, and retries the request once payment is satisfied.
 
 ## Budgeting
 
