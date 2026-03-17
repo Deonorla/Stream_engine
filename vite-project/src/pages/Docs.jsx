@@ -1542,6 +1542,42 @@ function DeployedContractCards({ catalog }) {
   );
 }
 
+function SectionButton({ section, isActive, onClick }) {
+  const Icon = section.icon || BookOpen;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "w-full rounded-2xl border px-4 py-3 text-left transition-all",
+        isActive
+          ? "border-cyan-400/40 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(34,211,238,0.08)]"
+          : "border-white/8 bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.05]",
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={[
+            "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border",
+            isActive
+              ? "border-cyan-400/30 bg-cyan-400/15 text-cyan-200"
+              : "border-white/10 bg-black/20 text-white/55",
+          ].join(" ")}
+        >
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-white">{section.title}</div>
+          <div className="mt-1 text-xs leading-5 text-white/45">
+            {section.summary}
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function Docs() {
   const { catalog, isLoading, error } = useProtocolCatalog();
   const { section } = useParams();
