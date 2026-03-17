@@ -21,6 +21,8 @@
     "smoke:westmint:substrate": "node scripts/smoke-substrate.js",
     "transfer:westmint:substrate": "node scripts/transfer-asset-substrate.js",
     "dev": "npm --prefix vite-project run dev",
+    "dev:stack": "node scripts/dev-stack.js",
+    "start:all": "node scripts/dev-stack.js",
     "build:web": "npm --prefix vite-project run build",
     "preview": "npm --prefix vite-project run preview",
     "install:all": "npm install && npm --prefix sdk install && npm --prefix server install && npm --prefix vite-project install",
