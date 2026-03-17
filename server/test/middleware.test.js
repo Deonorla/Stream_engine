@@ -24,6 +24,10 @@ describe('x402 Middleware Integration', function () {
             recipientAddress: "0xRecipientMock",
             mockContract: mockContract, // Inject mock
             routes: {
+                '/api/free': {
+                    price: '0',
+                    mode: 'free'
+                },
                 '/api/weather': {
                     price: '0.0001',
                     mode: 'streaming'

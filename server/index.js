@@ -132,6 +132,66 @@ async function buildServices(config) {
     return services;
 }
 
+function beginIndexerSync(app, options = {}) {
+    if (app.locals.indexerSyncPromise) {
+        return app.locals.indexerSyncPromise;
+    }
+
+    app.locals.indexerSyncPromise = (async () => {
+        const services = await app.locals.ready;
+        if (!services.indexer) {
+            return null;
+        }
+
+        return services.indexer.sync(options);
+    })()
+        .catch((error) => {
+            console.error("RWA indexer sync failed:", error);
+            return null;
+        })
+        .finally(() => {
+            app.locals.indexerSyncPromise = null;
+        });
+
+    return app.locals.indexerSyncPromise;
+}
+
+async function primeAssetsFromChain(services, { owner } = {}) {
+    if (
+        !services.chainService?.isConfigured?.()
+        || typeof services.chainService.listAssetSnapshots !== "function"
+    ) {
+        return [];
+    }
+
+    const limit = Number(process.env.RWA_BOOTSTRAP_ASSET_LIMIT || 200);
+    const snapshots = await services.chainService.listAssetSnapshots({ owner, limit });
+    for (const snapshot of snapshots) {
+        await services.store.upsertAsset(snapshot);
+    }
+    return snapshots;
+}
+
+function beginAssetPrime(app) {
+    if (app.locals.assetPrimePromise) {
+        return app.locals.assetPrimePromise;
+    }
+
+    app.locals.assetPrimePromise = (async () => {
+        const services = await app.locals.ready;
+        return primeAssetsFromChain(services);
+    })()
+        .catch((error) => {
+            console.error("RWA asset bootstrap failed:", error);
+            return [];
+        })
+        .finally(() => {
+            app.locals.assetPrimePromise = null;
+        });
+
+    return app.locals.assetPrimePromise;
+}
+
 function createApp(config = defaultConfig) {
     const resolvedConfig = {
         ...defaultConfig,
@@ -148,6 +208,8 @@ function createApp(config = defaultConfig) {
     app.use(express.json({ limit: "2mb" }));
 
     app.locals.services = resolvedConfig.services ? { ...resolvedConfig.services } : {};
+    app.locals.indexerSyncPromise = null;
+    app.locals.assetPrimePromise = null;
     app.locals.ready = buildServices(resolvedConfig).then((services) => {
         app.locals.services = services;
         return services;
@@ -215,10 +277,14 @@ function createApp(config = defaultConfig) {
 
     app.get("/api/rwa/assets", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
-        await services.indexer.sync();
+        void beginIndexerSync(app);
+        void beginAssetPrime(app);
         const rawAssets = await services.store.listAssets({ owner: req.query.owner });
         const assets = await Promise.all(rawAssets.map((asset) => hydrateAssetMetadata(services, asset)));
-        res.json({ assets });
+        res.json({
+            assets,
+            syncing: Boolean(app.locals.indexerSyncPromise || app.locals.assetPrimePromise),
+        });
     }));
 
     app.post("/api/rwa/ipfs/metadata", asyncHandler(async (req, res) => {
@@ -266,7 +332,7 @@ function createApp(config = defaultConfig) {
             issuer,
         });
 
-        await services.indexer.sync();
+        void beginIndexerSync(app);
 
         const snapshot = await chainService.getAssetSnapshot(mintResult.tokenId);
         if (snapshot) {
@@ -301,7 +367,7 @@ function createApp(config = defaultConfig) {
         }
 
         const services = await app.locals.ready;
-        await services.indexer.sync();
+        void beginIndexerSync(app);
 
         let asset = await services.store.getAsset(tokenId);
         if (!asset && services.chainService?.isConfigured()) {
@@ -316,7 +382,7 @@ function createApp(config = defaultConfig) {
         }
 
         asset = await hydrateAssetMetadata(services, asset);
-        res.json({ asset });
+        res.json({ asset, syncing: Boolean(app.locals.indexerSyncPromise) });
     }));
 
     app.get("/api/rwa/assets/:tokenId/activity", asyncHandler(async (req, res) => {
@@ -326,9 +392,9 @@ function createApp(config = defaultConfig) {
         }
 
         const services = await app.locals.ready;
-        await services.indexer.sync();
+        void beginIndexerSync(app);
         const activity = await services.store.getActivities(tokenId);
-        res.json({ activity });
+        res.json({ activity, syncing: Boolean(app.locals.indexerSyncPromise) });
     }));
 
     app.post("/api/rwa/verify", asyncHandler(async (req, res) => {
@@ -347,7 +413,7 @@ function createApp(config = defaultConfig) {
             return res.status(400).json({ error: "cid, uri, or payload is required" });
         }
 
-        await services.indexer.sync();
+        void beginIndexerSync(app);
 
         let asset = await services.store.getAsset(resolvedTokenId);
         if (!asset && services.chainService?.isConfigured()) {

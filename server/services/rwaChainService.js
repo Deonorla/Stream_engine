@@ -67,6 +67,7 @@ class RWAChainService {
         ];
 
         this.assetNftAbi = [
+            "function nextTokenId() external view returns (uint256)",
             "function tokenURI(uint256 tokenId) external view returns (string)",
             "function ownerOf(uint256 tokenId) external view returns (address)",
             "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)"
@@ -289,6 +290,48 @@ class RWAChainService {
             },
             compliance,
         };
+    }
+
+    async listAssetSnapshots({ owner, limit = 200 } = {}) {
+        if (!this.isConfigured()) {
+            return [];
+        }
+
+        const nextTokenIdRaw = await this.readContract(
+            this.assetNFTAddress,
+            this.assetNftAbi,
+            "nextTokenId",
+            []
+        );
+        const nextTokenId = toNumber(nextTokenIdRaw);
+        if (!Number.isFinite(nextTokenId) || nextTokenId <= 1) {
+            return [];
+        }
+
+        const firstTokenId = Math.max(1, nextTokenId - Math.max(1, Number(limit || 200)));
+        const assets = [];
+
+        for (let tokenId = firstTokenId; tokenId < nextTokenId; tokenId += 1) {
+            try {
+                const snapshot = await this.getAssetSnapshot(tokenId);
+                if (!snapshot) {
+                    continue;
+                }
+
+                if (
+                    owner
+                    && snapshot.currentOwner?.toLowerCase() !== owner.toLowerCase()
+                ) {
+                    continue;
+                }
+
+                assets.push(snapshot);
+            } catch (error) {
+                // Skip missing or unreadable token ids so one bad read does not block the list.
+            }
+        }
+
+        return assets.sort((left, right) => Number(left.tokenId) - Number(right.tokenId));
     }
 
     async getVerificationStatus(tokenId, cidHash, tagHash) {

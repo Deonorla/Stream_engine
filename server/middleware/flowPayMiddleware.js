@@ -110,6 +110,14 @@ const flowPayMiddleware = (config) => {
 
         const streamIdHeader = req.headers['x-flowpay-stream-id'];
         const txHashHeader = req.headers['x-flowpay-tx-hash'];
+        const isFreeRoute =
+            routeConfig.mode === 'free'
+            || Number(routeConfig.price || '0') <= 0;
+
+        if (isFreeRoute) {
+            req.flowPay = { mode: 'free' };
+            return next();
+        }
 
         // 1. Check for Direct Payment (Tx Hash) (Requirement: Hybrid Mode)
         if (txHashHeader) {
