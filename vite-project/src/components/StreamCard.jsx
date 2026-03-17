@@ -129,6 +129,7 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
   const [isExpanded, setIsExpanded] = useState(false);
   const [showConfirm, setShowConfirm] = useState(null);
   const [liveClaimable, setLiveClaimable] = useState(0);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const nowSec = Math.floor(Date.now() / 1000);
   const elapsed = Math.max(0, Math.min(nowSec, stream.stopTime) - stream.startTime);
@@ -145,15 +146,16 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
 
   const status = getStatus();
 
-  // Real-time claimable balance simulation
+  // Real-time claimable balance simulation — offset by already-withdrawn amount
   useEffect(() => {
     if (status !== 'active') return;
 
     const flowRate = parseFloat(formatEth(stream.flowRate)) || 0;
+    const withdrawn = parseFloat(formatEth(stream.amountWithdrawn ?? 0n)) || 0;
     const interval = setInterval(() => {
       const now = Math.floor(Date.now() / 1000);
       const streamed = Math.min(now - stream.startTime, duration) * flowRate;
-      setLiveClaimable(streamed);
+      setLiveClaimable(Math.max(0, streamed - withdrawn));
     }, 100);
 
     return () => clearInterval(interval);
@@ -163,10 +165,14 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
     setShowConfirm(action);
   };
 
-  const confirmAction = () => {
-    if (showConfirm === 'withdraw') onWithdraw?.(stream.id);
-    if (showConfirm === 'cancel') onCancel?.(stream.id);
+  const confirmAction = async () => {
+    const action = showConfirm;
     setShowConfirm(null);
+    if (action === 'withdraw') {
+      setIsWithdrawing(true);
+      try { await onWithdraw?.(stream.id); } finally { setIsWithdrawing(false); }
+    }
+    if (action === 'cancel') onCancel?.(stream.id);
   };
 
   return (
@@ -219,6 +225,11 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
                 <AnimatedBalance value={liveClaimable} />
               </div>
               <div className="text-xs text-white/50">{paymentTokenSymbol}</div>
+              {stream.amountWithdrawn > 0n && (
+                <div className="text-xs text-white/35 mt-0.5">
+                  {formatEth(stream.amountWithdrawn)} claimed
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -235,10 +246,13 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
           <div className="flex gap-2">
             {variant === 'incoming' && status === 'active' && (
               <button
-                className="btn-success text-sm px-3 py-1.5 flex items-center gap-1"
+                className="btn-success text-sm px-3 py-1.5 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => handleAction('withdraw')}
+                disabled={isWithdrawing}
               >
-                <Coins className="w-4 h-4" /> Withdraw
+                {isWithdrawing
+                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Claiming...</>
+                  : <><Coins className="w-4 h-4" /> Withdraw</>}
               </button>
             )}
             {status === 'active' && (

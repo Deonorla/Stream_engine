@@ -147,9 +147,11 @@ export default function StreamList({
   const filteredStreams = useMemo(() => {
     return streams.filter(s => {
       // Status filter
-      const isActive = s.isActive;
-      const isCompleted = !s.isActive && (Math.floor(Date.now() / 1000) >= s.stopTime);
-      const isCancelled = !s.isActive && (Math.floor(Date.now() / 1000) < s.stopTime);
+      const now = Math.floor(Date.now() / 1000);
+      const isExpired = now >= Number(s.stopTime);
+      const isCompleted = isExpired; // past stopTime = completed regardless of isActive flag
+      const isActive = s.isActive && !isExpired;
+      const isCancelled = !s.isActive && !isExpired;
 
       if (filter === 'active' && !isActive) return false;
       if (filter === 'completed' && !isCompleted) return false;
@@ -194,9 +196,9 @@ export default function StreamList({
     const now = Math.floor(Date.now() / 1000);
     return {
       all: streams.length,
-      active: streams.filter(s => s.isActive).length,
-      completed: streams.filter(s => !s.isActive && now >= s.stopTime).length,
-      cancelled: streams.filter(s => !s.isActive && now < s.stopTime).length,
+      active: streams.filter(s => s.isActive && now < Number(s.stopTime)).length,
+      completed: streams.filter(s => now >= Number(s.stopTime)).length,
+      cancelled: streams.filter(s => !s.isActive && now < Number(s.stopTime)).length,
     };
   }, [streams]);
 

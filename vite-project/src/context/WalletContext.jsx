@@ -241,6 +241,7 @@ export function WalletProvider({ children }) {
 
       substrateSessionRef.current = null;
       activeWalletProviderRef.current = null;
+      localStorage.removeItem('se_wallet');
       resetWalletState();
       setStatus("Choose a wallet to connect");
 
@@ -313,6 +314,7 @@ export function WalletProvider({ children }) {
             description: walletOption.description,
             source: walletOption.source,
           });
+          localStorage.setItem('se_wallet', JSON.stringify({ id: walletOption.id, source: walletOption.source }));
           setIsWalletPickerOpen(false);
           setNativeApprovalState({
             checked: true,
@@ -356,6 +358,7 @@ export function WalletProvider({ children }) {
         type: walletOption.type,
         description: walletOption.description,
       });
+      localStorage.setItem('se_wallet', JSON.stringify({ id: walletOption.id }));
       setIsWalletPickerOpen(false);
       let nextStatus = `Connected via ${walletOption.name}`;
       if (Number(nextNetwork.chainId) === 420420421) {
@@ -835,6 +838,19 @@ export function WalletProvider({ children }) {
   useEffect(() => {
     refreshAvailableWallets();
   }, [refreshAvailableWallets]);
+
+  // Auto-reconnect on page load if a wallet was previously connected
+  useEffect(() => {
+    if (!availableWallets.length) return;
+    const saved = localStorage.getItem('se_wallet');
+    if (!saved || walletAddress) return;
+    try {
+      const { id } = JSON.parse(saved);
+      connectWallet(id).catch(() => localStorage.removeItem('se_wallet'));
+    } catch {
+      localStorage.removeItem('se_wallet');
+    }
+  }, [availableWallets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handleFocus = () => {
