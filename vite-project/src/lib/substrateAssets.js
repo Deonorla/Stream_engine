@@ -242,31 +242,22 @@ export async function readNativeAssetBalance(address, assetId) {
  * Convert a 20-byte EVM address to the 32-byte mapped Substrate AccountId
  * used by Westend Asset Hub (H160 padded with 0xEE bytes).
  */
-function evmToSubstrateAccountId(evmAddress) {
+export function evmToSubstrateAccountId(evmAddress) {
   const hex = evmAddress.slice(2).toLowerCase();
   return `0x${hex}${'ee'.repeat(12)}`;
 }
 
-/**
- * Approve a spender to transfer a native Substrate asset on behalf of the signer.
- * Uses assets.approveTransfer extrinsic via the Talisman/polkadot.js Substrate extension.
- */
-export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAddress, amount) {
-  const { ApiPromise, WsProvider } = await import('@polkadot/api');
+async function listInjectedSubstrateAccounts(appName = 'Stream Engine') {
   const injectedWeb3 = window.injectedWeb3 || {};
   const extensionEntries = Object.entries(injectedWeb3);
   if (!extensionEntries.length) {
-    throw new Error('No Substrate wallet extension is available for native asset approval.');
+    return [];
   }
 
-  const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
-  const mappedAccountId = evmToSubstrateAccountId(evmAddress);
-  const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
-
-  const enabledExtensions = (await Promise.all(
+  return (await Promise.all(
     extensionEntries.map(async ([source, extension]) => {
       try {
-        const injected = await extension.enable('Stream Engine');
+        const injected = await extension.enable(appName);
         const accounts = await injected.accounts.get();
         return accounts.map((account) => ({
           ...account,
@@ -278,8 +269,68 @@ export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAd
       }
     }),
   )).flat();
+}
 
-  const accounts = enabledExtensions;
+export async function inspectSubstrateApprovalAccount(evmAddress) {
+  const { ApiPromise, WsProvider } = await import('@polkadot/api');
+  const accounts = await listInjectedSubstrateAccounts();
+
+  if (!accounts.length) {
+    return {
+      ready: false,
+      reason: 'No Substrate wallet extension is available for native approvals.',
+      mappedAccountAddress: '',
+      accountAddress: '',
+      source: '',
+    };
+  }
+
+  const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
+  try {
+    const mappedAccountId = evmToSubstrateAccountId(evmAddress);
+    const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
+    const account = accounts.find(
+      (candidate) => candidate.meta?.ethereum?.toLowerCase() === evmAddress.toLowerCase()
+        || candidate.address?.toLowerCase() === mappedAccountAddress.toLowerCase()
+        || candidate.address?.toLowerCase() === evmAddress.toLowerCase(),
+    );
+
+    if (!account) {
+      return {
+        ready: false,
+        reason: `No mapped Substrate account was found for ${evmAddress}. Add ${mappedAccountAddress} in Talisman or polkadot.js for native approvals.`,
+        mappedAccountAddress,
+        accountAddress: '',
+        source: '',
+      };
+    }
+
+    return {
+      ready: true,
+      reason: '',
+      mappedAccountAddress,
+      accountAddress: account.address,
+      source: account.source || '',
+    };
+  } finally {
+    await api.disconnect();
+  }
+}
+
+/**
+ * Approve a spender to transfer a native Substrate asset on behalf of the signer.
+ * Uses assets.approveTransfer extrinsic via the Talisman/polkadot.js Substrate extension.
+ */
+export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAddress, amount) {
+  const { ApiPromise, WsProvider } = await import('@polkadot/api');
+  const accounts = await listInjectedSubstrateAccounts();
+  if (!accounts.length) {
+    throw new Error('No Substrate wallet extension is available for native asset approval.');
+  }
+
+  const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
+  const mappedAccountId = evmToSubstrateAccountId(evmAddress);
+  const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
   const account = accounts.find(
     (a) => a.meta?.ethereum?.toLowerCase() === evmAddress.toLowerCase()
       || a.address?.toLowerCase() === mappedAccountAddress.toLowerCase()
