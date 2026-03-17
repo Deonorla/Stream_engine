@@ -17,6 +17,7 @@ export default function Layout({ children }) {
     walletAddress,
     chainId,
     getNetworkName,
+    connectWallet,
     openWalletPicker,
     closeWalletPicker,
     isWalletPickerOpen,
