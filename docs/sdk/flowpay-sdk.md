@@ -32,4 +32,4 @@ const sdk = new FlowPaySDK({
 
 - the current runtime token is Circle `USDC`
 - the SDK can operate with an EVM signer or the `FlowPaySubstrateAdapter`
-- the contract ABI still uses `mneeToken()` as a legacy getter name
+- the SDK expects `paymentToken()` on the stream contract when it needs to resolve the token address on-chain

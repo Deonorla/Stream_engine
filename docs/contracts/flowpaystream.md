@@ -31,5 +31,5 @@ claimable = (elapsed * flowRate) - amountWithdrawn
 ## Notes
 
 - amounts are denominated in USDC base units with `6` decimals
-- the contract ABI still exposes `mneeToken()` as a legacy getter name for compatibility
+- the contract exposes `paymentToken()` as the canonical token getter
 - Stream Engine uses metadata to tag agent actions, route purpose, and RWA rental context

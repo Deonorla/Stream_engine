@@ -27,7 +27,7 @@ describe("FlowPayStream", function () {
 
     describe("Deployment", function () {
         it("Should set the right payment token address", async function () {
-            expect(await flowPayStream.mneeToken()).to.equal(await mockUSDC.getAddress());
+            expect(await flowPayStream.paymentToken()).to.equal(await mockUSDC.getAddress());
         });
     });
 

@@ -214,4 +214,4 @@ These are the latest live contract addresses from the native Westend deployment 
 
 - Circle's public test faucet currently exposes Polkadot test USDC on Westend Asset Hub, which is why the verified path uses Westend rather than Polkadot Hub TestNet.
 - The backend and smoke scripts already use native Substrate `revive` calls for Westend compatibility.
-- Some legacy compatibility names still exist at the contract and API boundary (`FlowPaySDK`, `FlowPayStream`, `mneeToken()` getter, `X-MNEE-Address` header), but the active product/runtime is **Stream Engine** on Westend with Circle USDC.
+- The active runtime is **Stream Engine** on Westend Asset Hub with Circle USDC. Legacy package and contract names such as `FlowPaySDK` and `FlowPayStream` remain as code identifiers only.

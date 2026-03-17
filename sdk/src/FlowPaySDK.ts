@@ -40,7 +40,7 @@ export class FlowPaySDK {
     private MIN_ABI = [
         "function createStream(address recipient, uint256 duration, uint256 amount, string metadata) external",
         "function isStreamActive(uint256 streamId) external view returns (bool)",
-        "function mneeToken() external view returns (address)",
+        "function paymentToken() external view returns (address)",
         "event StreamCreated(uint256 indexed streamId, address indexed sender, address indexed recipient, uint256 totalAmount, uint256 startTime, uint256 stopTime, string metadata)"
     ];
 
@@ -194,7 +194,7 @@ export class FlowPaySDK {
         // Let's assume server might send 'hybrid' or we decide based on capability.
 
         const rate = headers['x-flowpay-rate']; // amount per second or per request
-        const paymentTokenAddress = headers['x-flowpay-token'] || headers['x-mnee-address'];
+        const paymentTokenAddress = headers['x-flowpay-token'];
         const headerTokenDecimals = Number(headers['x-flowpay-token-decimals']);
         const tokenDecimals = Number.isFinite(headerTokenDecimals) ? headerTokenDecimals : this.tokenDecimals;
         const tokenSymbol = headers['x-payment-currency'] || this.tokenSymbol;
@@ -310,12 +310,12 @@ export class FlowPaySDK {
                 paymentTokenAddress = await this.adapter.readContract<string>(
                     contractAddress,
                     this.MIN_ABI,
-                    "mneeToken",
+                    "paymentToken",
                     []
                 );
             } else {
                 try {
-                    paymentTokenAddress = await flowPay.mneeToken();
+                    paymentTokenAddress = await flowPay.paymentToken();
                 } catch {
                     throw new Error("Cannot determine payment token address");
                 }

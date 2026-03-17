@@ -19,7 +19,7 @@ export const rwaApiBaseUrl = env.VITE_RWA_API_URL || 'http://localhost:3001';
 // 2. Uses the Vercel Environment Variable for the ABI if it exists, otherwise falls back to the hardcoded ABI.
 const hardcodedABI = [
   {
-    "inputs": [{ "internalType": "address", "name": "_mneeToken", "type": "address" }],
+    "inputs": [{ "internalType": "address", "name": "_paymentToken", "type": "address" }],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -101,7 +101,7 @@ const hardcodedABI = [
   },
   {
     "inputs": [],
-    "name": "mneeToken",
+    "name": "paymentToken",
     "outputs": [{ "internalType": "contract IERC20", "name": "", "type": "address" }],
     "stateMutability": "view",
     "type": "function"
