@@ -46,14 +46,11 @@ export default function LandingHero({
   const [typed, setTyped] = useState("");
   const [phraseIdx, setPhraseIdx] = useState(0);
   const typingRef = useRef(null);
-  const legend = useMemo(
-    () => [
-      { color: "bg-flowpay-500", label: `${tokenSymbol} Payments` },
-      { color: "bg-accent-500", label: "AI Calls" },
-      { color: "bg-success-500", label: "RWA Yields" },
-    ],
-    [tokenSymbol],
-  );
+  const legend = useMemo(() => ([
+    { color: "bg-flowpay-500", label: `${tokenSymbol} Payments` },
+    { color: "bg-accent-500", label: "AI Calls" },
+    { color: "bg-success-500", label: "RWA Yields" },
+  ]), [tokenSymbol]);
   const overviewLabel = assetCount > 0 ? "indexed assets" : "protected routes";
   const overviewValue = assetCount > 0 ? assetCount : routeCount;
 
@@ -139,8 +136,10 @@ export default function LandingHero({
           </span>
         </h1>
         <p className="text-base text-surface-400 max-w-md mx-auto leading-relaxed">
-          AI agents. Streaming payments. Real-world assets. All on {networkName}
-          .
+          AI agents. Streaming payments. Real-world assets. All on {networkName}.
+        </p>
+        <p className="text-sm text-surface-500 max-w-lg mx-auto mt-3 leading-relaxed">
+          Browse {routeCount || 0} paid routes, settle in {tokenSymbol}, and inspect {assetCount || 0} indexed rental assets from one runtime.
         </p>
       </div>
 

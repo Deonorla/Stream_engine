@@ -64,7 +64,14 @@ function appendProvider(walletMap, info, provider) {
   }
 
   const wallet = normalizeInjectedWallet(info, provider);
-  if (wallet && !walletMap.has(wallet.id)) {
+  if (!wallet) return;
+
+  // Deduplicate by rdns — prefer entry with an icon (EIP-6963 over legacy)
+  const existing = [...walletMap.values()].find(w => w.rdns === wallet.rdns);
+  if (!existing) {
+    walletMap.set(wallet.id, wallet);
+  } else if (!existing.icon && wallet.icon) {
+    walletMap.delete(existing.id);
     walletMap.set(wallet.id, wallet);
   }
 }
@@ -114,11 +121,12 @@ export async function discoverInjectedWallets(timeout = 250) {
   }
 
   const walletMap = new Map();
-  appendLegacyProviders(walletMap);
 
   await new Promise((resolve) => {
     const timer = window.setTimeout(() => {
       window.removeEventListener('eip6963:announceProvider', handleAnnouncement);
+      // Add legacy providers after EIP-6963 so icons from EIP-6963 take priority
+      appendLegacyProviders(walletMap);
       resolve();
     }, timeout);
 
@@ -133,6 +141,7 @@ export async function discoverInjectedWallets(timeout = 250) {
     if (!window.ethereum) {
       window.clearTimeout(timer);
       window.removeEventListener('eip6963:announceProvider', handleAnnouncement);
+      appendLegacyProviders(walletMap);
       resolve();
     }
   });
