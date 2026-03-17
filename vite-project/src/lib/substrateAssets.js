@@ -602,3 +602,38 @@ export async function substrateCallContract(session, {
 
   return signSubstrateTx(session.api, session.account, tx);
 }
+
+export async function substrateReadContract(session, {
+  contractAddress,
+  abi,
+  functionName,
+  args = [],
+  value = '0',
+}) {
+  if (!session?.api || !session?.account) {
+    throw new Error('No active Substrate wallet session.');
+  }
+
+  const iface = new Interface(abi);
+  const result = await session.api.call.reviveApi.call(
+    session.account.address,
+    contractAddress,
+    value.toString(),
+    createWeight(session.api),
+    session.storageDepositLimit || DEFAULT_STORAGE_DEPOSIT_LIMIT,
+    iface.encodeFunctionData(functionName, args),
+  );
+
+  if (result.result.isErr) {
+    throw new Error(decodeDispatchError(session.api, result.result.asErr));
+  }
+
+  const execution = result.result.asOk;
+  const flags = execution.flags?.bits?.toString?.() || '0';
+  if (flags !== '0') {
+    throw new Error(`Contract reverted with flags=${flags} data=${execution.data.toHex()}`);
+  }
+
+  const decoded = iface.decodeFunctionResult(functionName, execution.data.toHex());
+  return decoded.length === 1 ? decoded[0] : decoded;
+}

@@ -1397,6 +1397,7 @@ export default function RWA() {
     signer,
     walletAddress,
     walletDisplayAddress,
+    substrateSession,
     openWalletPicker,
     createStream,
     cancel,
@@ -1446,7 +1447,7 @@ export default function RWA() {
   const hubAddress = catalog?.rwa?.hubAddress || '';
   const assetStreamAddress = catalog?.rwa?.assetStreamAddress || '';
   const tokenAddress = catalog?.payments?.tokenAddress || '';
-  const hasContractControls = Boolean(signer && provider && hubAddress && assetStreamAddress && tokenAddress);
+  const hasContractControls = Boolean((signer || substrateSession) && hubAddress && assetStreamAddress && tokenAddress);
 
   const activeTab = STUDIO_TABS.some((tab) => tab.key === searchParams.get('tab'))
     ? searchParams.get('tab')
@@ -1595,9 +1596,14 @@ export default function RWA() {
       setWorkspaceAsset(mappedAsset);
       setWorkspaceActivity(mappedAsset.activity || []);
 
-      if (provider && hubAddress) {
+      if ((provider || substrateSession) && hubAddress) {
         try {
-          const claimable = await readClaimableYield({ provider, hubAddress, tokenId: Number(tokenId) });
+          const claimable = await readClaimableYield({
+            provider,
+            substrateSession,
+            hubAddress,
+            tokenId: Number(tokenId),
+          });
           setWorkspaceClaimableYield(ethers.formatUnits(claimable, paymentTokenDecimals));
         } catch {
           setWorkspaceClaimableYield(String(mappedAsset.yieldBalance || 0));
@@ -1621,7 +1627,7 @@ export default function RWA() {
     } finally {
       setIsWorkspaceLoading(false);
     }
-  }, [allAssets, hubAddress, provider, toast]);
+  }, [allAssets, hubAddress, provider, substrateSession, toast]);
 
   const openWorkspace = useCallback((asset) => {
     const tokenId = asset?.tokenId || asset?.id;
@@ -1797,6 +1803,7 @@ export default function RWA() {
     try {
       await approveAndCreateAssetYieldStream({
         signer,
+        substrateSession,
         tokenAddress,
         streamAddress: assetStreamAddress,
         hubAddress,
@@ -1822,7 +1829,12 @@ export default function RWA() {
 
     setActionFlag('claim', true);
     try {
-      await claimAssetYield({ signer, hubAddress, tokenId: Number(asset.tokenId) });
+      await claimAssetYield({
+        signer,
+        substrateSession,
+        hubAddress,
+        tokenId: Number(asset.tokenId),
+      });
       toast.success(`Yield claimed for Asset #${asset.tokenId}.`, { title: 'Yield claimed' });
       await Promise.all([loadRegistry(), loadWorkspaceAsset(asset.tokenId)]);
     } catch (error) {
@@ -1843,6 +1855,7 @@ export default function RWA() {
     try {
       await flashAdvanceAssetYield({
         signer,
+        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         amount: parseTokenAmount(amountValue, paymentTokenDecimals),
@@ -1868,6 +1881,7 @@ export default function RWA() {
       const expiry = form.expiry ? Math.floor(new Date(form.expiry).getTime() / 1000) : 0;
       await setAssetCompliance({
         signer,
+        substrateSession,
         hubAddress,
         user: form.user,
         assetType: TYPE_TO_CHAIN_ASSET_TYPE[asset.type] || Number(asset.assetType || 1),
@@ -1895,6 +1909,7 @@ export default function RWA() {
     try {
       await setAssetStreamFreeze({
         signer,
+        substrateSession,
         hubAddress,
         streamId: Number(asset.activeStreamId),
         frozen: Boolean(form.frozen),
@@ -1920,6 +1935,7 @@ export default function RWA() {
     try {
       await updateAssetMetadataOnChain({
         signer,
+        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         metadataURI,
@@ -1944,6 +1960,7 @@ export default function RWA() {
     try {
       await updateAssetVerificationTag({
         signer,
+        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         tag: tagValue,

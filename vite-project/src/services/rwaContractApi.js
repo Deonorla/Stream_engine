@@ -1,7 +1,12 @@
 import { Contract, ethers } from 'ethers';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
 import { paymentAssetId } from '../contactInfo.js';
-import { substrateApproveTransfer } from '../lib/substrateAssets.js';
+import {
+  substrateApproveTransfer,
+  substrateApproveTransferForSession,
+  substrateCallContract,
+  substrateReadContract,
+} from '../lib/substrateAssets.js';
 
 const TOKEN_APPROVAL_GAS_LIMIT = 500000n;
 const ASSET_STREAM_CREATION_GAS_LIMIT = 1500000n;
@@ -28,6 +33,16 @@ function requireAddress(label, value) {
   }
 }
 
+function hasNativeSubstrateSession(substrateSession) {
+  return ACTIVE_NETWORK.chainId === 420420421 && Boolean(substrateSession?.api && substrateSession?.account);
+}
+
+function requireWriteWallet({ signer, substrateSession }) {
+  if (!signer && !hasNativeSubstrateSession(substrateSession)) {
+    throw new Error('Connect a compatible wallet before sending this contract action.');
+  }
+}
+
 export function hashText(value) {
   return ethers.keccak256(ethers.toUtf8Bytes(value || ''));
 }
@@ -38,6 +53,7 @@ export function parseTokenAmount(value, decimals = 6) {
 
 export async function approveAndCreateAssetYieldStream({
   signer,
+  substrateSession,
   tokenAddress,
   streamAddress,
   hubAddress,
@@ -48,6 +64,17 @@ export async function approveAndCreateAssetYieldStream({
   requireAddress('Token address', tokenAddress);
   requireAddress('Asset stream address', streamAddress);
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    await substrateApproveTransferForSession(substrateSession, paymentAssetId, streamAddress, totalAmount);
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'createAssetYieldStream',
+      args: [tokenId, totalAmount, duration],
+    });
+  }
 
   const ownerAddress = await signer.getAddress();
   if (ACTIVE_NETWORK.chainId === 420420421) {
@@ -82,15 +109,37 @@ export async function approveAndCreateAssetYieldStream({
   return tx.wait();
 }
 
-export async function claimAssetYield({ signer, hubAddress, tokenId }) {
+export async function claimAssetYield({ signer, substrateSession, hubAddress, tokenId }) {
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'claimYield',
+      args: [tokenId],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.claimYield(tokenId);
   return tx.wait();
 }
 
-export async function flashAdvanceAssetYield({ signer, hubAddress, tokenId, amount }) {
+export async function flashAdvanceAssetYield({ signer, substrateSession, hubAddress, tokenId, amount }) {
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'flashAdvance',
+      args: [tokenId, amount],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.flashAdvance(tokenId, amount);
   return tx.wait();
@@ -98,6 +147,7 @@ export async function flashAdvanceAssetYield({ signer, hubAddress, tokenId, amou
 
 export async function setAssetCompliance({
   signer,
+  substrateSession,
   hubAddress,
   user,
   assetType,
@@ -106,34 +156,88 @@ export async function setAssetCompliance({
   jurisdiction,
 }) {
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'setCompliance',
+      args: [user, assetType, approved, expiry, jurisdiction],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.setCompliance(user, assetType, approved, expiry, jurisdiction);
   return tx.wait();
 }
 
-export async function setAssetStreamFreeze({ signer, hubAddress, streamId, frozen, reason }) {
+export async function setAssetStreamFreeze({ signer, substrateSession, hubAddress, streamId, frozen, reason }) {
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'freezeStream',
+      args: [streamId, frozen, reason],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.freezeStream(streamId, frozen, reason);
   return tx.wait();
 }
 
-export async function updateAssetMetadataOnChain({ signer, hubAddress, tokenId, metadataURI }) {
+export async function updateAssetMetadataOnChain({ signer, substrateSession, hubAddress, tokenId, metadataURI }) {
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'updateAssetMetadata',
+      args: [tokenId, metadataURI, hashText(metadataURI)],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.updateAssetMetadata(tokenId, metadataURI, hashText(metadataURI));
   return tx.wait();
 }
 
-export async function updateAssetVerificationTag({ signer, hubAddress, tokenId, tag }) {
+export async function updateAssetVerificationTag({ signer, substrateSession, hubAddress, tokenId, tag }) {
   requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'updateVerificationTag',
+      args: [tokenId, hashText(tag)],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.updateVerificationTag(tokenId, hashText(tag));
   return tx.wait();
 }
 
-export async function readClaimableYield({ provider, hubAddress, tokenId }) {
+export async function readClaimableYield({ provider, substrateSession, hubAddress, tokenId }) {
   requireAddress('RWA hub address', hubAddress);
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateReadContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'claimableYield',
+      args: [tokenId],
+    });
+  }
+
   const hub = new Contract(hubAddress, HUB_ABI, provider);
   return hub.claimableYield(tokenId);
 }

@@ -36,6 +36,10 @@ export class FlowPayRWAClient {
         "function claimYield(uint256 tokenId) external returns (uint256)",
         "function flashAdvance(uint256 tokenId, uint256 amount) external",
         "function claimableYield(uint256 tokenId) external view returns (uint256)",
+        "function setCompliance(address user, uint8 assetType, bool approved, uint64 expiry, string jurisdiction) external",
+        "function freezeStream(uint256 streamId, bool frozen, string reason) external",
+        "function updateAssetMetadata(uint256 tokenId, string metadataURI, bytes32 cidHash) external",
+        "function updateVerificationTag(uint256 tokenId, bytes32 tagHash) external",
     ];
 
     private ERC20_ABI = [
@@ -163,6 +167,91 @@ export class FlowPayRWAClient {
         return tx.wait();
     }
 
+    async setCompliance(
+        signer: Signer,
+        user: string,
+        assetType: number,
+        approved: boolean,
+        expiry: number,
+        jurisdiction: string
+    ) {
+        if (!this.hubAddress) {
+            throw new Error("FlowPayRWAClient is missing hub address");
+        }
+
+        if (this.adapter) {
+            return this.adapter.callContract(
+                this.hubAddress,
+                this.HUB_ABI,
+                "setCompliance",
+                [user, assetType, approved, expiry, jurisdiction]
+            );
+        }
+
+        const hub = new Contract(this.hubAddress, this.HUB_ABI, signer);
+        const tx = await hub.setCompliance(user, assetType, approved, expiry, jurisdiction);
+        return tx.wait();
+    }
+
+    async freezeStream(signer: Signer, streamId: number, frozen: boolean, reason: string) {
+        if (!this.hubAddress) {
+            throw new Error("FlowPayRWAClient is missing hub address");
+        }
+
+        if (this.adapter) {
+            return this.adapter.callContract(
+                this.hubAddress,
+                this.HUB_ABI,
+                "freezeStream",
+                [streamId, frozen, reason]
+            );
+        }
+
+        const hub = new Contract(this.hubAddress, this.HUB_ABI, signer);
+        const tx = await hub.freezeStream(streamId, frozen, reason);
+        return tx.wait();
+    }
+
+    async updateAssetMetadata(signer: Signer, tokenId: number, metadataURI: string) {
+        if (!this.hubAddress) {
+            throw new Error("FlowPayRWAClient is missing hub address");
+        }
+
+        const cidHash = FlowPayRWAClient.hashText(metadataURI);
+        if (this.adapter) {
+            return this.adapter.callContract(
+                this.hubAddress,
+                this.HUB_ABI,
+                "updateAssetMetadata",
+                [tokenId, metadataURI, cidHash]
+            );
+        }
+
+        const hub = new Contract(this.hubAddress, this.HUB_ABI, signer);
+        const tx = await hub.updateAssetMetadata(tokenId, metadataURI, cidHash);
+        return tx.wait();
+    }
+
+    async updateVerificationTag(signer: Signer, tokenId: number, tag: string) {
+        if (!this.hubAddress) {
+            throw new Error("FlowPayRWAClient is missing hub address");
+        }
+
+        const tagHash = FlowPayRWAClient.hashText(tag);
+        if (this.adapter) {
+            return this.adapter.callContract(
+                this.hubAddress,
+                this.HUB_ABI,
+                "updateVerificationTag",
+                [tokenId, tagHash]
+            );
+        }
+
+        const hub = new Contract(this.hubAddress, this.HUB_ABI, signer);
+        const tx = await hub.updateVerificationTag(tokenId, tagHash);
+        return tx.wait();
+    }
+
     async getClaimableYield(provider: Provider, tokenId: number) {
         if (!this.hubAddress) {
             return 0n;
@@ -194,6 +283,10 @@ export class FlowPayRWAClient {
 
     static hashTag(tag: string) {
         return ethers.keccak256(ethers.toUtf8Bytes(tag));
+    }
+
+    static hashText(value: string) {
+        return ethers.keccak256(ethers.toUtf8Bytes(value || ""));
     }
 
     formatAmount(value: bigint) {
