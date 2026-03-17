@@ -39,13 +39,16 @@ async function ensureTokenApproval({
   setStatus,
 }) {
   if (ACTIVE_NETWORK.chainId === 420420421) {
+    setStatus?.(`Approving ${tokenSymbol} via native asset approval...`);
     try {
-      setStatus?.(`Approving ${tokenSymbol} via native asset approval...`);
       await substrateApproveTransfer(ownerAddress, assetId, spenderAddress, amount);
       setStatus?.(`${tokenSymbol} approved.`);
       return true;
     } catch (error) {
-      console.warn(`[WalletContext] Native ${tokenSymbol} approval failed. Falling back to EVM approval.`, error);
+      console.warn(`[WalletContext] Native ${tokenSymbol} approval failed.`, error);
+      const message = error?.message || `${tokenSymbol} approval failed on Westend.`;
+      setStatus?.(message);
+      throw new Error(message);
     }
   }
 

@@ -54,22 +54,8 @@ export async function approveAndCreateAssetYieldStream({
     try {
       await substrateApproveTransfer(ownerAddress, paymentAssetId, streamAddress, totalAmount);
     } catch (error) {
-      console.warn('[rwaContractApi] Native asset approval failed. Falling back to EVM approval.', error);
-      const token = new Contract(tokenAddress, ERC20_ABI, signer);
-      let shouldApprove = true;
-      try {
-        const allowance = await token.allowance(ownerAddress, streamAddress);
-        shouldApprove = allowance < totalAmount;
-      } catch (allowanceError) {
-        console.warn('[rwaContractApi] Unable to read token allowance. Falling back to direct approval.', allowanceError);
-      }
-
-      if (shouldApprove) {
-        const approveTx = await token.approve(streamAddress, totalAmount, {
-          gasLimit: TOKEN_APPROVAL_GAS_LIMIT,
-        });
-        await approveTx.wait();
-      }
+      console.warn('[rwaContractApi] Native asset approval failed.', error);
+      throw new Error(error?.message || 'Native asset approval failed on Westend.');
     }
   } else {
     const token = new Contract(tokenAddress, ERC20_ABI, signer);

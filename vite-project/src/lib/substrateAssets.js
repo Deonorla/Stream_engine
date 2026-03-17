@@ -39,6 +39,28 @@ function evmToMappedAccountU8a(evmAddress) {
   return hexToU8a(`0x${evmAddress.slice(2).toLowerCase()}${'ee'.repeat(12)}`);
 }
 
+function normalizeAddress(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function isMappedAccountMatch(candidateAddress, mappedAccountAddress, mappedAccountId) {
+  const normalized = normalizeAddress(candidateAddress);
+  if (!normalized) {
+    return false;
+  }
+
+  return normalized === normalizeAddress(mappedAccountAddress)
+    || normalized === normalizeAddress(mappedAccountId);
+}
+
+function describeMissingMappedAccount(evmAddress, mappedAccountAddress, hasEthereumOnlyMatch) {
+  if (hasEthereumOnlyMatch) {
+    return `This wallet only exposed the EVM account ${evmAddress}. Native approvals on Westend require the mapped Substrate account ${mappedAccountAddress}. Add or import that mapped account in the Substrate side of Talisman or polkadot.js, then reconnect.`;
+  }
+
+  return `No mapped Substrate account was found for ${evmAddress}. Add ${mappedAccountAddress} in Talisman or polkadot.js for native approvals.`;
+}
+
 function toSubstrateAccountU8a(address) {
   if (!isHexAddress(address, 42)) {
     throw new Error('Expected a connected EVM wallet address');
@@ -289,16 +311,19 @@ export async function inspectSubstrateApprovalAccount(evmAddress) {
   try {
     const mappedAccountId = evmToSubstrateAccountId(evmAddress);
     const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
-    const account = accounts.find(
-      (candidate) => candidate.meta?.ethereum?.toLowerCase() === evmAddress.toLowerCase()
-        || candidate.address?.toLowerCase() === mappedAccountAddress.toLowerCase()
-        || candidate.address?.toLowerCase() === evmAddress.toLowerCase(),
-    );
+    const account = accounts.find((candidate) => (
+      isMappedAccountMatch(candidate.address, mappedAccountAddress, mappedAccountId)
+    ));
 
     if (!account) {
+      const hasEthereumOnlyMatch = accounts.some((candidate) => (
+        normalizeAddress(candidate.meta?.ethereum) === normalizeAddress(evmAddress)
+          || normalizeAddress(candidate.address) === normalizeAddress(evmAddress)
+      ));
+
       return {
         ready: false,
-        reason: `No mapped Substrate account was found for ${evmAddress}. Add ${mappedAccountAddress} in Talisman or polkadot.js for native approvals.`,
+        reason: describeMissingMappedAccount(evmAddress, mappedAccountAddress, hasEthereumOnlyMatch),
         mappedAccountAddress,
         accountAddress: '',
         source: '',
@@ -329,36 +354,40 @@ export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAd
   }
 
   const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
-  const mappedAccountId = evmToSubstrateAccountId(evmAddress);
-  const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
-  const account = accounts.find(
-    (a) => a.meta?.ethereum?.toLowerCase() === evmAddress.toLowerCase()
-      || a.address?.toLowerCase() === mappedAccountAddress.toLowerCase()
-      || a.address?.toLowerCase() === evmAddress.toLowerCase()
-  );
+  try {
+    const mappedAccountId = evmToSubstrateAccountId(evmAddress);
+    const mappedAccountAddress = api.registry.createType('AccountId32', mappedAccountId).toString();
+    const account = accounts.find((candidate) => (
+      isMappedAccountMatch(candidate.address, mappedAccountAddress, mappedAccountId)
+    ));
 
-  if (!account) {
-    throw new Error(`No Substrate account found for EVM wallet ${evmAddress}. Connect the mapped account ${mappedAccountAddress} in Talisman or polkadot.js.`);
+    if (!account) {
+      const hasEthereumOnlyMatch = accounts.some((candidate) => (
+        normalizeAddress(candidate.meta?.ethereum) === normalizeAddress(evmAddress)
+          || normalizeAddress(candidate.address) === normalizeAddress(evmAddress)
+      ));
+
+      throw new Error(describeMissingMappedAccount(evmAddress, mappedAccountAddress, hasEthereumOnlyMatch));
+    }
+
+    const injector = account.injected;
+    if (!injector?.signer) {
+      throw new Error(`Substrate signer is unavailable for mapped account ${account.address}`);
+    }
+
+    const spenderAccountId = evmToSubstrateAccountId(spenderEvmAddress);
+    const tx = api.tx.assets.approveTransfer(assetId, spenderAccountId, amount);
+
+    await new Promise((resolve, reject) => {
+      tx.signAndSend(account.address, { signer: injector.signer }, ({ status, dispatchError }) => {
+        if (dispatchError) {
+          reject(new Error(dispatchError.toString()));
+        } else if (status.isInBlock || status.isFinalized) {
+          resolve();
+        }
+      }).catch(reject);
+    });
+  } finally {
+    await api.disconnect();
   }
-
-  const injector = account.injected;
-  if (!injector?.signer) {
-    throw new Error(`Substrate signer is unavailable for account ${account.address}`);
-  }
-
-  // Convert 20-byte EVM spender address to 32-byte AccountId
-  const spenderAccountId = evmToSubstrateAccountId(spenderEvmAddress);
-
-  const tx = api.tx.assets.approveTransfer(assetId, spenderAccountId, amount);
-  await new Promise((resolve, reject) => {
-    tx.signAndSend(account.address, { signer: injector.signer }, ({ status, dispatchError }) => {
-      if (dispatchError) {
-        reject(new Error(dispatchError.toString()));
-      } else if (status.isInBlock || status.isFinalized) {
-        resolve();
-      }
-    }).catch(reject);
-  });
-
-  await api.disconnect();
 }
