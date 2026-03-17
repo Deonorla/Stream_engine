@@ -199,6 +199,7 @@ export default function CreateStreamForm({
   setDurationSeconds,
   balance = '0.00',
   onSubmit,
+  isProcessing = false,
 }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
@@ -367,9 +368,13 @@ export default function CreateStreamForm({
           <button
             type="submit"
             className={`flex-1 ${currentStep === 3 ? 'btn-primary' : 'btn-default'}`}
-            disabled={!canProceed[currentStep]}
+            disabled={!canProceed[currentStep] || isProcessing}
           >
-            {currentStep === 3 ? <><Rocket className="w-4 h-4" /> Start Stream</> : 'Continue →'}
+            {currentStep === 3
+              ? isProcessing
+                ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+                : <><Rocket className="w-4 h-4" /> Start Stream</>
+              : 'Continue →'}
           </button>
         </div>
       </form>

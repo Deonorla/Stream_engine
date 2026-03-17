@@ -187,7 +187,7 @@ export default function Streams() {
 
   const [recipient, setRecipient] = useState('');
   const [amountEth, setAmountEth] = useState('');
-  const [durationSeconds, setDurationSeconds] = useState('');
+  const [durationSeconds, setDurationSeconds] = useState('86400');
   const [manualStreamId, setManualStreamId] = useState('');
   const [claimableBalance, setClaimableBalance] = useState('0.0');
   const [selectedRoutePath, setSelectedRoutePath] = useState('/api/free');
@@ -419,6 +419,7 @@ export default function Streams() {
             setDurationSeconds={setDurationSeconds}
             balance={paymentBalance}
             onSubmit={handleCreateStream}
+            isProcessing={isProcessing}
           />
         </CollapsibleSection>
 
