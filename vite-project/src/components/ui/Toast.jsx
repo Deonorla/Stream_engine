@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { CheckCircle, XCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
+import { paymentTokenSymbol } from '../../contactInfo';
+import { ACTIVE_NETWORK } from '../../networkConfig';
 
 // Toast Context
 const ToastContext = createContext(null);
@@ -182,7 +184,7 @@ export function ToastProvider({ children }) {
         message,
         action: txHash ? {
           label: 'View on Explorer →',
-          onClick: () => window.open(`https://sepolia.etherscan.io/tx/${txHash}`, '_blank')
+          onClick: () => window.open(`${ACTIVE_NETWORK.explorerUrl}/tx/${txHash}`, '_blank')
         } : undefined
       }),
     error: (message = 'Transaction failed') => 
@@ -196,7 +198,7 @@ export function ToastProvider({ children }) {
     cancelled: (streamId) => 
       addToast({ type: 'info', title: 'Stream Cancelled', message: `Stream #${streamId} has been cancelled` }),
     withdrawn: (amount) => 
-      addToast({ type: 'success', title: 'Withdrawal Complete', message: `${amount} DOT withdrawn successfully` }),
+      addToast({ type: 'success', title: 'Withdrawal Complete', message: `${amount} ${paymentTokenSymbol} withdrawn successfully` }),
     lowBalance: (streamId) => 
       addToast({ type: 'warning', title: 'Low Balance', message: `Stream #${streamId} is running low on funds` }),
     expired: (streamId) => 

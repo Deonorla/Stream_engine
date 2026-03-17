@@ -6,13 +6,13 @@ const CODE = {
   'Node.js': [
     ['keyword','import'],['plain',' { '],['class','StreamEngine'],['plain',' } '],['keyword','from'],['string'," '@stream-engine/sdk'"],['plain',';'],['nl'],
     ['keyword','const'],['plain',' agent = '],['keyword','new'],['plain',' '],['class','StreamEngine'],['plain','({'],['nl'],
-    ['plain','  chain: '],['string',"'polkadot'"],['plain',', wallet: process.env.'],['class','DOT_KEY'],['nl'],
+    ['plain','  chain: '],['string',"'westend'"],['plain',', wallet: process.env.'],['class','USDC_KEY'],['nl'],
     ['plain','});'],['nl'],
     ['comment','// Discover service and auto-pay via x402'],['nl'],
     ['keyword','const'],['plain',' res = '],['keyword','await'],['plain',' agent.'],['fn','fetch'],['plain','('],['string',"'https://api.weatherdata.io/forecast'"],['plain',', {'],['nl'],
     ['plain','  paymentMode: '],['string',"'auto'"],['plain',','],['comment','  // Gemini AI decides'],['nl'],
-    ['plain','  maxStream: '],['string',"'0.001 DOT/sec'"],['plain',','],['nl'],
-    ['plain','  budget: '],['string',"'1 DOT'"],['nl'],
+    ['plain','  maxStream: '],['string',"'0.001 USDC/sec'"],['plain',','],['nl'],
+    ['plain','  budget: '],['string',"'1 USDC'"],['nl'],
     ['plain','});'],
   ],
   'Python': [
@@ -22,7 +22,7 @@ const CODE = {
     ['plain','res = agent.'],['fn','fetch'],['plain','('],['nl'],
     ['plain','    '],['string','"https://api.weatherdata.io/forecast"'],['plain',','],['nl'],
     ['plain','    payment_mode='],['string','"auto"'],['plain',','],['nl'],
-    ['plain','    budget='],['string','"1 DOT"'],['nl'],
+    ['plain','    budget='],['string','"1 USDC"'],['nl'],
     ['plain',')'],
   ],
   'Rust': [
@@ -74,7 +74,7 @@ export default function LandingDevSection() {
             <div className="space-y-4">
               {[
                 { title: 'TypeScript SDK', desc: 'Full type safety, autocomplete, and x402 handling built-in.' },
-                { title: 'Auto 402 Handling', desc: 'SDK parses DOT payment requirements and pays automatically.' },
+                { title: 'Auto 402 Handling', desc: 'SDK parses USDC payment requirements and pays automatically.' },
                 { title: 'Gemini AI Integration', desc: 'Pass your Gemini key and let AI optimize payment mode per request.' },
               ].map((item, i) => (
                 <div key={i} className="flex gap-4">

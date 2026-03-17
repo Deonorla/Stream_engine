@@ -27,9 +27,9 @@ export default function LandingSafetySection() {
           <div className="space-y-6">
             <p className="text-flowpay-400 text-sm font-semibold uppercase tracking-widest font-mono">Safety & Compliance</p>
             <h2 className="text-4xl lg:text-5xl font-bold text-white">Humans stay in control.</h2>
-            <p className="text-surface-300 leading-relaxed">AI agents operate autonomously on Polkadot, but you always have the final word. Kill switches, rate limiters, and budget caps keep your system safe.</p>
+            <p className="text-surface-300 leading-relaxed">AI agents operate autonomously on Westend Asset Hub, but you always have the final word. Kill switches, rate limiters, and budget caps keep your system safe.</p>
             <ul className="space-y-3">
-              {['Emergency pause — stop all agents instantly','Daily & per-stream DOT spending caps','Suspicious activity detection via Gemini AI','KYC/AML gate for all RWA transactions'].map(item => (
+              {['Emergency pause — stop all agents instantly','Daily and per-stream USDC spending caps','Suspicious activity detection via Gemini AI','KYC/AML gate for all RWA transactions'].map(item => (
                 <li key={item} className="flex items-center gap-3 text-sm text-surface-300">
                   <span className="text-success-400 flex-shrink-0" aria-hidden="true">✓</span>{item}
                 </li>
@@ -48,8 +48,8 @@ export default function LandingSafetySection() {
               <Toggle label="Auto-cancel on Failure" defaultOn={true} />
             </div>
             <div className="mt-5 pt-4 border-t border-surface-700 space-y-2">
-              <label className="text-xs text-surface-400 uppercase tracking-widest" htmlFor="budget-cap">Agent Budget Cap (DOT/day)</label>
-              <input id="budget-cap" type="number" defaultValue="50" className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-flowpay-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-flowpay-500/50 hover:border-surface-600 transition-colors duration-200" aria-label="Agent daily budget cap in DOT" />
+              <label className="text-xs text-surface-400 uppercase tracking-widest" htmlFor="budget-cap">Agent Budget Cap (USDC/day)</label>
+              <input id="budget-cap" type="number" defaultValue="50" className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-flowpay-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-flowpay-500/50 hover:border-surface-600 transition-colors duration-200" aria-label="Agent daily budget cap in USDC" />
             </div>
             <div className="mt-4 flex items-center gap-2 text-warning-400 text-xs font-mono">
               <span aria-hidden="true">⚠</span>

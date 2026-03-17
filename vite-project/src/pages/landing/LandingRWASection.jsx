@@ -7,7 +7,7 @@ function YieldTicker({ base, color }) {
     const id = setInterval(() => setVal(v => +(v + 0.0001 * (Math.random() * 2 + 1)).toFixed(4)), 1000);
     return () => clearInterval(id);
   }, []);
-  return <span style={{ color }} className="font-mono text-sm font-bold tabular-nums">{val.toFixed(4)} DOT/s</span>;
+  return <span style={{ color }} className="font-mono text-sm font-bold tabular-nums">{val.toFixed(4)} USDC/s</span>;
 }
 
 const ASSETS = [
@@ -16,7 +16,7 @@ const ASSETS = [
   { icon: '⚙️', name: 'Industrial CNC Machinery',nft: '#9034', access: 'PLC controller unlock', color: '#10b981', base: 0.0028 },
 ];
 
-export default function LandingRWASection() {
+export default function LandingRWASection({ tokenSymbol = 'USDC', assetCount = 0 }) {
   return (
     <section className="w-full bg-surface-950 py-24 relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 50% at 70% 40%, rgba(16,185,129,0.07) 0%, transparent 70%)' }} aria-hidden="true" />
@@ -24,18 +24,22 @@ export default function LandingRWASection() {
         <div className="grid md:grid-cols-2 gap-16 items-center">
 
           <div className="space-y-6">
-            <p className="text-success-400 text-sm font-semibold uppercase tracking-widest font-mono">RWA Module · Ethereum Sepolia</p>
+            <p className="text-success-400 text-sm font-semibold uppercase tracking-widest font-mono">RWA Studio · Westend Asset Hub</p>
             <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight">
               Own the asset.<br />Stream the access.
             </h2>
             <p className="text-surface-300 leading-relaxed">
-              Tokenize real estate, vehicles, and machinery as NFTs. Keep the NFT and all financial rights. Renters stream DOT per-second to unlock physical access — smart locks, IoT ignition, PLC controllers.
+              Tokenize real estate, vehicles, and machinery as NFTs. Keep the NFT and all financial rights. Renters stream {tokenSymbol} per-second to unlock physical access through smart locks, IoT ignition, and PLC controllers.
             </p>
+            <div className="inline-flex items-center gap-2 rounded-full border border-success-500/20 bg-success-500/10 px-3 py-1 text-xs font-mono text-success-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-success-400" />
+              {assetCount} indexed rental assets
+            </div>
             <ul className="space-y-3">
               {[
                 { label: 'Owner keeps NFT + yield + flash loan rights', color: 'text-success-400' },
-                { label: 'Renter streams DOT → physical access unlocks instantly', color: 'text-success-400' },
-                { label: 'Cancel anytime — unspent DOT refunded immediately', color: 'text-success-400' },
+                { label: `Renter streams ${tokenSymbol} → physical access unlocks instantly`, color: 'text-success-400' },
+                { label: `Cancel anytime — unspent ${tokenSymbol} refunded immediately`, color: 'text-success-400' },
                 { label: 'Fleet Control — freeze any asset to pause stream + access', color: 'text-warning-400' },
               ].map(item => (
                 <li key={item.label} className="flex items-center gap-3">
@@ -45,7 +49,7 @@ export default function LandingRWASection() {
               ))}
             </ul>
             <Link to="/app/rwa" className="inline-block px-8 py-3 bg-success-500 hover:bg-success-600 text-white font-semibold rounded-lg shadow-glow-success transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-success-500/50">
-              Explore RWA Module
+              Explore RWA Studio
             </Link>
           </div>
 

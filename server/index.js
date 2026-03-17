@@ -38,6 +38,11 @@ const defaultConfig = {
     appBaseUrl: process.env.FLOWPAY_APP_BASE_URL || "http://localhost:5173",
     postgresUrl: process.env.POSTGRES_URL || "",
     routes: {
+        "/api/free": {
+            price: "0",
+            mode: "free",
+            description: "Public route with no payment requirement.",
+        },
         "/api/weather": {
             price: "0.0001",
             mode: "streaming",
@@ -171,6 +176,40 @@ function createApp(config = defaultConfig) {
     app.get("/api/free", (req, res) => {
         res.json({
             message: "This is free content.",
+        });
+    });
+
+    app.get("/api/engine/catalog", (req, res) => {
+        const routes = Object.entries(resolvedConfig.routes || {}).map(([path, route]) => ({
+            path,
+            price: route.price,
+            mode: route.mode,
+            description: route.description || "",
+        }));
+
+        res.json({
+            appName: "Stream Engine",
+            network: {
+                name: resolvedConfig.networkName,
+                chainId: resolvedConfig.chainId,
+                rpcUrl: resolvedConfig.rpcUrl,
+            },
+            payments: {
+                tokenAddress: resolvedConfig.paymentTokenAddress,
+                tokenSymbol: resolvedConfig.tokenSymbol,
+                tokenDecimals: resolvedConfig.tokenDecimals,
+                paymentAssetId: resolvedConfig.paymentAssetId,
+                recipientAddress: resolvedConfig.recipientAddress,
+                contractAddress: resolvedConfig.flowPayContractAddress,
+            },
+            rwa: {
+                hubAddress: resolvedConfig.rwa?.hubAddress || "",
+                assetNFTAddress: resolvedConfig.rwa?.assetNFTAddress || "",
+                assetRegistryAddress: resolvedConfig.rwa?.assetRegistryAddress || "",
+                assetStreamAddress: resolvedConfig.rwa?.assetStreamAddress || "",
+                complianceGuardAddress: resolvedConfig.rwa?.complianceGuardAddress || "",
+            },
+            routes,
         });
     });
 

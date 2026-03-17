@@ -93,6 +93,8 @@ async function findLatestStreamId(api, account, flowPayInterface, flowPayContrac
 async function main() {
     const runtime = createFlowPayRuntimeConfig();
     const provider = new ethers.JsonRpcProvider(runtime.rpcUrl);
+    const currentBlock = await provider.getBlockNumber();
+    let app = null;
     const recipientAddress = requireEnv("FLOWPAY_RECIPIENT_ADDRESS");
     const flowPayContractAddress = requireEnv("FLOWPAY_CONTRACT_ADDRESS");
     const rwaHubAddress = requireEnv("FLOWPAY_RWA_HUB_ADDRESS");
@@ -264,7 +266,18 @@ async function main() {
             [tokenId],
             config
         );
-        const app = createApp();
+        const boundedStartBlock = Math.max(
+            0,
+            currentBlock - Number(process.env.SUBSTRATE_SMOKE_INDEXER_BLOCK_WINDOW || 32)
+        );
+        app = createApp({
+            services: {
+                ipfsService,
+            },
+            rwa: {
+                startBlock: boundedStartBlock,
+            },
+        });
         await app.locals.ready;
         console.log("Smoke: app ready");
         const client = request(app);
@@ -331,6 +344,18 @@ async function main() {
             },
         }, null, 2));
     } finally {
+        if (app?.locals?.services?.chainService?.substrateApi && app.locals.services.chainService.substrateApi !== api) {
+            await app.locals.services.chainService.substrateApi.disconnect();
+        }
+        if (app?.locals?.services?.chainService?.provider?.destroy) {
+            app.locals.services.chainService.provider.destroy();
+        }
+        if (app?.locals?.services?.store?.pool?.end) {
+            await app.locals.services.store.pool.end();
+        }
+        if (provider?.destroy) {
+            provider.destroy();
+        }
         await api.disconnect();
     }
 }

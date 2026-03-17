@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Coins, ArrowRightLeft, Mail, Zap, Eye, EyeOff, Copy, RefreshCw, 
   Save, TrendingUp, Shield, CheckCircle, AlertTriangle, Info
 } from 'lucide-react';
+import { appName, paymentTokenSymbol } from '../contactInfo';
 
 // Agent Avatar Component
 const AgentAvatar = ({ agentId, status }) => {
@@ -60,7 +61,7 @@ const BudgetGauge = ({ spent, limit, label }) => {
             <div className="flex justify-between text-sm">
                 <span className="text-white/60">{label}</span>
                 <span className={`font-mono ${isCritical ? 'text-error-400' : isWarning ? 'text-warning-400' : 'text-white'}`}>
-                    {spent.toFixed(2)} / {limit} DOT
+                    {spent.toFixed(2)} / {limit} {paymentTokenSymbol}
                 </span>
             </div>
             <div className="h-3 bg-surface-700 rounded-full overflow-hidden">
@@ -111,6 +112,45 @@ const ApiKeyDisplay = ({ apiKey, onRegenerate }) => {
                     onClick={onRegenerate}
                     className="btn-outline px-3"
                     title="Regenerate Key"
+                >
+                    <RefreshCw className="w-4 h-4" />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+const CredentialDisplay = ({ label, value, onRefresh }) => {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async () => {
+        if (!value) {
+            return;
+        }
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div className="space-y-2">
+            <label className="text-sm text-white/60">{label}</label>
+            <div className="flex gap-2">
+                <div className="flex-1 px-3 py-2 rounded-lg bg-surface-700 border border-white/10 font-mono text-sm text-white/80 truncate">
+                    {value || 'Unavailable'}
+                </div>
+                <button
+                    onClick={handleCopy}
+                    className={`btn-outline px-3 ${copied ? 'text-success-400 border-success-400' : ''}`}
+                    disabled={!value}
+                >
+                    {copied ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+                <button
+                    onClick={onRefresh}
+                    className="btn-outline px-3"
+                    title="Refresh"
+                    disabled={!onRefresh}
                 >
                     <RefreshCw className="w-4 h-4" />
                 </button>
@@ -258,15 +298,15 @@ const EmergencyModal = ({ isOpen, onConfirm, onCancel, action }) => {
 };
 
 // System Health Indicator
-const SystemHealth = ({ status }) => {
-    const checks = [
+const SystemHealth = ({ checks }) => {
+    const resolvedChecks = checks?.length ? checks : [
         { name: 'SDK Connection', status: 'ok' },
         { name: 'Wallet Balance', status: 'ok' },
         { name: 'Contract Access', status: 'ok' },
-        { name: 'Network Status', status: status === 'error' ? 'error' : 'ok' },
+        { name: 'Network Status', status: 'ok' },
     ];
 
-    const overallStatus = checks.every(c => c.status === 'ok') ? 'healthy' : 'degraded';
+    const overallStatus = resolvedChecks.every(c => c.status === 'ok') ? 'healthy' : 'degraded';
 
     return (
         <div className="space-y-3">
@@ -277,7 +317,7 @@ const SystemHealth = ({ status }) => {
                 </span>
             </div>
             <div className="grid grid-cols-2 gap-2">
-                {checks.map(check => (
+                {resolvedChecks.map(check => (
                     <div key={check.name} className="flex items-center gap-2 text-xs">
                         <span className={`w-2 h-2 rounded-full ${check.status === 'ok' ? 'bg-success-500' : 'bg-error-500'}`} />
                         <span className="text-white/60">{check.name}</span>
@@ -288,25 +328,83 @@ const SystemHealth = ({ status }) => {
     );
 };
 
-export function AgentConsole({ config, setConfig, isPaused, setIsPaused, sdk }) {
-    const [agentIdInput, setAgentIdInput] = useState(config.agentId || "Dashboard-Agent");
-    const [limits, setLimits] = useState({ daily: '100', weekly: '500', monthly: '2000' });
-    const [thresholds, setThresholds] = useState([75, 90]);
+const EndpointDirectory = ({ endpoints }) => {
+    if (!endpoints?.length) {
+        return null;
+    }
+
+    return (
+        <div className="mt-6">
+            <div className="text-sm text-white/60 mb-3">Protected Services</div>
+            <div className="grid md:grid-cols-2 gap-3">
+                {endpoints.map((endpoint) => (
+                    <div key={endpoint.path} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="font-mono text-sm text-white">{endpoint.path}</div>
+                            <span className={`chip-${endpoint.mode === 'per-request' ? 'success' : 'primary'}`}>
+                                {endpoint.mode === 'per-request' ? 'Direct' : 'Streaming'}
+                            </span>
+                        </div>
+                        <div className="mt-2 text-sm text-white/60">{endpoint.description || 'Protected Stream Engine service'}</div>
+                        <div className="mt-3 font-mono text-sm text-cyan-300">
+                            {endpoint.price} {paymentTokenSymbol} {endpoint.mode === 'per-request' ? 'per call' : '/ sec'}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+export function AgentConsole({
+    config,
+    setConfig,
+    isPaused,
+    setIsPaused,
+    sdk,
+    spending: spendingProp,
+    alerts: alertsProp,
+    healthChecks,
+    stats,
+    serviceEndpoints,
+    credential,
+    onRefreshCredential,
+}) {
+    const [agentIdInput, setAgentIdInput] = useState(config.agentId || "Stream Engine Agent");
+    const [limits, setLimits] = useState({
+        daily: config.spendingLimits?.daily || config.spendingLimits?.dailyLimit || '100',
+        weekly: config.spendingLimits?.weekly || '500',
+        monthly: config.spendingLimits?.monthly || '2000',
+    });
+    const [thresholds, setThresholds] = useState(config.alertThresholds || [75, 90]);
     const [showModal, setShowModal] = useState(null);
-    const [apiKey] = useState('fp_sk_' + Math.random().toString(36).substr(2, 32));
 
-    // Mock spending data
-    const spending = useMemo(() => ({
-        daily: 45.32,
-        weekly: 234.56,
-        monthly: 892.10,
-        requests: 1247,
-        streams: 23,
-    }), []);
+    useEffect(() => {
+        setAgentIdInput(config.agentId || "Stream Engine Agent");
+        setLimits({
+            daily: config.spendingLimits?.daily || config.spendingLimits?.dailyLimit || '100',
+            weekly: config.spendingLimits?.weekly || '500',
+            monthly: config.spendingLimits?.monthly || '2000',
+        });
+        setThresholds(config.alertThresholds || [75, 90]);
+    }, [config.agentId, config.spendingLimits, config.alertThresholds]);
 
-    const alerts = [
-        { type: 'warning', message: '75% of daily limit reached', time: '2 mins ago' },
-        { type: 'info', message: 'Stream #42 completed successfully', time: '15 mins ago' },
+    const spending = useMemo(() => (
+        spendingProp || {
+            daily: 0,
+            weekly: 0,
+            monthly: 0,
+            requests: 0,
+            streams: 0,
+        }
+    ), [spendingProp]);
+
+    const alerts = alertsProp || [];
+    const displayedStats = stats || [
+        { icon: Coins, label: 'Daily Spend', value: `$${spending.daily.toFixed(2)}`, color: 'flowpay' },
+        { icon: ArrowRightLeft, label: 'Active Streams', value: spending.streams, color: 'accent' },
+        { icon: Mail, label: 'Protected Routes', value: serviceEndpoints?.length || 0, color: 'success' },
+        { icon: Zap, label: 'System Status', value: isPaused ? 'Paused' : 'Live', color: 'warning' },
     ];
 
     const status = isPaused ? 'paused' : 'active';
@@ -315,7 +413,12 @@ export function AgentConsole({ config, setConfig, isPaused, setIsPaused, sdk }) 
         setConfig({
             ...config,
             agentId: agentIdInput,
-            spendingLimits: limits,
+            spendingLimits: {
+                ...config.spendingLimits,
+                ...limits,
+                dailyLimit: limits.daily,
+            },
+            alertThresholds: thresholds,
         });
     };
 
@@ -353,7 +456,7 @@ export function AgentConsole({ config, setConfig, isPaused, setIsPaused, sdk }) 
                                     {status === 'active' ? '● Active' : '⏸ Paused'}
                                 </span>
                             </div>
-                            <div className="text-sm text-white/50 mt-1">SDK Version 1.0.0 • FlowPay Agent</div>
+                            <div className="text-sm text-white/50 mt-1">SDK Version 1.0.0 • {appName} Agent</div>
                         </div>
 
                         <button onClick={handleSave} className="btn-outline flex items-center gap-2">
@@ -363,16 +466,25 @@ export function AgentConsole({ config, setConfig, isPaused, setIsPaused, sdk }) 
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-                        <StatCard icon={Coins} label="Daily Spend" value={`$${spending.daily}`} trend={-12} color="flowpay" />
-                        <StatCard icon={ArrowRightLeft} label="Active Streams" value={spending.streams} trend={8} color="accent" />
-                        <StatCard icon={Mail} label="Total Requests" value={spending.requests.toLocaleString()} color="success" />
-                        <StatCard icon={Zap} label="Avg Response" value="142ms" color="warning" />
+                        {displayedStats.map(({ icon, label, value, trend, color }) => (
+                            <StatCard key={label} icon={icon} label={label} value={value} trend={trend} color={color} />
+                        ))}
                     </div>
 
-                    {/* API Key */}
+                    {/* Credential */}
                     <div className="mt-6">
-                        <ApiKeyDisplay apiKey={apiKey} onRegenerate={() => { }} />
+                        {credential?.type === 'apiKey' ? (
+                            <ApiKeyDisplay apiKey={credential.value} onRegenerate={onRefreshCredential || (() => {})} />
+                        ) : (
+                            <CredentialDisplay
+                                label={credential?.label || 'Service Recipient'}
+                                value={credential?.value}
+                                onRefresh={onRefreshCredential}
+                            />
+                        )}
                     </div>
+
+                    <EndpointDirectory endpoints={serviceEndpoints} />
                 </div>
 
                 {/* Spending Limits Section */}
@@ -404,7 +516,7 @@ export function AgentConsole({ config, setConfig, isPaused, setIsPaused, sdk }) 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Left: Health & Alerts */}
                         <div className="space-y-4">
-                            <SystemHealth status={status} />
+                            <SystemHealth checks={healthChecks} />
                             <div>
                                 <div className="text-sm text-white/60 mb-2">Recent Alerts</div>
                                 <RecentAlerts alerts={alerts} />

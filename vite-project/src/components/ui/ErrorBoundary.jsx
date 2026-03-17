@@ -204,7 +204,7 @@ export function NetworkMismatch({ expectedNetwork, onSwitch, className = '' }) {
         <div className="flex-1">
           <h3 className="font-semibold text-warning-400">Wrong Network</h3>
           <p className="text-sm text-white/60 mt-1">
-            Please switch to {expectedNetwork} to use FlowPay
+            Please switch to {expectedNetwork} to use Stream Engine
           </p>
           <button
             onClick={onSwitch}

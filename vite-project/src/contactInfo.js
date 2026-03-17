@@ -1,12 +1,24 @@
-// Deployed contract addresses on Sepolia testnet
-export const contractAddress = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_CONTRACT_ADDRESS)
-  ? import.meta.env.VITE_CONTRACT_ADDRESS
-  : "0x155A00fBE3D290a8935ca4Bf5244283685Bb0035"; // FlowPayStream on Sepolia
+const env = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
 
-// DOT Token address on Sepolia
-export const mneeTokenAddress = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_MNEE_TOKEN_ADDRESS)
-  ? import.meta.env.VITE_MNEE_TOKEN_ADDRESS
-  : "0x96B1FE54Ee89811f46ecE4a347950E0D682D3896"; // MockDOT on Sepolia
+export const appName = 'Stream Engine';
+export const streamContractName = 'StreamEngineStream';
+
+export const contractAddress = env.VITE_CONTRACT_ADDRESS
+  || env.VITE_FLOWPAY_CONTRACT_ADDRESS
+  || '0x75edbf3d9857521f5fb2f581c896779f5110a8a0';
+
+export const paymentTokenAddress = env.VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS
+  || env.VITE_MNEE_TOKEN_ADDRESS
+  || '0x00007a6900000000000000000000000001200000';
+
+// Compatibility export for older components that still import `mneeTokenAddress`.
+export const mneeTokenAddress = paymentTokenAddress;
+
+export const paymentTokenSymbol = env.VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL || 'USDC';
+export const paymentTokenDisplayName = env.VITE_FLOWPAY_PAYMENT_TOKEN_NAME || 'Circle USDC';
+export const paymentTokenDecimals = Number(env.VITE_FLOWPAY_PAYMENT_TOKEN_DECIMALS || 6);
+export const paymentAssetId = Number(env.VITE_FLOWPAY_PAYMENT_ASSET_ID || 31337);
+export const rwaApiBaseUrl = env.VITE_RWA_API_URL || 'http://localhost:3001';
 
 // 2. Uses the Vercel Environment Variable for the ABI if it exists, otherwise falls back to the hardcoded ABI.
 const hardcodedABI = [
@@ -121,7 +133,7 @@ export const contractABI = (typeof import.meta !== 'undefined' && import.meta.en
   ? JSON.parse(import.meta.env.VITE_CONTRACT_ABI)
   : hardcodedABI;
 
-// DOT Token ABI (ERC20 standard functions)
+// Circle USDC precompile ABI subset.
 export const mneeTokenABI = [
   {
     "inputs": [],
@@ -235,3 +247,5 @@ export const mneeTokenABI = [
     "type": "function"
   }
 ];
+
+export const paymentTokenABI = mneeTokenABI;

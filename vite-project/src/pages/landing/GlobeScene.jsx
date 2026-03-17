@@ -56,17 +56,17 @@ const STREAMS = [
 ]
 
 export const CITIES = [
-  { lat: 6.5,   lon: 3.4,    color: '#3b82f6', label: 'Lagos',        detail: '0.000001 DOT/sec',  type: 'STREAM'    },
-  { lat: 51.5,  lon: -0.1,   color: '#3b82f6', label: 'London',       detail: '0.0003 DOT ✓ 12ms', type: 'PAID'      },
+  { lat: 6.5,   lon: 3.4,    color: '#3b82f6', label: 'Lagos',        detail: '0.000001 USDC/sec',  type: 'STREAM'    },
+  { lat: 51.5,  lon: -0.1,   color: '#3b82f6', label: 'London',       detail: '0.0003 USDC ✓ 12ms', type: 'PAID'      },
   { lat: 40.7,  lon: -74,    color: '#3b82f6', label: 'New York',      detail: '$240 USDC',         type: 'FLASH ADV' },
   { lat: 35.7,  lon: 139.7,  color: '#a855f7', label: 'Tokyo',         detail: 'AI call ✓ 8ms',     type: 'AI CALL'   },
-  { lat: 48.9,  lon: 2.3,    color: '#3b82f6', label: 'Paris',         detail: '0.001 DOT ✓ 8ms',   type: 'PAID'      },
+  { lat: 48.9,  lon: 2.3,    color: '#3b82f6', label: 'Paris',         detail: '0.001 USDC ✓ 8ms',   type: 'PAID'      },
   { lat: 37.4,  lon: -122,   color: '#a855f7', label: 'San Francisco', detail: 'Gemini AI active',   type: 'AI CALL'   },
-  { lat: 1.3,   lon: 103.8,  color: '#10b981', label: 'Singapore',     detail: '0.00005 DOT/sec',    type: 'STREAM'    },
+  { lat: 1.3,   lon: 103.8,  color: '#10b981', label: 'Singapore',     detail: '0.00005 USDC/sec',    type: 'STREAM'    },
   { lat: 25.2,  lon: 55.3,   color: '#10b981', label: 'Dubai',         detail: '+$0.0071/sec',       type: 'RWA YIELD' },
   { lat: -33.9, lon: 18.4,   color: '#3b82f6', label: 'Cape Town',     detail: 'KYC Verified',       type: 'KYC ✓'    },
   { lat: -23.5, lon: -46.6,  color: '#10b981', label: 'São Paulo',     detail: 'NFT #9034 minted',   type: 'MINT NFT'  },
-  { lat: 43.7,  lon: -79.4,  color: '#3b82f6', label: 'Toronto',       detail: '0.00002 DOT/sec',    type: 'STREAM'    },
+  { lat: 43.7,  lon: -79.4,  color: '#3b82f6', label: 'Toronto',       detail: '0.00002 USDC/sec',    type: 'STREAM'    },
   { lat: 28.6,  lon: 77.2,   color: '#a855f7', label: 'Delhi',         detail: 'AI inference ✓',     type: 'AI CALL'   },
   { lat: 55.7,  lon: 37.6,   color: '#a855f7', label: 'Moscow',        detail: 'AI call ✓ 11ms',     type: 'AI CALL'   },
   { lat: -33.9, lon: 151.2,  color: '#10b981', label: 'Sydney',        detail: '+$0.003/sec',        type: 'RWA YIELD' },

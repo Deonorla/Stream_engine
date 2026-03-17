@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { Clock, Calendar, CalendarDays, Settings, Hexagon, Coins, Search, Rocket } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Clock, Calendar, CalendarDays, Settings, Coins, Rocket } from 'lucide-react';
+import { paymentTokenDisplayName, paymentTokenSymbol } from '../contactInfo';
 
 // Duration presets in seconds
 const DURATION_PRESETS = [
@@ -11,7 +12,7 @@ const DURATION_PRESETS = [
 
 // Token options
 const TOKENS = [
-  { symbol: 'DOT', name: 'DOT Token', Icon: Coins, balance: '500.00' },
+  { symbol: paymentTokenSymbol, name: paymentTokenDisplayName, Icon: Coins, balance: '0.00' },
 ];
 
 // Progress Step Component
@@ -43,7 +44,7 @@ const RecipientInput = ({ value, onChange, isValid }) => {
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium text-white/80">Recipient Address</label>
+      <label className="text-sm font-medium text-white/80">Recipient EVM Address</label>
       <div className="relative">
         <input
           type="text"
@@ -52,7 +53,7 @@ const RecipientInput = ({ value, onChange, isValid }) => {
             ${showValidation && isEthAddress ? 'border-success-500/50 focus:border-success-500' : ''}
             ${showValidation && !isEthAddress ? 'border-error-500/50 focus:border-error-500' : ''}
           `}
-          placeholder="0x... or ENS name"
+          placeholder="0x..."
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -65,11 +66,6 @@ const RecipientInput = ({ value, onChange, isValid }) => {
           )}
         </div>
       </div>
-      {value.endsWith('.eth') && (
-        <div className="text-xs text-accent-400 flex items-center gap-1">
-          <Search className="w-3 h-3 animate-pulse" /> Resolving ENS...
-        </div>
-      )}
     </div>
   );
 };
@@ -168,25 +164,25 @@ const RateCalculator = ({ amount, duration, token }) => {
         <div>
           <div className="text-white/50">Flow Rate</div>
           <div className="font-mono font-semibold text-flowpay-300">
-            {rate.toFixed(8)} {token?.symbol || 'DOT'}/sec
+            {rate.toFixed(8)} {token?.symbol || paymentTokenSymbol}/sec
           </div>
         </div>
         <div>
           <div className="text-white/50">Per Hour</div>
           <div className="font-mono font-semibold text-white">
-            {ratePerHour.toFixed(6)} {token?.symbol || 'DOT'}
+            {ratePerHour.toFixed(6)} {token?.symbol || paymentTokenSymbol}
           </div>
         </div>
         <div>
           <div className="text-white/50">Per Day</div>
           <div className="font-mono font-semibold text-white">
-            {ratePerDay.toFixed(4)} {token?.symbol || 'DOT'}
+            {ratePerDay.toFixed(4)} {token?.symbol || paymentTokenSymbol}
           </div>
         </div>
         <div>
           <div className="text-white/50">Est. Gas</div>
           <div className="font-mono font-semibold text-warning-400">
-            ~0.002 ETH
+            paid in WND
           </div>
         </div>
       </div>
@@ -211,6 +207,33 @@ export default function CreateStreamForm({
   const isRecipientValid = /^0x[a-fA-F0-9]{40}$/.test(recipient);
 
   const effectiveDuration = selectedDuration?.value || parseInt(customDuration) || 0;
+
+  useEffect(() => {
+    const numericDuration = Number(durationSeconds || 0);
+    if (!numericDuration) {
+      return;
+    }
+
+    const matchingPreset = DURATION_PRESETS.find((preset) => preset.value === numericDuration);
+    if (matchingPreset) {
+      setSelectedDuration(matchingPreset);
+      setCustomDuration('');
+    } else {
+      setSelectedDuration(DURATION_PRESETS[DURATION_PRESETS.length - 1]);
+      setCustomDuration(String(numericDuration));
+    }
+  }, [durationSeconds]);
+
+  useEffect(() => {
+    if (recipient && parseFloat(amountEth) > 0 && Number(durationSeconds || 0) > 0) {
+      setCurrentStep((current) => (current < 3 ? 3 : current));
+      return;
+    }
+
+    if (recipient && parseFloat(amountEth) > 0) {
+      setCurrentStep((current) => (current < 2 ? 2 : current));
+    }
+  }, [amountEth, durationSeconds, recipient]);
 
   // Sync with parent state
   const handleDurationChange = (preset) => {

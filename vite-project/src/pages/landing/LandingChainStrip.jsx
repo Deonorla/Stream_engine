@@ -2,8 +2,8 @@
 const ITEMS = [
   { icon: '🔴', label: 'Polkadot'        },
   { icon: '⚡', label: 'x402 Protocol'   },
-  { icon: '🌊', label: 'FlowPayStream'   },
-  { icon: '⬡',  label: 'DOT Token'       },
+  { icon: '🌊', label: 'Stream Contract' },
+  { icon: '⬡',  label: 'Circle USDC'     },
   { icon: '✨', label: 'Gemini AI'       },
   { icon: '🔐', label: 'KYC/AML'         },
   { icon: '⚡', label: 'Flash Advance'   },
@@ -11,8 +11,8 @@ const ITEMS = [
   // duplicate for seamless loop
   { icon: '🔴', label: 'Polkadot'        },
   { icon: '⚡', label: 'x402 Protocol'   },
-  { icon: '🌊', label: 'FlowPayStream'   },
-  { icon: '⬡',  label: 'DOT Token'       },
+  { icon: '🌊', label: 'Stream Contract' },
+  { icon: '⬡',  label: 'Circle USDC'     },
   { icon: '✨', label: 'Gemini AI'       },
   { icon: '🔐', label: 'KYC/AML'         },
   { icon: '⚡', label: 'Flash Advance'   },

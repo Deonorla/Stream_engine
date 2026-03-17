@@ -7,19 +7,35 @@ import {
   ArrowUpRight, ArrowDownLeft, Coins, Activity, Plus
 } from 'lucide-react';
 import { ethers } from 'ethers';
-
-// ─── RWA mock data (mirrors RWA.jsx) ─────────────────────────────────────────
-const RWA_ASSETS = [
-  { id: 'rwa-001', title: 'Lagos Commercial Plaza',    flowRate: 50000  / (365*86400), startTime: Math.floor(Date.now()/1000) - 30*86400, duration: 365*86400, totalYield: 50000  },
-  { id: 'rwa-002', title: 'Tesla Model S Fleet (x5)',  flowRate: 12000  / (90*86400),  startTime: Math.floor(Date.now()/1000) - 10*86400, duration: 90*86400,  totalYield: 12000  },
-  { id: 'rwa-003', title: 'Industrial CNC Machinery',  flowRate: 8000   / (60*86400),  startTime: Math.floor(Date.now()/1000) - 5*86400,  duration: 60*86400,  totalYield: 8000   },
-  { id: 'rwa-004', title: 'Abuja Residential Complex', flowRate: 120000 / (365*86400), startTime: Math.floor(Date.now()/1000) - 60*86400, duration: 365*86400, totalYield: 120000 },
-];
+import { paymentTokenSymbol } from '../contactInfo';
+import { fetchRwaAssets } from '../services/rwaApi';
+import { useProtocolCatalog } from '../hooks/useProtocolCatalog';
+import { mapApiAssetToUiAsset } from './rwa/rwaData';
 
 function calcRwaClaimable(a) {
+  if (typeof a?.yieldBalance === 'number') {
+    return a.yieldBalance;
+  }
   const now = Math.floor(Date.now() / 1000);
   const elapsed = Math.max(0, Math.min(now, a.startTime + a.duration) - a.startTime);
   return Math.min(elapsed * a.flowRate, a.totalYield);
+}
+
+function resolveRwaTotal(a) {
+  if (typeof a?.totalYield === 'number' && a.totalYield > 0) {
+    return a.totalYield;
+  }
+  if (typeof a?.monthlyYieldTarget === 'number' && a.monthlyYieldTarget > 0) {
+    return a.monthlyYieldTarget;
+  }
+  return Math.max(calcRwaClaimable(a), 1);
+}
+
+function shortAddress(address = '') {
+  if (!address) {
+    return 'Unavailable';
+  }
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
@@ -66,7 +82,7 @@ function StreamRow({ stream, formatEth }) {
         </span>
       </div>
       <span className="font-mono text-cyan-300 text-xs tabular-nums shrink-0 ml-2">
-        {claimable} DOT
+        {claimable} {paymentTokenSymbol}
       </span>
     </div>
   );
@@ -79,14 +95,15 @@ function RwaRow({ asset }) {
     const id = setInterval(() => setStreamed(calcRwaClaimable(asset)), 1000);
     return () => clearInterval(id);
   }, [asset]);
-  const pct = Math.min(100, (streamed / asset.totalYield) * 100);
+  const total = resolveRwaTotal(asset);
+  const pct = Math.min(100, (streamed / total) * 100);
 
   return (
     <div className="py-2.5 border-b border-white/5 last:border-0">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-white/70 text-xs truncate">{asset.title}</span>
+        <span className="text-white/70 text-xs truncate">{asset.title || asset.name}</span>
         <span className="font-mono text-purple-300 text-xs tabular-nums shrink-0 ml-2">
-          {streamed.toFixed(2)} DOT
+          {streamed.toFixed(2)} {paymentTokenSymbol}
         </span>
       </div>
       <div className="h-1 bg-white/10 rounded-full overflow-hidden">
@@ -106,21 +123,41 @@ export default function Dashboard() {
     isInitialLoad, isLoadingStreams,
     walletAddress, mneeBalance, formatEth
   } = useWallet();
+  const { catalog } = useProtocolCatalog();
+  const [liveRwaAssets, setLiveRwaAssets] = useState([]);
 
-  const [rwaStreamed, setRwaStreamed] = useState(() =>
-    RWA_ASSETS.reduce((s, a) => s + calcRwaClaimable(a), 0)
-  );
+  const [rwaStreamed, setRwaStreamed] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() =>
-      setRwaStreamed(RWA_ASSETS.reduce((s, a) => s + calcRwaClaimable(a), 0)), 1000
-    );
-    return () => clearInterval(id);
+    let cancelled = false;
+
+    fetchRwaAssets()
+      .then((assets) => {
+        if (!cancelled) {
+          setLiveRwaAssets(assets.map((asset) => mapApiAssetToUiAsset(asset)));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLiveRwaAssets([]);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    const update = () => setRwaStreamed(liveRwaAssets.reduce((sum, asset) => sum + calcRwaClaimable(asset), 0));
+    update();
+    const id = setInterval(update, 1000);
+    return () => clearInterval(id);
+  }, [liveRwaAssets]);
 
   const totalOutflow = useMemo(() =>
     outgoingStreams.reduce((sum, s) => {
-      try { return sum + parseFloat(ethers.formatUnits(s.totalAmount || 0n, 18)); }
+      try { return sum + parseFloat(ethers.formatUnits(s.totalAmount || 0n, 6)); }
       catch { return sum; }
     }, 0),
   [outgoingStreams]);
@@ -144,10 +181,10 @@ export default function Dashboard() {
 
       {/* ── Top stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Coins}         label="DOT Balance"     value={Number(mneeBalance).toFixed(2)}  sub="on Sepolia"                       color="text-cyan-400"    />
-        <StatCard icon={ArrowUpRight}  label="Outgoing Streams" value={outgoingStreams.length}           sub={`${totalOutflow.toFixed(2)} DOT`} color="text-blue-400"    to="/app/streams" />
+        <StatCard icon={Coins}         label={`${paymentTokenSymbol} Balance`} value={Number(mneeBalance).toFixed(2)}  sub={catalog?.network?.name || 'Westend Asset Hub'} color="text-cyan-400" />
+        <StatCard icon={ArrowUpRight}  label="Outgoing Streams" value={outgoingStreams.length}           sub={`${totalOutflow.toFixed(2)} ${paymentTokenSymbol}`} color="text-blue-400"    to="/app/streams" />
         <StatCard icon={ArrowDownLeft} label="Incoming Streams" value={incomingStreams.length}           sub="claimable now"                    color="text-emerald-400" to="/app/streams" />
-        <StatCard icon={Building2}     label="RWA Assets"       value={RWA_ASSETS.length}               sub={`${rwaStreamed.toFixed(2)} DOT`}  color="text-purple-400"  to="/app/rwa" />
+        <StatCard icon={Building2}     label="RWA Assets"       value={liveRwaAssets.length}               sub={`${rwaStreamed.toFixed(2)} ${paymentTokenSymbol}`}  color="text-purple-400"  to="/app/rwa" />
       </div>
 
       {/* ── Main grid ── */}
@@ -191,20 +228,27 @@ export default function Dashboard() {
         <div className="card-glass border border-white/5 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-white font-semibold flex items-center gap-2 text-sm">
-              <Building2 className="w-4 h-4 text-purple-400" /> RWA Yield Streams
+              <Building2 className="w-4 h-4 text-purple-400" /> RWA Studio
             </h2>
             <Link to="/app/rwa" className="text-xs text-white/40 hover:text-white flex items-center gap-1 transition-colors">
               Browse <ArrowUpRight className="w-3 h-3" />
             </Link>
           </div>
-          {RWA_ASSETS.map(a => <RwaRow key={a.id} asset={a} />)}
+          {liveRwaAssets.length > 0 ? (
+            liveRwaAssets.map((asset) => <RwaRow key={asset.id} asset={asset} />)
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-white/30 text-sm mb-2">No indexed rental assets yet</p>
+              <p className="text-white/20 text-xs">Mint an asset in RWA Studio or wait for the registry to sync.</p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── Quick actions ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {[
-          { to: '/app/streams', icon: ArrowRightLeft, label: 'Create Stream',  sub: 'Send DOT per-second',         color: 'from-blue-600/20 to-cyan-600/20',    border: 'border-blue-500/20'   },
+          { to: '/app/streams', icon: ArrowRightLeft, label: 'Create Stream',  sub: `Send ${paymentTokenSymbol} per-second`,         color: 'from-blue-600/20 to-cyan-600/20',    border: 'border-blue-500/20'   },
           { to: '/app/rwa',     icon: Building2,      label: 'Rent an Asset',  sub: 'Stream rent to RWA owners',    color: 'from-purple-600/20 to-pink-600/20',  border: 'border-purple-500/20' },
           { to: '/app/agent',   icon: Bot,            label: 'Agent Console',  sub: 'AI-powered payment decisions', color: 'from-amber-600/20 to-orange-600/20', border: 'border-amber-500/20'  },
         ].map(({ to, icon: Icon, label, sub, color, border }) => (
@@ -230,10 +274,10 @@ export default function Dashboard() {
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           {[
-            { label: 'Gas Saved',       value: '95%',     color: 'text-emerald-400' },
-            { label: 'Sigs / Request',  value: '0.04',    color: 'text-cyan-400'    },
-            { label: 'RWA TVL (DOT)',  value: '190K',    color: 'text-purple-400'  },
-            { label: 'Network',         value: 'Sepolia', color: 'text-blue-400'    },
+            { label: 'Protected Routes', value: String(catalog?.routes?.length || 0), color: 'text-emerald-400' },
+            { label: 'Service Wallet', value: shortAddress(catalog?.payments?.recipientAddress), color: 'text-cyan-400' },
+            { label: `${paymentTokenSymbol} Asset ID`, value: String(catalog?.payments?.paymentAssetId || 31337), color: 'text-purple-400' },
+            { label: 'Network', value: catalog?.network?.name || 'Westend Asset Hub', color: 'text-blue-400' },
           ].map(({ label, value, color }) => (
             <div key={label}>
               <div className={`font-mono font-bold text-xl ${color}`}>{value}</div>

@@ -19,6 +19,7 @@
     "deploy:rwa:westmint:substrate": "FLOWPAY_USE_POLKADOT_SOLIDITY_TOOLCHAIN=true node scripts/deploy-rwa-westmint-substrate.js",
     "smoke:polkadot:substrate": "node scripts/smoke-substrate.js",
     "smoke:westmint:substrate": "node scripts/smoke-substrate.js",
+    "transfer:westmint:substrate": "node scripts/transfer-asset-substrate.js",
     "dev": "npm --prefix vite-project run dev",
     "build:web": "npm --prefix vite-project run build",
     "preview": "npm --prefix vite-project run preview",

@@ -3,7 +3,7 @@ const TESTIMONIALS = [
   {
     user: '@infra_nwachukwu',
     role: 'Backend Engineer',
-    quote: 'Replaced our billing layer with Stream Engine in 4 days. Agents now negotiate DOT payment mode dynamically with zero manual config.',
+    quote: 'Replaced our billing layer with Stream Engine in 4 days. Agents now negotiate USDC payment mode dynamically with zero manual config.',
   },
   {
     user: '@rwa_builder',

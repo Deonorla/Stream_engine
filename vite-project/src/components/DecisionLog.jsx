@@ -47,7 +47,7 @@ const TimelineEntry = ({ log, isLast, onExpand, isExpanded }) => {
                 {/* Meta Info */}
                 <div className="mt-3 flex items-center gap-3 text-xs text-white/50">
                     <span className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" /> {log.volume} requests
+                        <Mail className="w-3 h-3" /> {log.volumeLabel || `${log.volume} requests`}
                     </span>
                     {log.confidence && (
                         <span className="flex items-center gap-1">

@@ -1,261 +1,224 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import { BookOpen, ArrowLeft } from 'lucide-react';
+import { useProtocolCatalog } from '../hooks/useProtocolCatalog';
 
-const SECTIONS = [
-  {
-    id: 'introduction',
-    title: 'Introduction',
-    content: `# Stream Engine
+function buildRouteTable(routes = [], tokenSymbol = 'USDC') {
+  if (!routes.length) {
+    return '| Path | Mode | Price |\n|------|------|-------|\n| `/api/weather` | `streaming` | `0.0001 USDC/sec` |';
+  }
 
-**Stream Engine** is a protocol that combines x402 HTTP-native payment discovery, continuous DOT token streaming for AI agents, and Real World Asset (RWA) yield streaming — all on Ethereum Sepolia.
+  return [
+    '| Path | Mode | Price |',
+    '|------|------|-------|',
+    ...routes.map((route) => (
+      `| \`${route.path}\` | \`${route.mode}\` | \`${route.price} ${tokenSymbol}${route.mode === 'streaming' ? '/sec' : ''}\` |`
+    )),
+  ].join('\n');
+}
 
-## Three Layers
+function buildContractTable(catalog) {
+  const contracts = [
+    ['Stream contract', catalog?.payments?.contractAddress],
+    ['RWA Hub', catalog?.rwa?.hubAddress],
+    ['Asset NFT', catalog?.rwa?.assetNFTAddress],
+    ['Asset Registry', catalog?.rwa?.assetRegistryAddress],
+    ['Asset Stream', catalog?.rwa?.assetStreamAddress],
+    ['Compliance Guard', catalog?.rwa?.complianceGuardAddress],
+  ].filter(([, address]) => address);
+
+  return [
+    '| Contract | Address |',
+    '|----------|---------|',
+    ...contracts.map(([label, address]) => `| ${label} | \`${address}\` |`),
+  ].join('\n');
+}
+
+function buildSections(catalog) {
+  const networkName = catalog?.network?.name || 'Westend Asset Hub';
+  const tokenSymbol = catalog?.payments?.tokenSymbol || 'USDC';
+  const paymentAssetId = catalog?.payments?.paymentAssetId || 31337;
+  const recipientAddress = catalog?.payments?.recipientAddress || 'Not configured';
+
+  return [
+    {
+      id: 'introduction',
+      title: 'Introduction',
+      content: `# Stream Engine
+
+**Stream Engine** is an agent payments + rental RWA protocol on **${networkName}**.
+
+It combines:
 
 | Layer | What it does |
 |-------|-------------|
-| **x402 Streaming** | HTTP 402 responses tell agents what payment is required. One signature, unlimited requests. |
-| **RWA Yield** | Tokenized physical assets stream income to owners continuously per-second. |
-| **Gemini AI** | Decides streaming vs per-request based on usage patterns. |
+| **x402 negotiation** | Agents discover paid endpoints through standard HTTP 402 flows. |
+| **${tokenSymbol} streaming** | One approval powers continuous machine payments and instant cancellation refunds. |
+| **RWA Studio** | Mint, verify, rent, and monitor rental assets with IPFS-backed provenance. |
 
-## Deployed Contracts (Sepolia)
+## Runtime
 
-| Contract | Address |
-|----------|---------|
-| FlowPayStream | \`0x155A00fBE3D290a8935ca4Bf5244283685Bb0035\` |
-| MockDOT | \`0x96B1FE54Ee89811f46ecE4a347950E0D682D3896\` |
+| Item | Value |
+|------|-------|
+| Network | \`${networkName}\` |
+| Gas token | \`WND\` |
+| Payment token | \`Circle ${tokenSymbol}\` |
+| Circle asset id | \`${paymentAssetId}\` |
+| Service wallet | \`${recipientAddress}\` |
+
+## Live Contracts
+
+${buildContractTable(catalog)}
 
 ## Quick Start
 
 \`\`\`bash
 git clone https://github.com/ola-893/flowpay.git
-cd flowpay && npm run install:all && npm run dev
+cd flowpay
+npm run install:all
+npm run dev
 \`\`\`
 
-Open http://localhost:5173, connect MetaMask on Sepolia (Chain ID: 11155111), mint DOT, and create your first stream.`,
-  },
-  {
-    id: 'streams',
-    title: 'Payment Streams',
-    content: `# Payment Streams
+Launch the app, connect a Westend-compatible EVM wallet, and fund payment streams with Circle ${tokenSymbol} on asset id \`${paymentAssetId}\`.`,
+    },
+    {
+      id: 'streams',
+      title: 'Payment Streams',
+      content: `# Payment Streams
 
 ## How Streaming Works
 
-DOT tokens are locked in the FlowPayStream contract and released to the recipient per-second based on a flow rate.
+Circle ${tokenSymbol} is approved to the stream contract and released per-second to the configured recipient.
 
 \`\`\`
 Flow Rate = Total Amount ÷ Duration (seconds)
 Claimable = (flow_rate × seconds_elapsed) − amount_withdrawn
 \`\`\`
 
-## Creating a Stream (Dashboard)
+## Creating a Stream
 
-1. Go to **Streams** → Create Stream
-2. Enter recipient address, total DOT amount, duration in seconds
-3. Approve DOT spend → confirm transaction
-4. Stream starts immediately — recipient can withdraw anytime
+1. Open **Streams**
+2. Enter the recipient EVM address or use a protected route preset
+3. Set a ${tokenSymbol} budget and duration
+4. Approve ${tokenSymbol}
+5. Confirm the stream transaction
 
-## Creating a Stream (SDK)
+The recipient can withdraw as value accrues. The sender can cancel early and recover unused balance.
 
-\`\`\`typescript
-import { FlowPayAgent } from 'flowpay-sdk';
+## Live Route Policy
 
-const agent = new FlowPayAgent({
-  privateKey: process.env.AGENT_PRIVATE_KEY,
-  geminiApiKey: process.env.GEMINI_API_KEY,
-  dailyBudget: '50.00'
-});
+${buildRouteTable(catalog?.routes, tokenSymbol)}
 
-// SDK handles x402 automatically
-const data = await agent.fetch('https://api.weather-agent.com/forecast');
-\`\`\`
+## SDK Note
 
-## Cancelling a Stream
+The product is now **Stream Engine**, but some exported SDK and contract identifiers still keep earlier FlowPay names for compatibility.`,
+    },
+    {
+      id: 'rwa',
+      title: 'RWA Module',
+      content: `# RWA Studio
 
-Either party can cancel. The sender receives all unstreamed DOT back instantly — no lock-in.
+## Model
 
-## x402 Middleware (Provider Side)
-
-\`\`\`javascript
-import { flowPayMiddleware } from 'flowpay-sdk';
-
-app.use(flowPayMiddleware({
-  endpoints: {
-    "GET /api/weather": { price: "0.0001", mode: "streaming", minDeposit: "1.00" },
-    "POST /api/translate": { price: "0.001", mode: "per-request" }
-  }
-}));
-\`\`\``,
-  },
-  {
-    id: 'rwa',
-    title: 'RWA Module',
-    content: `# Real World Assets (RWA)
-
-## The Model
-
-Asset owners tokenize physical assets as NFTs. They keep the NFT and all financial rights (yield stream, flash loans). Renters stream DOT to unlock physical access.
+Owners mint a digital twin for a rental asset, attach IPFS metadata, bind a verification payload, and fund the attached yield stream. Renters do **not** take the NFT. They stream payment for physical access.
 
 \`\`\`
-Owner: holds NFT → earns yield per-second from the yield pool
-Renter: streams DOT → physical access unlocked (smart lock / IoT / PLC)
-Cancel: unspent DOT refunded instantly
+Owner: keeps NFT + yield rights
+Renter: streams ${tokenSymbol} for access
+Verifier: checks QR / NFC / IPFS against the on-chain registry
+Cancel: unused rental balance refunds automatically
 \`\`\`
 
-## Four Views
+## Studio Tabs
 
 | Tab | Purpose |
 |-----|---------|
-| **Browse Assets** | Find tokenized assets available to rent |
-| **God View** | Live map of all your assets + per-asset yield and rental status |
-| **Asset Factory** | Tokenize a new physical asset |
-| **Fleet Control** | Manage active rentals — freeze/unfreeze to disable access and pause payment |
+| **Minting** | Create the digital twin and pin metadata |
+| **Verify** | Check QR, NFC, CID, and registry history |
+| **Rent Assets** | Browse assets available for pay-as-you-go access |
+| **Active Rentals** | Track current rental streams and refunds |
+| **My Portfolio** | View owned yield-bearing assets |
 
-## Yield Formula
+## Verification Flow
 
-\`\`\`
-Claimable = (flow_rate × seconds_elapsed) − amount_withdrawn
-\`\`\`
+1. Fetch metadata from IPFS
+2. Compare CID and tag hashes with the on-chain registry
+3. Show indexed activity so provenance stays audit-friendly
 
-Balance ticks up every second in the dashboard.
+## Supported Asset Classes
 
-## Asset Types
+| Type | Example |
+|------|---------|
+| Real Estate | Apartments, offices, warehouses |
+| Vehicle | Fleets, rentals, logistics vehicles |
+| Commodity | Machinery, heavy equipment, industrial assets |`,
+    },
+    {
+      id: 'sdk',
+      title: 'Agent SDK',
+      content: `# Agent SDK
 
-| Type | Access Mechanism | Example |
-|------|-----------------|---------|
-| Real Estate | Smart lock | Office building, apartment |
-| Vehicle | IoT ignition unlock | EV fleet, car rental |
-| Commodity | PLC controller | CNC machinery, equipment |
+## Current State
 
-## Freeze / Unfreeze
+The product is **Stream Engine**, but some exported class names still use older FlowPay-era identifiers for compatibility with the existing codebase.
 
-In Fleet Control, freezing an asset pauses the payment stream and disables physical access immediately. Unfreeze to resume.
+## What it handles
 
-## Renting an Asset (SDK)
+| Capability | Description |
+|-----------|-------------|
+| \`fetch(url)\` | Makes HTTP requests and handles 402 payment flows |
+| \`createStream(opts)\` | Creates a ${tokenSymbol} payment stream |
+| \`cancelStream(id)\` | Cancels a stream and refunds unused balance |
+| \`getBalance()\` | Reads current token balance |
+| \`optimizeSpending()\` | Lets the runtime choose streaming vs direct settlement |
 
-\`\`\`javascript
-// Tenant streams rent to asset owner per-second
-const stream = await agent.createStream({
-  recipient: assetOwnerAddress,
-  ratePerSecond: '0.0139',  // ~50 DOT/hour
-  deposit: '50.00',
-  metadata: { purpose: 'Tesla Model S rental' }
-});
+## Budgeting
 
-// Cancel early → unused DOT refunded automatically
-await stream.cancel();
-\`\`\``,
-  },
-  {
-    id: 'sdk',
-    title: 'Agent SDK',
-    content: `# Agent SDK
+The agent console exposes:
 
-## Installation
+- daily spend caps
+- per-request limits
+- emergency pause
+- activity monitoring`,
+    },
+    {
+      id: 'contracts',
+      title: 'Smart Contracts',
+      content: `# Smart Contracts
 
-\`\`\`bash
-cd sdk && npm install
-\`\`\`
+## Stream Contract
 
-## FlowPayAgent
-
-\`\`\`typescript
-import { FlowPayAgent } from './src/FlowPaySDK';
-
-const agent = new FlowPayAgent({
-  privateKey: process.env.AGENT_PRIVATE_KEY,
-  geminiApiKey: process.env.GEMINI_API_KEY,  // optional
-  dailyBudget: '50.00',                       // optional
-  network: 'sepolia'
-});
-\`\`\`
-
-## Methods
-
-| Method | Description |
-|--------|-------------|
-| \`agent.fetch(url)\` | Makes HTTP request, auto-handles 402 |
-| \`agent.createStream(opts)\` | Creates a DOT payment stream |
-| \`agent.cancelStream(id)\` | Cancels stream, refunds sender |
-| \`agent.getBalance()\` | Returns current DOT balance |
-| \`agent.optimizeSpending()\` | AI recommends payment mode |
-
-## GeminiPaymentBrain
-
-\`\`\`typescript
-import { GeminiPaymentBrain } from './src/GeminiPaymentBrain';
-
-const brain = new GeminiPaymentBrain(process.env.GEMINI_API_KEY);
-const decision = await brain.decide({ expectedCalls: 1000, service: 'weather-api' });
-// { mode: 'streaming', reason: 'High volume — streaming saves 90% on gas' }
-\`\`\`
-
-## SpendingMonitor
-
-\`\`\`typescript
-import { SpendingMonitor } from './src/SpendingMonitor';
-
-const monitor = new SpendingMonitor({ dailyLimit: '50.00' });
-monitor.onLimitReached(() => agent.pause());
-\`\`\``,
-  },
-  {
-    id: 'contracts',
-    title: 'Smart Contracts',
-    content: `# Smart Contracts
-
-## FlowPayStream.sol
-
-Core streaming contract on Ethereum Sepolia.
-
-### Key Functions
+The core payment rail still uses the Solidity stream contract with per-stream metadata.
 
 | Function | Description |
 |----------|-------------|
-| \`createStream(recipient, duration, amount, metadata)\` | Lock DOT and start a stream |
-| \`withdrawFromStream(streamId)\` | Recipient claims accrued DOT |
-| \`cancelStream(streamId)\` | Cancel and refund unstreamed DOT |
-| \`getClaimableBalance(streamId)\` | View current claimable amount |
-| \`isStreamActive(streamId)\` | Check if stream is still running |
+| \`createStream(recipient, duration, amount, metadata)\` | Lock ${tokenSymbol} and start a stream |
+| \`withdrawFromStream(streamId)\` | Recipient claims accrued ${tokenSymbol} |
+| \`cancelStream(streamId)\` | Cancel and refund unused balance |
+| \`getClaimableBalance(streamId)\` | Read current claimable amount |
 
-### Stream Struct
+## RWA Suite
 
-\`\`\`solidity
-struct Stream {
-  address sender;
-  address recipient;
-  uint256 totalAmount;
-  uint256 flowRate;       // DOT per second (wei)
-  uint256 startTime;
-  uint256 stopTime;
-  uint256 amountWithdrawn;
-  bool    isActive;
-  string  metadata;
-}
-\`\`\`
+| Contract | Role |
+|----------|------|
+| \`FlowPayAssetNFT\` | Mints the rental asset NFT |
+| \`FlowPayAssetRegistry\` | Stores provenance and verification hashes |
+| \`FlowPayAssetStream\` | Handles yield streams, flash advance, freezes |
+| \`FlowPayComplianceGuard\` | Stores compliance state |
+| \`FlowPayRWAHub\` | Orchestrates minting and asset actions |
 
-### Events
-
-\`\`\`solidity
-event StreamCreated(uint256 streamId, address sender, address recipient, uint256 totalAmount, ...);
-event Withdrawn(uint256 streamId, address recipient, uint256 amount);
-event StreamCancelled(uint256 streamId, address sender, address recipient, ...);
-\`\`\`
-
-## MockDOT.sol
-
-ERC-20 test token for Sepolia. Call \`mint(address, amount)\` to get free tokens.
-
-## Deploy Your Own
+## Deployment
 
 \`\`\`bash
-cp .env.example .env
-# fill SEPOLIA_RPC_URL and PRIVATE_KEY
-npx hardhat run scripts/deploy.js --network sepolia
-\`\`\``,
-  },
-];
+npm run deploy:westmint:substrate
+npm run deploy:rwa:westmint:substrate
+\`\`\`
+
+Use **WND** for gas and **Circle ${tokenSymbol} asset id ${paymentAssetId}** for payments and RWA flows.`,
+    },
+  ];
+}
 
 function renderContent(md) {
   return md
@@ -352,9 +315,11 @@ function DocContent({ content }) {
 }
 
 export default function Docs() {
+  const { catalog } = useProtocolCatalog();
   const { section } = useParams();
   const navigate = useNavigate();
-  const active = SECTIONS.find(s => s.id === section) || SECTIONS[0];
+  const sections = useMemo(() => buildSections(catalog), [catalog]);
+  const active = sections.find(s => s.id === section) || sections[0];
 
   return (
     <div className="min-h-screen bg-surface-950 text-white flex flex-col">
@@ -373,7 +338,7 @@ export default function Docs() {
       <div className="flex flex-1 max-w-6xl mx-auto w-full px-4 py-8 gap-8">
         {/* Sidebar */}
         <nav className="hidden md:flex flex-col gap-1 w-48 shrink-0 sticky top-20 self-start">
-          {SECTIONS.map(s => (
+          {sections.map(s => (
             <button
               key={s.id}
               onClick={() => navigate(`/app/docs/${s.id}`)}
@@ -395,7 +360,7 @@ export default function Docs() {
             onChange={e => navigate(`/app/docs/${e.target.value}`)}
             className="input-default w-full"
           >
-            {SECTIONS.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+            {sections.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
           </select>
         </div>
 

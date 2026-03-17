@@ -15,7 +15,7 @@ export default function LandingCTASection() {
             The economy of agents<br />runs on{' '}
             <span style={{ background: 'linear-gradient(90deg,#3b82f6,#a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Stream Engine.</span>
           </h2>
-          <p className="text-lg text-surface-300">Join the developer beta and start streaming DOT payments in minutes.</p>
+          <p className="text-lg text-surface-300">Join the developer beta and start streaming Circle USDC payments in minutes.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a href="#" className="px-8 py-4 border-2 border-white/30 text-white hover:border-white hover:bg-white/5 font-semibold rounded-xl transition-all duration-300 text-lg focus:outline-none focus:ring-2 focus:ring-white/30" aria-label="Read the Stream Engine whitepaper">Read the Whitepaper</a>

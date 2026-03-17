@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
@@ -10,12 +10,6 @@ const TYPED_PHRASES = [
   "stream by stream.",
   "agent by agent.",
   "one stream at a time.",
-];
-
-const LEGEND = [
-  { color: "bg-flowpay-500", label: "DOT Payments" },
-  { color: "bg-accent-500", label: "AI Calls" },
-  { color: "bg-success-500", label: "RWA Yields" },
 ];
 
 // Invisible component inside Canvas — projects city 3D pos to screen coords
@@ -39,14 +33,26 @@ function CityProjector({ cityIndex, onProject }) {
   return null;
 }
 
-export default function LandingHero() {
-  const [txCount, setTxCount] = useState(18_432);
+export default function LandingHero({
+  networkName = "Westend Asset Hub",
+  tokenSymbol = "USDC",
+  paymentAssetId = 31337,
+  routeCount = 0,
+  assetCount = 0,
+}) {
   const [cityIndex, setCityIndex] = useState(0);
   const [projected, setProjected] = useState(null);
   const [visible, setVisible] = useState(false);
   const [typed, setTyped] = useState("");
   const [phraseIdx, setPhraseIdx] = useState(0);
   const typingRef = useRef(null);
+  const legend = useMemo(() => ([
+    { color: "bg-flowpay-500", label: `${tokenSymbol} Payments` },
+    { color: "bg-accent-500", label: "AI Calls" },
+    { color: "bg-success-500", label: "RWA Yields" },
+  ]), [tokenSymbol]);
+  const overviewLabel = assetCount > 0 ? "indexed assets" : "protected routes";
+  const overviewValue = assetCount > 0 ? assetCount : routeCount;
 
   // Typing effect
   useEffect(() => {
@@ -78,14 +84,6 @@ export default function LandingHero() {
     typingRef.current = setTimeout(type, 400);
     return () => clearTimeout(typingRef.current);
   }, [phraseIdx]);
-
-  useEffect(() => {
-    const id = setInterval(
-      () => setTxCount((n) => n + Math.floor(Math.random() * 3) + 1),
-      800,
-    );
-    return () => clearInterval(id);
-  }, []);
 
   // Cycle to a new random city every 2.5s
   useEffect(() => {
@@ -138,7 +136,10 @@ export default function LandingHero() {
           </span>
         </h1>
         <p className="text-base text-surface-400 max-w-md mx-auto leading-relaxed">
-          AI agents. Streaming payments. Real-world assets. All on Polkadot EVM.
+          AI agents. Streaming payments. Real-world assets. All on {networkName}.
+        </p>
+        <p className="text-sm text-surface-500 max-w-lg mx-auto mt-3 leading-relaxed">
+          Browse {routeCount || 0} paid routes, settle in {tokenSymbol}, and inspect {assetCount || 0} indexed rental assets from one runtime.
         </p>
       </div>
 
@@ -264,17 +265,17 @@ export default function LandingHero() {
               aria-hidden="true"
             />
             <span className="font-mono text-xs text-surface-400">
-              txns processed
+              {overviewLabel}
             </span>
             <span className="font-mono text-sm font-bold text-flowpay-400 tabular-nums">
-              {txCount.toLocaleString()}
+              {overviewValue.toLocaleString()}
             </span>
           </div>
         </div>
 
         {/* Legend — bottom left */}
         <div className="absolute bottom-4 left-4 flex flex-col gap-1.5 pointer-events-none z-10">
-          {LEGEND.map((l) => (
+          {legend.map((l) => (
             <div
               key={l.label}
               className="flex items-center gap-2 bg-surface-900/80 backdrop-blur border border-surface-700 rounded-lg px-3 py-1.5"
@@ -321,11 +322,11 @@ export default function LandingHero() {
               cls: "border-flowpay-500/40 text-flowpay-300 bg-flowpay-500/10",
             },
             {
-              label: "RWA NFT Yields",
+              label: "RWA Studio",
               cls: "border-success-500/40 text-success-300 bg-success-500/10",
             },
             {
-              label: "Polkadot EVM",
+              label: `${tokenSymbol} asset ${paymentAssetId}`,
               cls: "border-pink-500/40 text-pink-300 bg-pink-500/10",
             },
           ].map((p) => (
@@ -350,12 +351,12 @@ export default function LandingHero() {
               aria-hidden="true"
             />
           </Link>
-          <a
-            href="#developers"
+          <Link
+            to="/app/docs"
             className="px-8 py-3.5 rounded-xl font-semibold border border-surface-600 text-surface-300 hover:border-flowpay-500/60 hover:text-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-flowpay-500/50"
           >
             View Docs
-          </a>
+          </Link>
         </div>
       </div>
     </section>
