@@ -8,6 +8,7 @@ import {
   Building2,
   Coins,
   Database,
+  ExternalLink,
   FileSearch,
   Link2,
   ScanLine,
@@ -16,6 +17,7 @@ import {
   Waypoints,
 } from 'lucide-react';
 import { useProtocolCatalog } from '../hooks/useProtocolCatalog';
+import { ACTIVE_NETWORK } from '../networkConfig.js';
 
 function buildRouteRows(routes = [], tokenSymbol = 'USDC') {
   if (!routes.length) {
@@ -42,6 +44,27 @@ function buildContractRows(catalog) {
     ['Asset Stream', catalog?.rwa?.assetStreamAddress || 'Not configured'],
     ['Compliance Guard', catalog?.rwa?.complianceGuardAddress || 'Not configured'],
   ];
+}
+
+function buildContractLinks(catalog) {
+  const explorerBase = String(ACTIVE_NETWORK.explorerUrl || 'https://westmint.subscan.io').replace(/\/$/, '');
+  const contracts = [
+    ['Stream contract', catalog?.payments?.contractAddress],
+    ['RWA Hub', catalog?.rwa?.hubAddress],
+    ['Asset NFT', catalog?.rwa?.assetNFTAddress],
+    ['Asset Registry', catalog?.rwa?.assetRegistryAddress],
+    ['Asset Stream', catalog?.rwa?.assetStreamAddress],
+    ['Compliance Guard', catalog?.rwa?.complianceGuardAddress],
+  ];
+
+  return contracts
+    .filter(([, address]) => Boolean(address))
+    .map(([label, address]) => ({
+      label,
+      value: address,
+      href: `${explorerBase}/account/${address}`,
+      note: 'View on explorer',
+    }));
 }
 
 function buildSections(catalog) {
@@ -447,6 +470,10 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           title: 'Yield',
           body: 'Asset-linked revenue can be funded into a yield stream so the owner receives revenue according to onchain ownership rules.',
         },
+        {
+          title: 'Why this module exists',
+          body: 'Most onchain RWAs today stop at tokenization. They prove ownership, but they do not make the asset more operational. Stream Engine focuses on assets that can actually be put to work and rented in the real world.',
+        },
       ],
       stepsTitle: 'The RWA Studio workflow',
       steps: [
@@ -466,6 +493,16 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             ['Rent Assets', 'Start real-world rental sessions'],
             ['Active Rentals', 'Monitor live rental streams and refunds'],
             ['My Portfolio', 'Track owned yield-bearing assets'],
+          ],
+        },
+        {
+          title: 'What this RWA layer supports',
+          headers: ['Asset type', 'Why it fits Stream Engine'],
+          rows: [
+            ['Houses / apartments', 'Can be rented and can produce recurring cash flow'],
+            ['Cars / fleets', 'Can be rented per session and paired with smart lock or engine controls'],
+            ['Heavy machinery', 'Can be rented per job, hour, or usage window'],
+            ['Gold / silver / passive commodities', 'Not supported as the core model because they do not naturally generate rental revenue'],
           ],
         },
       ],
@@ -506,6 +543,10 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           title: 'Why Stream Engine cares',
           body: 'Once an asset produces ongoing cash flow, it makes sense to stream and track that cash flow instead of pretending the asset is just a JPEG with metadata.',
         },
+        {
+          title: 'Why we do not start with gold or silver',
+          body: 'Gold and silver can be valuable, but they are passive holdings. Owning them does not automatically create a revenue stream. Stream Engine starts with assets that can be rented because rental flows are where streaming and coupling add real utility.',
+        },
       ],
       tables: [
         {
@@ -522,6 +563,10 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           question: 'Can every real-world asset be treated as productive?',
           answer: 'No. Productive means it reliably throws off revenue. If there is no revenue stream, there is nothing meaningful to couple to ownership.',
+        },
+        {
+          question: 'So why not tokenize gold first and add streams later?',
+          answer: 'Because the product thesis is not just “put assets onchain.” The thesis is “make onchain assets operational and revenue-aware.” Gold does not naturally give you rent to meter, refund, or couple to ownership.',
         },
       ],
     },
@@ -542,6 +587,10 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           title: 'Why coupling matters',
           body: 'Without coupling, an old owner can keep collecting revenue after selling the asset. That creates messy reconciliation and weakens trust.',
+        },
+        {
+          title: 'Why this was the core inspiration',
+          body: 'A lot of RWA NFTs today are still passive wrappers around non-productive assets. Stream Engine makes coupling central because productive assets are only truly useful when future revenue cleanly follows the NFT that represents the asset.',
         },
         {
           title: 'How Stream Engine handles it',
@@ -581,6 +630,10 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           question: 'Does the NFT transfer automatically move past revenue too?',
           answer: 'No. Past revenue that has already been claimed stays claimed. Coupling mainly affects who is entitled to future unclaimed value.',
         },
+        {
+          question: 'Why is coupling more important for houses, cars, and machines than for passive assets?',
+          answer: 'Because those assets can keep generating value while they are owned. If future revenue does not follow ownership, the asset is tokenized badly and the NFT becomes operationally misleading.',
+        },
       ],
     },
     {
@@ -613,6 +666,10 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           title: 'Activity trail',
           body: 'A useful verification result should not only say "valid" or "invalid". It should also explain the provenance trail: mint, stream setup, transfers, freezes, and updates.',
         },
+        {
+          title: 'IoT and smart access',
+          body: 'Verification can be tied to physical control systems. A smart car, smart lock, or industrial controller can reference the same payment and provenance state when deciding whether access should remain active.',
+        },
       ],
       stepsTitle: 'Verification flow',
       steps: [
@@ -638,22 +695,30 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           question: 'Why use both IPFS and onchain hashes?',
           answer: 'IPFS stores the content. Onchain hashes let the app prove that the content being shown is the same content that was bound to the asset.',
         },
+        {
+          question: 'What happens with a smart rented car if the stream ends?',
+          answer: 'That is one of the strongest real-world examples for this model. A smart vehicle can watch the stream state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.',
+        },
       ],
     },
     {
-      id: 'contracts',
+      id: 'architecture',
       icon: Database,
-      title: 'Contracts & APIs',
-      eyebrow: 'Reference',
-      summary: 'Which contracts do what, which APIs exist, and where the trust boundaries sit.',
+      title: 'Architecture',
+      eyebrow: 'System Design',
+      summary: 'How the frontend, backend, Solidity contracts, indexer, and verification stack fit together, plus the live deployed addresses so readers can inspect the contracts themselves.',
       plainEnglish:
-        'Think of the contracts as specialized workers. One holds payment streams. One mints asset NFTs. One stores registry facts. One manages compliance. One coordinates the whole RWA flow.',
+        'Think of the system like a small company. The frontend talks to users. The backend handles coordination, metadata pinning, and indexing. The Solidity contracts are the accountants and rule enforcers. The explorer links let anyone inspect the live deployed workers directly.',
       takeaways: [
         'Each contract should have a narrow, understandable job.',
         'The backend makes the system usable, but contracts remain the source of truth.',
         'If you do not know where a fact lives, look for which contract owns that responsibility.',
       ],
       points: [
+        {
+          title: 'Built with Solidity',
+          body: 'The live stream rail and RWA contract suite are Solidity contracts deployed to the Polkadot environment. The point is not only to talk about architecture abstractly, but to let readers verify the deployed code and addresses themselves.',
+        },
         {
           title: 'Payment contract',
           body: `The stream contract manages sender budget, recipient claims, cancellation, and metadata for payment sessions in ${tokenSymbol}.`,
@@ -671,9 +736,28 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           body: 'The UI is a client. The backend helps with indexing and metadata. The contract layer is the final source of truth for streams, ownership, and verification hashes.',
         },
       ],
+      stepsTitle: 'How one action moves through the system',
+      steps: [
+        'The frontend collects user intent: start a stream, mint an asset, verify a payload, or claim yield.',
+        'The backend helps with metadata pinning, registry views, and indexed history when needed.',
+        'The Solidity contracts enforce the payment, ownership, compliance, and yield rules.',
+        'The indexer rebuilds the public activity trail so the UI can show understandable history.',
+        'The explorer links let anyone verify the live deployment state independently of the app UI.',
+      ],
       tables: [
         {
-          title: 'Contract map',
+          title: 'Architecture layers',
+          headers: ['Layer', 'Built with', 'Main job'],
+          rows: [
+            ['Frontend', 'React + Vite', 'Wallet connection, dashboard flows, minting, renting, and verification UX'],
+            ['Backend', 'Node.js + Express', 'Catalog, IPFS pinning, verification API, indexed views, and middleware enforcement'],
+            ['Stream contracts', 'Solidity', 'Payment streaming, withdrawal, and cancellation'],
+            ['RWA contracts', 'Solidity', 'NFT minting, registry storage, compliance, and asset-linked yield'],
+            ['Indexer / provenance', 'Backend service + chain reads', 'Activity reconstruction for audit-friendly history'],
+          ],
+        },
+        {
+          title: 'Live contract map',
           headers: ['Contract', 'Address'],
           rows: buildContractRows(catalog),
         },
@@ -702,10 +786,15 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           ],
         },
       ],
+      links: buildContractLinks(catalog),
       faqs: [
         {
           question: 'Why does the frontend still need the backend if contracts exist?',
           answer: 'Because verification, indexing, metadata pinning, and route catalogs are easier to expose through a service layer. The contracts remain the final source of truth for settlement and ownership state.',
+        },
+        {
+          question: 'Why include the contract addresses directly in the handbook?',
+          answer: 'Because readers should not have to trust screenshots or slide decks. They should be able to open the live deployed addresses themselves and verify that the system is actually implemented as Solidity contracts onchain.',
         },
       ],
     },
@@ -916,6 +1005,38 @@ function DataTable({ title, headers, rows }) {
   );
 }
 
+function ExplorerLinks({ title = 'Live explorer links', items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">{title}</div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {items.map((item) => (
+          <a
+            key={item.label}
+            href={item.href}
+            target="_blank"
+            rel="noreferrer"
+            className="group rounded-2xl border border-white/10 bg-white/[0.03] p-5 transition-colors hover:border-white/20 hover:bg-white/[0.05]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white">{item.label}</div>
+                <div className="mt-2 break-all font-mono text-xs text-white/50">{item.value}</div>
+                <div className="mt-3 text-xs uppercase tracking-[0.18em] text-cyan-300">{item.note}</div>
+              </div>
+              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-white/35 transition-colors group-hover:text-cyan-300" />
+            </div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FaqList({ items }) {
   return (
     <div className="space-y-3">
@@ -934,7 +1055,8 @@ export default function Docs() {
   const { section } = useParams();
   const navigate = useNavigate();
   const sections = useMemo(() => buildSections(catalog), [catalog]);
-  const activeSection = sections.find((entry) => entry.id === section) || sections[0];
+  const resolvedSection = section === 'contracts' ? 'architecture' : section;
+  const activeSection = sections.find((entry) => entry.id === resolvedSection) || sections[0];
   const routeCount = catalog?.routes?.length || 3;
   const configuredContractCount = buildContractRows(catalog).filter(([, value]) => value && value !== 'Not configured').length;
 
@@ -1037,6 +1159,8 @@ export default function Docs() {
             {activeSection.tables?.map((table) => (
               <DataTable key={table.title} title={table.title} headers={table.headers} rows={table.rows} />
             ))}
+
+            <ExplorerLinks items={activeSection.links} />
 
             {activeSection.faqs?.length ? (
               <div className="space-y-4">
