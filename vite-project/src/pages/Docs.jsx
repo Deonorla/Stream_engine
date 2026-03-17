@@ -21,32 +21,44 @@ import { ACTIVE_NETWORK } from "../networkConfig.js";
 
 const DEPLOYED_CONTRACT_DEFAULTS = {
   stream: {
-    name: "FlowPayStream",
+    name: "Stream Engine Stream",
+    onchainName: "FlowPayStream",
+    group: "Payment Rail",
     address: "0x75edbf3d9857521f5fb2f581c896779f5110a8a0",
     role: "Reusable payment stream rail for x402-compatible API and access payments.",
   },
   rwaHub: {
-    name: "FlowPayRWAHub",
+    name: "Stream Engine RWA Hub",
+    onchainName: "FlowPayRWAHub",
+    group: "RWA Rail",
     address: "0x1286a0fe3413dd70083df2d654677a7c39096753",
     role: "Main RWA orchestrator for minting, yield funding, claims, flash advance, and admin actions.",
   },
   assetNft: {
-    name: "FlowPayAssetNFT",
+    name: "Stream Engine Asset NFT",
+    onchainName: "FlowPayAssetNFT",
+    group: "RWA Rail",
     address: "0x0340b3f493bae901f740c494b2f7744f5fffe348",
     role: "ERC-721 digital twin contract for productive real-world rental assets.",
   },
   assetRegistry: {
-    name: "FlowPayAssetRegistry",
+    name: "Stream Engine Asset Registry",
+    onchainName: "FlowPayAssetRegistry",
+    group: "RWA Rail",
     address: "0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f",
     role: "Onchain provenance registry for CID hashes, tag hashes, issuer data, and active stream linkage.",
   },
   assetStream: {
-    name: "FlowPayAssetStream",
+    name: "Stream Engine Asset Stream",
+    onchainName: "FlowPayAssetStream",
+    group: "RWA Rail",
     address: "0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396",
     role: "Asset-linked yield engine that keeps future revenue coupled to NFT ownership.",
   },
   complianceGuard: {
-    name: "FlowPayComplianceGuard",
+    name: "Stream Engine Compliance Guard",
+    onchainName: "FlowPayComplianceGuard",
+    group: "RWA Rail",
     address: "0x72a979756061c5993a4c9c95e87519e9492dd721",
     role: "Compliance and freeze control layer for regulated RWA actions.",
   },
@@ -121,7 +133,7 @@ function buildContractRows(catalog) {
   return getDeployedContractDescriptors(catalog).map((contract) => [
     contract.name,
     contract.address || "Not configured",
-    contract.role,
+    `${contract.role} Onchain deployment id: ${contract.onchainName}.`,
   ]);
 }
 
@@ -135,7 +147,7 @@ function buildContractLinks(catalog) {
       label: contract.name,
       value: contract.address,
       href: `${explorerBase}/account/${contract.address}`,
-      note: "View on explorer",
+      note: `Onchain deployment id: ${contract.onchainName}`,
     }));
 }
 
@@ -440,6 +452,11 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           question: "Why not just use API keys?",
           answer:
             "API keys identify a client. They do not solve pricing, per-route payment terms, or onchain settlement for autonomous agents.",
+        },
+        {
+          question: "Why do some payment headers still say FlowPay?",
+          answer:
+            "Those are legacy wire-format names kept for compatibility with the current runtime and SDK. Product-facing branding is Stream Engine, but the live HTTP header keys still use the older X-FlowPay-* prefix today.",
         },
       ],
     },
@@ -933,6 +950,18 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           body: "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores provenance facts, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
         },
         {
+          title: "How the RWA half really works",
+          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer mints the digital twin. Then metadata and verification facts are written into the registry. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
+        },
+        {
+          title: "Why we only care about productive assets here",
+          body: "Gold, silver, and passive commodity wrappers can be tokenized, but they do not naturally produce rental cash flow. Stream Engine focuses on houses, fleets, heavy machinery, and other rent-producing assets because those assets justify streaming, refund logic, live metering, and ownership-linked yield.",
+        },
+        {
+          title: "IoT and machine enforcement",
+          body: "The RWA side also expects physical access controls. A smart car, smart lock, or industrial controller can watch the payment stream, revoke access when funding ends, and let unused budget remain with the renter when the session ends early.",
+        },
+        {
           title: "Middleware and APIs",
           body: "The backend exposes route catalogs, verification endpoints, metadata pinning, and asset activity views. Middleware is what turns onchain state into actual web access.",
         },
@@ -991,36 +1020,67 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           rows: buildContractRows(catalog),
         },
         {
+          title: "RWA contract choreography",
+          headers: ["RWA piece", "What it stores or controls", "Why the system needs it"],
+          rows: [
+            [
+              "Stream Engine Asset NFT",
+              "The digital twin and current owner",
+              "Without it there is no durable ownership anchor for the productive asset",
+            ],
+            [
+              "Stream Engine Asset Registry",
+              "CID hash, verification tag hash, issuer facts, linked stream facts",
+              "Without it buyers and auditors cannot prove the physical asset story is consistent",
+            ],
+            [
+              "Stream Engine Asset Stream",
+              "Time-based yield logic, flash-advance behavior, future revenue state",
+              "Without it the asset becomes just another static NFT with no revenue engine",
+            ],
+            [
+              "Stream Engine Compliance Guard",
+              "Freeze and compliance flags",
+              "Without it there is no contract-level stop switch for regulated or disputed actions",
+            ],
+            [
+              "Stream Engine RWA Hub",
+              "High-level orchestration across minting, funding, claims, and admin actions",
+              "Without it the app would need to coordinate too many raw calls manually",
+            ],
+          ],
+        },
+        {
           title: "Primary contract responsibilities",
           headers: ["Contract", "Why it exists", "What breaks without it"],
           rows: [
             [
-              "FlowPayStream",
+              "Stream Engine Stream",
               "Create, cancel, and settle reusable payment streams",
               "Agents fall back to repeated checkout and high-fee per-request settlement",
             ],
             [
-              "FlowPayAssetNFT",
+              "Stream Engine Asset NFT",
               "Mint the productive rental asset NFT",
               "There is no durable digital twin for the real asset",
             ],
             [
-              "FlowPayAssetRegistry",
+              "Stream Engine Asset Registry",
               "Store CID hash, tag hash, issuer, and active stream mapping",
               "Verifiers cannot prove that QR, NFC, and IPFS metadata match onchain truth",
             ],
             [
-              "FlowPayAssetStream",
+              "Stream Engine Asset Stream",
               "Handle asset-linked yield and flash advance behavior",
               "Future rental revenue cannot be streamed or coupled cleanly to NFT ownership",
             ],
             [
-              "FlowPayComplianceGuard",
+              "Stream Engine Compliance Guard",
               "Store compliance and freeze state",
               "Admins cannot block claims or withdrawals when policy or regulation requires intervention",
             ],
             [
-              "FlowPayRWAHub",
+              "Stream Engine RWA Hub",
               "Coordinate minting, funding, claims, and admin actions",
               "Frontend and backend would need to orchestrate too many raw contract calls directly",
             ],
@@ -1044,6 +1104,42 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "IoT-aware rental asset",
               "Ownership, verification, and machine-enforced access control",
               "A car, lock, or machine can react to stream state and cut access when funding ends",
+            ],
+          ],
+        },
+        {
+          title: "Productive RWA lifecycle",
+          headers: ["Stage", "What happens", "Which part is responsible"],
+          rows: [
+            [
+              "Mint",
+              "Issuer creates the digital twin and pins metadata",
+              "RWAHub + AssetNFT + backend IPFS service",
+            ],
+            [
+              "Bind truth",
+              "CID hash and tag hash are recorded for future verification",
+              "AssetRegistry",
+            ],
+            [
+              "Rent",
+              "User funds access and pays only for actual usage time",
+              "Stream Engine Stream + app access controls",
+            ],
+            [
+              "Generate yield",
+              "Rental revenue is routed into asset-linked yield logic",
+              "AssetStream",
+            ],
+            [
+              "Claim",
+              "Current NFT owner claims the unclaimed revenue",
+              "AssetStream + AssetNFT ownership checks",
+            ],
+            [
+              "Transfer",
+              "NFT moves to a new owner and future yield follows it",
+              "AssetNFT + AssetStream coupling rules",
             ],
           ],
         },
@@ -1085,6 +1181,12 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             "Why include the contract addresses directly in the handbook?",
           answer:
             "Because readers should not have to trust screenshots or slide decks. They should be able to open the live deployed addresses themselves and verify that the system is actually implemented as Solidity contracts onchain.",
+        },
+        {
+          question:
+            "Why do the onchain deployment ids still say FlowPay?",
+          answer:
+            "Those are the actual deployed Solidity contract identifiers. The product is now Stream Engine, but the deployed contract names were kept so the existing chain deployment, ABI references, and tooling did not have to be broken or redeployed just for naming.",
         },
         {
           question:
@@ -1380,117 +1482,465 @@ function DocContent({ content }) {
   return <div className="space-y-1">{blocks}</div>;
 }
 
+function StatusBanner({ isLoading, error }) {
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm text-cyan-100">
+        Loading the live runtime catalog. The handbook can still render from built-in defaults while data arrives.
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+        The backend catalog is offline, so this handbook is using local fallback values. Start the backend with <code className="rounded bg-black/20 px-1.5 py-0.5 font-mono text-xs">npm run start:all</code> if you want live route and contract config.
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+      Live runtime data loaded. Route, token, and contract sections are reading from the current catalog.
+    </div>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+      <div className="text-[11px] uppercase tracking-[0.2em] text-white/35">
+        {label}
+      </div>
+      <div className="mt-2 break-words text-lg font-semibold text-white">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function PlainLanguageCard({ text }) {
+  if (!text) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-cyan-400/15 bg-cyan-400/[0.08] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Plain English
+      </div>
+      <p className="mt-3 text-base leading-8 text-cyan-50/90">{text}</p>
+    </div>
+  );
+}
+
+function TakeawayPanel({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        If You Remember Three Things
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {items.map((item) => (
+          <div
+            key={item}
+            className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-7 text-white/65"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function InsightGrid({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {items.map((item) => (
+        <div
+          key={item.title}
+          className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6"
+        >
+          <div className="text-sm font-semibold text-white">{item.title}</div>
+          <p className="mt-3 text-sm leading-7 text-white/60">{item.body}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CodeCard({ code }) {
+  if (!code) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-black/25 p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Core Logic
+      </div>
+      <pre className="mt-4 overflow-x-auto rounded-2xl bg-black/30 p-4 text-sm leading-7 text-cyan-200">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+function StepList({ title, steps = [] }) {
+  if (!steps.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        {title}
+      </div>
+      <div className="mt-4 space-y-3">
+        {steps.map((step, index) => (
+          <div
+            key={`${index + 1}-${step}`}
+            className="flex items-start gap-4 rounded-2xl border border-white/10 bg-black/20 p-4"
+          >
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-400/15 text-sm font-semibold text-cyan-100">
+              {index + 1}
+            </div>
+            <div className="pt-0.5 text-sm leading-7 text-white/65">{step}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DataTable({ title, headers = [], rows = [] }) {
+  if (!rows.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        {title}
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0">
+          <thead>
+            <tr>
+              {headers.map((header) => (
+                <th
+                  key={header}
+                  className="border-b border-white/10 px-4 py-3 text-left text-[11px] uppercase tracking-[0.2em] text-white/40"
+                >
+                  {header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={`${title}-${index}`}>
+                {row.map((cell, cellIndex) => (
+                  <td
+                    key={`${title}-${index}-${cellIndex}`}
+                    className="border-b border-white/6 px-4 py-4 align-top text-sm leading-7 text-white/65"
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ExplorerLinks({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+      <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
+        Explorer Links
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        {items.map((item) => (
+          <a
+            key={`${item.label}-${item.value}`}
+            href={item.href}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-2xl border border-white/10 bg-black/20 p-4 transition-colors hover:border-cyan-400/30 hover:bg-cyan-400/[0.06]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-white">{item.label}</div>
+                <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                  {item.value}
+                </div>
+              </div>
+              <ExternalLink className="mt-0.5 h-4 w-4 shrink-0 text-white/45" />
+            </div>
+            <div className="mt-3 text-xs text-white/45">{item.note}</div>
+          </a>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FaqList({ items = [] }) {
+  if (!items.length) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <details
+          key={item.question}
+          className="rounded-2xl border border-white/10 bg-white/[0.03] p-5"
+        >
+          <summary className="cursor-pointer list-none text-sm font-semibold text-white">
+            {item.question}
+          </summary>
+          <p className="mt-3 text-sm leading-7 text-white/60">{item.answer}</p>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 function ArchitectureDiagram({ catalog }) {
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
   const paymentAssetId = catalog?.payments?.paymentAssetId || 31337;
-
-  const tiers = [
-    {
-      title: "People, Agents, and Devices",
-      items: [
-        {
-          title: "AI agents + API clients",
-          body: "Consume paid routes through x402 negotiation and stream reuse.",
-        },
-        {
-          title: "Owners, renters, auditors",
-          body: "Mint productive assets, rent them, and verify provenance.",
-        },
-        {
-          title: "IoT / smart access",
-          body: "Locks, vehicles, or machinery can react to live stream state.",
-        },
-      ],
-    },
-    {
-      title: "App and Service Layer",
-      items: [
-        {
-          title: "Frontend",
-          body: "Wallet connection, Docs, RWA Studio, renting, verification, and stream controls.",
-        },
-        {
-          title: "Backend + x402 middleware",
-          body: "Route catalog, paywall enforcement, IPFS pinning, verification APIs, and indexed activity.",
-        },
-        {
-          title: "Indexer + verification service",
-          body: "Reconstructs activity trails and compares QR, NFC, CID, and registry facts.",
-        },
-      ],
-    },
-    {
-      title: "Onchain Solidity Layer",
-      items: [
-        {
-          title: "FlowPayStream",
-          body: "Reusable API payment streams for x402-compatible route access.",
-        },
-        {
-          title: "RWA contract suite",
-          body: "FlowPayRWAHub + AssetNFT + AssetRegistry + AssetStream + ComplianceGuard.",
-        },
-        {
-          title: `Circle ${tokenSymbol} asset`,
-          body: `Native payment asset ${paymentAssetId} used for settlement and rental yield operations.`,
-        },
-      ],
-    },
-    {
-      title: "External Truth and Proof",
-      items: [
-        {
-          title: "IPFS metadata",
-          body: "Stores standard metadata JSON and media referenced by CID.",
-        },
-        {
-          title: "QR / NFC payloads",
-          body: "Carry verification inputs that map physical assets to onchain truth.",
-        },
-        {
-          title: "Explorer / public chain history",
-          body: "Lets anyone inspect the deployed Solidity contracts independently.",
-        },
-      ],
-    },
-  ];
+  const paymentRecipient =
+    catalog?.payments?.recipientAddress || "Not configured";
+  const paymentTokenAddress =
+    catalog?.payments?.paymentTokenAddress
+    || "0x00007a6900000000000000000000000001200000";
+  const contracts = getDeployedContractDescriptors(catalog);
+  const paymentContracts = contracts.filter((contract) => contract.group === "Payment Rail");
+  const rwaContracts = contracts.filter((contract) => contract.group === "RWA Rail");
 
   return (
     <div className="space-y-4">
       <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
-        Full System Diagram
+        Full Project Architecture
       </div>
       <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-5 md:p-6">
-        <div className="space-y-4">
-          {tiers.map((tier, index) => (
-            <div key={tier.title}>
-              <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-white/35">
-                {tier.title}
+        <div className="space-y-6">
+          <div>
+            <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-white/35">
+              1. People, agents, and devices
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                {
+                  title: "AI agents + API clients",
+                  body: "Hit x402-protected routes, open streams, and reuse them for repeated paid requests.",
+                },
+                {
+                  title: "Owners, renters, auditors",
+                  body: "Mint productive assets, rent them, verify them, and claim coupled revenue when they own the NFT.",
+                },
+                {
+                  title: "IoT and smart access",
+                  body: "Cars, locks, and machinery can react to stream state so access ends when funding ends and unused budget remains refundable.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                >
+                  <div className="text-sm font-semibold text-white">
+                    {item.title}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/55">
+                    {item.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200">
+              Requests, rentals, and verification flow into the app layer
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-white/35">
+              2. App and coordination layer
+            </div>
+            <div className="grid gap-3 xl:grid-cols-3">
+              {[
+                {
+                  title: "Frontend",
+                  body: "Handles wallet connection, stream creation, RWA Studio, verification UX, and the docs handbook.",
+                },
+                {
+                  title: "Backend + x402 middleware",
+                  body: "Serves route catalog, enforces paywalls, pins IPFS metadata, exposes verification endpoints, and turns onchain state into web access.",
+                },
+                {
+                  title: "Indexer + provenance service",
+                  body: "Reads chain history so the app can show mint, transfer, freeze, claim, and verification activity in plain language.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                >
+                  <div className="text-sm font-semibold text-white">
+                    {item.title}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/55">
+                    {item.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200">
+              App calls split into the payment rail and the productive RWA rail
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+            <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+                3. Payment Rail
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
-                {tier.items.map((item) => (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="text-sm font-semibold text-white">
+                    Service recipient wallet
+                  </div>
+                  <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                    {paymentRecipient}
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-white/55">
+                    Final receiver for API settlement and paid-route revenue.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                  <div className="text-sm font-semibold text-white">
+                    Circle {tokenSymbol} asset precompile
+                  </div>
+                  <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                    {paymentTokenAddress}
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-white/55">
+                    Native payment asset {paymentAssetId} used for approvals, direct settlement, rental funding, and yield operations.
+                  </p>
+                </div>
+                {paymentContracts.map((contract) => (
                   <div
-                    key={item.title}
-                    className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                    key={contract.name}
+                    className="rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] p-4"
                   >
                     <div className="text-sm font-semibold text-white">
-                      {item.title}
+                      {contract.name}
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-white/55">
-                      {item.body}
+                    <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                      {contract.address}
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-white/55">
+                      {contract.role}
                     </p>
                   </div>
                 ))}
               </div>
-              {index < tiers.length - 1 ? (
-                <div className="flex justify-center py-3">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200">
-                    Flows down into
-                  </div>
-                </div>
-              ) : null}
             </div>
-          ))}
+
+            <div className="rounded-[26px] border border-white/10 bg-black/20 p-5">
+              <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+                4. Productive RWA Rail
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {rwaContracts.map((contract) => (
+                  <div
+                    key={contract.name}
+                    className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+                  >
+                    <div className="text-sm font-semibold text-white">
+                      {contract.name}
+                    </div>
+                    <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                      {contract.address}
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-white/55">
+                      {contract.role}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] p-4 text-sm leading-7 text-white/65">
+                This is the part many RWA projects skip. Stream Engine does not stop at proving that a house, fleet, or machine exists. It also tracks who owns the digital twin, what metadata and verification facts are bound to it, how rental revenue is generated, and why future yield must follow whoever owns the NFT now.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-cyan-200">
+              Onchain truth connects back to physical assets and public verification
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 text-[11px] uppercase tracking-[0.22em] text-white/35">
+              5. External truth, physical control, and public proof
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+              {[
+                {
+                  title: "IPFS metadata",
+                  body: "Stores asset metadata and media by CID so the verifier can compare content with registry hashes.",
+                },
+                {
+                  title: "QR / NFC payloads",
+                  body: "Bind the physical asset tag to the digital twin and give auditors a fast path into verification.",
+                },
+                {
+                  title: "Physical asset + IoT",
+                  body: "Cars, locks, and machines can use stream status to grant or revoke access and stop usage when payment ends.",
+                },
+                {
+                  title: "Explorer / public chain history",
+                  body: "Lets anyone inspect every deployed Solidity contract address and verify the architecture independently.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                >
+                  <div className="text-sm font-semibold text-white">
+                    {item.title}
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-white/55">
+                    {item.body}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1520,7 +1970,10 @@ function DeployedContractCards({ catalog }) {
                   {contract.name}
                 </div>
                 <div className="mt-1 text-xs uppercase tracking-[0.18em] text-cyan-300">
-                  Solidity contract
+                  {contract.group} · Solidity contract
+                </div>
+                <div className="mt-2 text-[11px] uppercase tracking-[0.16em] text-white/35">
+                  Onchain deployment id: {contract.onchainName}
                 </div>
               </div>
               <a
