@@ -1396,6 +1396,7 @@ export default function RWA() {
     provider,
     signer,
     walletAddress,
+    walletDisplayAddress,
     openWalletPicker,
     createStream,
     cancel,
@@ -2025,7 +2026,7 @@ export default function RWA() {
         <StudioSidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          walletAddress={walletAddress}
+          walletAddress={walletDisplayAddress}
           activeRentals={activeRentals}
           indexedAssetCount={allAssets.length}
           studioMintCount={sessionMints.length}

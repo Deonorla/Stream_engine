@@ -20,7 +20,15 @@ import {
 import { useToast } from '../components/ui';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
 import { getAvailableWallets, resolveWalletSelection } from '../lib/wallets.js';
-import { inspectSubstrateApprovalAccount, readNativeAssetBalance, substrateApproveTransfer } from '../lib/substrateAssets.js';
+import {
+  connectInjectedSubstrateWallet,
+  disconnectInjectedSubstrateWallet,
+  inspectSubstrateApprovalAccount,
+  readNativeAssetBalance,
+  substrateApproveTransfer,
+  substrateApproveTransferForSession,
+  substrateCallContract,
+} from '../lib/substrateAssets.js';
 
 const WalletContext = createContext(null);
 
@@ -101,6 +109,8 @@ export function WalletProvider({ children }) {
   const [availableWallets, setAvailableWallets] = useState([]);
   const [activeWallet, setActiveWallet] = useState(null);
   const [isWalletPickerOpen, setIsWalletPickerOpen] = useState(false);
+  const [nativeAccountAddress, setNativeAccountAddress] = useState(null);
+  const [substrateSession, setSubstrateSession] = useState(null);
   const [nativeApprovalState, setNativeApprovalState] = useState({
     checked: false,
     ready: false,
@@ -109,6 +119,7 @@ export function WalletProvider({ children }) {
   });
 
   const activeWalletProviderRef = useRef(null);
+  const substrateSessionRef = useRef(null);
 
   const [incomingStreams, setIncomingStreams] = useState([]);
   const [outgoingStreams, setOutgoingStreams] = useState([]);
@@ -145,6 +156,8 @@ export function WalletProvider({ children }) {
     setWalletAddress(null);
     setChainId(null);
     setPaymentBalance("0.0");
+    setNativeAccountAddress(null);
+    setSubstrateSession(null);
     setIncomingStreams([]);
     setOutgoingStreams([]);
     setIsInitialLoad(true);
@@ -214,6 +227,16 @@ export function WalletProvider({ children }) {
 
   const disconnectWallet = useCallback(
     async ({ silent = false } = {}) => {
+      const currentSubstrateSession = substrateSessionRef.current;
+      if (currentSubstrateSession) {
+        try {
+          await disconnectInjectedSubstrateWallet(currentSubstrateSession);
+        } catch {
+          // Ignore disconnect failures for extension-backed sessions.
+        }
+      }
+
+      substrateSessionRef.current = null;
       activeWalletProviderRef.current = null;
       resetWalletState();
       setStatus("Choose a wallet to connect");
@@ -257,6 +280,51 @@ export function WalletProvider({ children }) {
       try {
         setIsConnectingWallet(true);
         setStatus(`Connecting ${walletOption.name}...`);
+
+        if (substrateSessionRef.current) {
+          try {
+            await disconnectInjectedSubstrateWallet(substrateSessionRef.current);
+          } catch {
+            // Ignore cleanup failures when switching wallet modes.
+          }
+          substrateSessionRef.current = null;
+          setSubstrateSession(null);
+        }
+
+        if (walletOption.type === 'substrate') {
+          const session = await connectInjectedSubstrateWallet(walletOption.source);
+          const nextProvider = new ethers.JsonRpcProvider(ACTIVE_NETWORK.rpcUrl);
+
+          activeWalletProviderRef.current = null;
+          substrateSessionRef.current = session;
+          setSubstrateSession(session);
+          setProvider(nextProvider);
+          setSigner(null);
+          setWalletAddress(session.evmAddress);
+          setNativeAccountAddress(session.substrateAddress);
+          setChainId(ACTIVE_NETWORK.chainId);
+          setActiveWallet({
+            id: walletOption.id,
+            name: walletOption.name,
+            type: walletOption.type,
+            description: walletOption.description,
+            source: walletOption.source,
+          });
+          setIsWalletPickerOpen(false);
+          setNativeApprovalState({
+            checked: true,
+            ready: true,
+            message: `Native approvals ready via ${walletOption.name}`,
+            mappedAccountAddress: session.substrateAddress,
+          });
+          setStatus(`Connected via ${walletOption.name} · native substrate signer ready`);
+          toast.success(
+            `Connected to ${formatAddress(session.evmAddress)} via ${walletOption.name}`,
+            { title: 'Wallet Connected' },
+          );
+          return;
+        }
+
         const ethProvider = walletOption.provider;
 
         if (!ethProvider?.request) {
@@ -273,6 +341,8 @@ export function WalletProvider({ children }) {
         const nextNetwork = await nextProvider.getNetwork();
 
       activeWalletProviderRef.current = ethProvider;
+      setNativeAccountAddress(null);
+      setSubstrateSession(null);
       setProvider(nextProvider);
       setSigner(nextSigner);
       setWalletAddress(address);
@@ -321,14 +391,15 @@ export function WalletProvider({ children }) {
   }, [availableWallets, ensureCorrectNetwork, openWalletPicker, refreshAvailableWallets, resetWalletState, toast]);
 
   const fetchPaymentBalance = useCallback(async () => {
-    if (!walletAddress) return;
+    const balanceAddress = nativeAccountAddress || walletAddress;
+    if (!balanceAddress) return;
     try {
-      const balance = await readNativeAssetBalance(walletAddress, paymentAssetId);
+      const balance = await readNativeAssetBalance(balanceAddress, paymentAssetId);
       setPaymentBalance(ethers.formatUnits(balance, paymentTokenDecimals));
     } catch (error) {
       console.error(`Failed to fetch ${paymentTokenSymbol} balance:`, error);
     }
-  }, [paymentAssetId, paymentTokenDecimals, paymentTokenSymbol, walletAddress]);
+  }, [nativeAccountAddress, paymentAssetId, paymentTokenDecimals, paymentTokenSymbol, walletAddress]);
 
   const requestTestFunds = async () => {
     toast.info(
@@ -415,26 +486,43 @@ export function WalletProvider({ children }) {
     setOutgoingStreams(outgoing);
     setIsLoadingStreams(false);
     setIsInitialLoad(false);
+    return { incoming, outgoing };
   }, [walletAddress, fetchStreamsFromEvents]);
 
   const withdraw = async (streamId) => {
-    if (!contractWithSigner) return;
     try {
       setStatus("Withdrawing...");
       setIsProcessing(true);
       const loadingToast = toast.transaction.pending(
         "Processing withdrawal...",
       );
-      const tx = await contractWithSigner.withdrawFromStream(streamId, {
-        gasLimit: 300000n,
-      });
-      await tx.wait();
+
+      if (activeWallet?.type === 'substrate') {
+        if (!substrateSession) {
+          throw new Error('Reconnect your Substrate wallet and try again.');
+        }
+
+        await substrateCallContract(substrateSession, {
+          contractAddress,
+          abi: contractABI,
+          functionName: 'withdrawFromStream',
+          args: [streamId],
+        });
+      } else {
+        if (!contractWithSigner) return;
+        const tx = await contractWithSigner.withdrawFromStream(streamId, {
+          gasLimit: 300000n,
+        });
+        await tx.wait();
+      }
+
       toast.dismiss(loadingToast);
       setStatus("Withdrawn.");
       toast.success(`Withdrawn from Stream #${streamId}`, {
         title: "Withdrawal Complete",
       });
       await refreshStreams();
+      await fetchPaymentBalance();
     } catch (error) {
       console.error(error);
       setStatus(error?.shortMessage || error?.message || "Withdraw failed.");
@@ -447,19 +535,35 @@ export function WalletProvider({ children }) {
   };
 
   const cancel = async (streamId) => {
-    if (!contractWithSigner) return;
     try {
       setStatus("Cancelling stream...");
       setIsProcessing(true);
       const loadingToast = toast.transaction.pending("Cancelling stream...");
-      const tx = await contractWithSigner.cancelStream(streamId, {
-        gasLimit: 300000n,
-      });
-      await tx.wait();
+
+      if (activeWallet?.type === 'substrate') {
+        if (!substrateSession) {
+          throw new Error('Reconnect your Substrate wallet and try again.');
+        }
+
+        await substrateCallContract(substrateSession, {
+          contractAddress,
+          abi: contractABI,
+          functionName: 'cancelStream',
+          args: [streamId],
+        });
+      } else {
+        if (!contractWithSigner) return;
+        const tx = await contractWithSigner.cancelStream(streamId, {
+          gasLimit: 300000n,
+        });
+        await tx.wait();
+      }
+
       toast.dismiss(loadingToast);
       setStatus("Stream cancelled.");
       toast.stream.cancelled(streamId);
       await refreshStreams();
+      await fetchPaymentBalance();
     } catch (error) {
       console.error(error);
       setStatus(error?.shortMessage || error?.message || "Cancel failed.");
@@ -472,7 +576,7 @@ export function WalletProvider({ children }) {
   };
 
   const createStream = async (recipient, duration, amount, metadata = "{}") => {
-    if (!contractWithSigner || !provider || !signer) {
+    if (!provider || (!signer && activeWallet?.type !== 'substrate')) {
       setStatus("Please connect your wallet.");
       return null;
     }
@@ -500,51 +604,91 @@ export function WalletProvider({ children }) {
         toast.error(message, { title: 'Native Approval Setup Needed' });
         return null;
       }
-      const paymentTokenContract = new ethers.Contract(paymentTokenAddress, paymentTokenABI, signer);
-      await ensureTokenApproval({
-        tokenContract: paymentTokenContract,
-        ownerAddress: await signer.getAddress(),
-        spenderAddress: contractAddress,
-        amount: totalAmountWei,
-        tokenSymbol: paymentTokenSymbol,
-        assetId: paymentAssetId,
-        setStatus,
-      });
+      const existingOutgoingIds = new Set(outgoingStreams.map((stream) => stream.id));
+
+      if (activeWallet?.type === 'substrate') {
+        if (!substrateSession) {
+          throw new Error('Reconnect your Substrate wallet and try again.');
+        }
+
+        setStatus(`Approving ${paymentTokenSymbol} via native asset approval...`);
+        await substrateApproveTransferForSession(
+          substrateSession,
+          paymentAssetId,
+          contractAddress,
+          totalAmountWei,
+        );
+        setStatus(`${paymentTokenSymbol} approved.`);
+      } else {
+        const paymentTokenContract = new ethers.Contract(paymentTokenAddress, paymentTokenABI, signer);
+        await ensureTokenApproval({
+          tokenContract: paymentTokenContract,
+          ownerAddress: await signer.getAddress(),
+          spenderAddress: contractAddress,
+          amount: totalAmountWei,
+          tokenSymbol: paymentTokenSymbol,
+          assetId: paymentAssetId,
+          setStatus,
+        });
+      }
+
       setStatus("Creating stream...");
       setIsProcessing(true);
-      const tx = await contractWithSigner.createStream(
-        recipient,
-        parsedDuration,
-        totalAmountWei,
-        metadata,
-        {
-          gasLimit: STREAM_CREATION_GAS_LIMIT,
-        },
-      );
-      const receipt = await tx.wait();
       let createdId = null;
-      try {
-        const iface = contractWithSigner.interface;
-        const topic = iface.getEventTopic("StreamCreated");
-        for (const log of receipt.logs || []) {
-          if (
-            log.address?.toLowerCase() === contractAddress.toLowerCase() &&
-            log.topics?.[0] === topic
-          ) {
-            const parsedLog = iface.parseLog({
-              topics: Array.from(log.topics),
-              data: log.data,
-            });
-            const streamId = parsedLog?.args?.streamId ?? parsedLog?.args?.[0];
-            if (streamId !== undefined && streamId !== null) {
-              createdId = Number(streamId);
-              break;
+
+      if (activeWallet?.type === 'substrate') {
+        await substrateCallContract(substrateSession, {
+          contractAddress,
+          abi: contractABI,
+          functionName: 'createStream',
+          args: [recipient, parsedDuration, totalAmountWei, metadata],
+        });
+      } else {
+        const tx = await contractWithSigner.createStream(
+          recipient,
+          parsedDuration,
+          totalAmountWei,
+          metadata,
+          {
+            gasLimit: STREAM_CREATION_GAS_LIMIT,
+          },
+        );
+        const receipt = await tx.wait();
+        try {
+          const iface = contractWithSigner.interface;
+          const topic = iface.getEventTopic("StreamCreated");
+          for (const log of receipt.logs || []) {
+            if (
+              log.address?.toLowerCase() === contractAddress.toLowerCase() &&
+              log.topics?.[0] === topic
+            ) {
+              const parsedLog = iface.parseLog({
+                topics: Array.from(log.topics),
+                data: log.data,
+              });
+              const streamId = parsedLog?.args?.streamId ?? parsedLog?.args?.[0];
+              if (streamId !== undefined && streamId !== null) {
+                createdId = Number(streamId);
+                break;
+              }
             }
           }
+        } catch {
+          // Ignore log parsing failures.
         }
-      } catch {
-        // Ignore log parsing failures.
       }
+      const refreshedStreams = await refreshStreams();
+      await fetchPaymentBalance();
+
+      if (createdId === null) {
+        const detectedStream = refreshedStreams?.outgoing?.find(
+          (stream) => !existingOutgoingIds.has(stream.id),
+        );
+        if (detectedStream) {
+          createdId = Number(detectedStream.id);
+        }
+      }
+
       if (createdId !== null) {
         setStatus(`Stream created. ID #${createdId}`);
         toast.stream.created(createdId);
@@ -554,7 +698,6 @@ export function WalletProvider({ children }) {
           title: "Stream Created",
         });
       }
-      await refreshStreams();
       return createdId;
     } catch (error) {
       console.error('Stream creation failed:', error);
@@ -595,6 +738,9 @@ export function WalletProvider({ children }) {
 
   const refreshStreamsRef = useRef(refreshStreams);
   const fetchPaymentBalanceRef = useRef(fetchPaymentBalance);
+  useEffect(() => {
+    substrateSessionRef.current = substrateSession;
+  }, [substrateSession]);
   useEffect(() => {
     refreshStreamsRef.current = refreshStreams;
   }, [refreshStreams]);
@@ -736,6 +882,9 @@ export function WalletProvider({ children }) {
     provider,
     signer,
     walletAddress,
+    walletDisplayAddress: activeWallet?.type === 'substrate' && nativeAccountAddress
+      ? nativeAccountAddress
+      : walletAddress,
     chainId,
     status,
     setStatus,
@@ -758,6 +907,8 @@ export function WalletProvider({ children }) {
     isWalletPickerOpen,
     availableWallets,
     activeWallet,
+    nativeAccountAddress,
+    substrateSession,
     nativeApprovalState,
     refreshAvailableWallets,
     fetchPaymentBalance,

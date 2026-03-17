@@ -1,4 +1,6 @@
 import { blake2b } from '@noble/hashes/blake2b';
+import { ethers, Interface } from 'ethers';
+import { decodeAddress } from '@polkadot/util-crypto';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
 
 let rpcMessageId = 1;
@@ -9,6 +11,11 @@ const P64_2 = 14029467366897019727n;
 const P64_3 = 1609587929392839161n;
 const P64_4 = 9650029242287828579n;
 const P64_5 = 2870177450012600261n;
+const DEFAULT_WEIGHT_LIMIT = {
+  refTime: '900000000000',
+  proofSize: '5242880',
+};
+const DEFAULT_STORAGE_DEPOSIT_LIMIT = '5000000000000000000';
 
 function isHexAddress(value, length) {
   return typeof value === 'string' && value.startsWith('0x') && value.length === length;
@@ -62,11 +69,15 @@ function describeMissingMappedAccount(evmAddress, mappedAccountAddress, hasEther
 }
 
 function toSubstrateAccountU8a(address) {
-  if (!isHexAddress(address, 42)) {
-    throw new Error('Expected a connected EVM wallet address');
+  if (isHexAddress(address, 42)) {
+    return evmToMappedAccountU8a(address);
   }
 
-  return evmToMappedAccountU8a(address);
+  if (isHexAddress(address, 66)) {
+    return hexToU8a(address);
+  }
+
+  return decodeAddress(address);
 }
 
 function encodeU32(value) {
@@ -260,6 +271,34 @@ export async function readNativeAssetBalance(address, assetId) {
   return decodeAssetBalance(storageHex);
 }
 
+function resolveAccountIdHex(addressOrBytes) {
+  if (typeof addressOrBytes === 'string') {
+    if (addressOrBytes.startsWith('0x') && addressOrBytes.length === 66) {
+      return addressOrBytes.toLowerCase();
+    }
+
+    if (addressOrBytes.startsWith('0x') && addressOrBytes.length === 42) {
+      return evmToSubstrateAccountId(addressOrBytes).toLowerCase();
+    }
+
+    return u8aToHex(decodeAddress(addressOrBytes)).toLowerCase();
+  }
+
+  return u8aToHex(addressOrBytes).toLowerCase();
+}
+
+export function accountIdToEvmAddress(addressOrBytes) {
+  const accountIdHex = resolveAccountIdHex(addressOrBytes);
+  const body = accountIdHex.slice(2);
+
+  if (body.endsWith('ee'.repeat(12))) {
+    return ethers.getAddress(`0x${body.slice(0, 40)}`);
+  }
+
+  const digest = ethers.keccak256(accountIdHex);
+  return ethers.getAddress(`0x${digest.slice(-40)}`);
+}
+
 /**
  * Convert a 20-byte EVM address to the 32-byte mapped Substrate AccountId
  * used by Westend Asset Hub (H160 padded with 0xEE bytes).
@@ -291,6 +330,145 @@ async function listInjectedSubstrateAccounts(appName = 'Stream Engine') {
       }
     }),
   )).flat();
+}
+
+export async function listInjectedSubstrateWallets() {
+  const injectedWeb3 = window.injectedWeb3 || {};
+  return Object.entries(injectedWeb3).map(([source, extension]) => ({
+    source,
+    extension,
+  }));
+}
+
+function createWeight(api) {
+  return api.registry.createType('WeightV2', {
+    refTime: DEFAULT_WEIGHT_LIMIT.refTime,
+    proofSize: DEFAULT_WEIGHT_LIMIT.proofSize,
+  });
+}
+
+function decodeDispatchError(api, dispatchError) {
+  if (!dispatchError) {
+    return '';
+  }
+
+  if (dispatchError.isModule) {
+    const decoded = api.registry.findMetaError(dispatchError.asModule);
+    return `${decoded.section}.${decoded.name}: ${decoded.docs.join(' ')}`;
+  }
+
+  return dispatchError.toString();
+}
+
+async function signSubstrateTx(api, account, tx) {
+  const injector = account.injected;
+  if (!injector?.signer) {
+    throw new Error(`Substrate signer is unavailable for account ${account.address}`);
+  }
+
+  return new Promise((resolve, reject) => {
+    let unsub = null;
+
+    tx.signAndSend(account.address, { signer: injector.signer }, (result) => {
+      if (result.dispatchError) {
+        if (unsub) {
+          unsub();
+        }
+        reject(new Error(decodeDispatchError(api, result.dispatchError)));
+        return;
+      }
+
+      const failedEvent = result.events?.find(
+        ({ event }) => event.section === 'system' && event.method === 'ExtrinsicFailed',
+      );
+      if (failedEvent) {
+        if (unsub) {
+          unsub();
+        }
+        reject(new Error(decodeDispatchError(api, failedEvent.event.data[0])));
+        return;
+      }
+
+      if (result.status?.isInBlock || result.status?.isFinalized) {
+        if (unsub) {
+          unsub();
+        }
+        resolve({
+          txHash: tx.hash.toHex(),
+          blockHash: result.status.isFinalized
+            ? result.status.asFinalized.toString()
+            : result.status.asInBlock.toString(),
+          events: result.events || [],
+        });
+      }
+    })
+      .then((nextUnsub) => {
+        unsub = nextUnsub;
+      })
+      .catch(reject);
+  });
+}
+
+async function ensureMappedSubstrateAccount(api, account, evmAddress) {
+  if (!api.query.revive?.originalAccount || !api.tx.revive?.mapAccount) {
+    return;
+  }
+
+  const existing = await api.query.revive.originalAccount(evmAddress);
+  if (existing.isSome) {
+    return;
+  }
+
+  await signSubstrateTx(api, account, api.tx.revive.mapAccount());
+}
+
+async function getInjectedAccountsForSource(source, appName = 'Stream Engine') {
+  const extension = window.injectedWeb3?.[source];
+  if (!extension) {
+    throw new Error(`Substrate extension "${source}" is not available in this browser.`);
+  }
+
+  const injected = await extension.enable(appName);
+  const accounts = await injected.accounts.get();
+  return accounts.map((account) => ({
+    ...account,
+    source,
+    injected,
+  }));
+}
+
+export async function connectInjectedSubstrateWallet(source, appName = 'Stream Engine') {
+  const { ApiPromise, WsProvider } = await import('@polkadot/api');
+  const accounts = await getInjectedAccountsForSource(source, appName);
+
+  if (!accounts.length) {
+    throw new Error(`No accounts are available in ${source}.`);
+  }
+
+  const account = accounts[0];
+  const api = await ApiPromise.create({ provider: new WsProvider(ACTIVE_NETWORK.substrateRpcUrl) });
+
+  try {
+    const evmAddress = accountIdToEvmAddress(account.address);
+    await ensureMappedSubstrateAccount(api, account, evmAddress);
+
+    return {
+      account,
+      api,
+      source,
+      evmAddress,
+      substrateAddress: account.address,
+      weightLimit: DEFAULT_WEIGHT_LIMIT,
+      storageDepositLimit: DEFAULT_STORAGE_DEPOSIT_LIMIT,
+    };
+  } catch (error) {
+    await api.disconnect();
+    throw error;
+  }
+}
+
+export async function disconnectInjectedSubstrateWallet(session) {
+  await session?.api?.disconnect?.();
 }
 
 export async function inspectSubstrateApprovalAccount(evmAddress) {
@@ -390,4 +568,37 @@ export async function substrateApproveTransfer(evmAddress, assetId, spenderEvmAd
   } finally {
     await api.disconnect();
   }
+}
+
+export async function substrateApproveTransferForSession(session, assetId, spenderEvmAddress, amount) {
+  if (!session?.api || !session?.account) {
+    throw new Error('No active Substrate wallet session.');
+  }
+
+  const spenderAccountId = evmToSubstrateAccountId(spenderEvmAddress);
+  const tx = session.api.tx.assets.approveTransfer(assetId, spenderAccountId, amount);
+  return signSubstrateTx(session.api, session.account, tx);
+}
+
+export async function substrateCallContract(session, {
+  contractAddress,
+  abi,
+  functionName,
+  args = [],
+  value = '0',
+}) {
+  if (!session?.api || !session?.account) {
+    throw new Error('No active Substrate wallet session.');
+  }
+
+  const iface = new Interface(abi);
+  const tx = session.api.tx.revive.call(
+    contractAddress,
+    value.toString(),
+    createWeight(session.api),
+    session.storageDepositLimit || DEFAULT_STORAGE_DEPOSIT_LIMIT,
+    iface.encodeFunctionData(functionName, args),
+  );
+
+  return signSubstrateTx(session.api, session.account, tx);
 }

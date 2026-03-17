@@ -15,6 +15,7 @@ const tabs = [
 export default function Layout({ children }) {
   const {
     walletAddress,
+    walletDisplayAddress,
     chainId,
     getNetworkName,
     connectWallet,
@@ -34,7 +35,7 @@ export default function Layout({ children }) {
       <div className="absolute inset-0 bg-grid bg-[size:24px_24px] opacity-20 pointer-events-none" />
 
       <Header
-        walletAddress={walletAddress}
+        walletAddress={walletDisplayAddress}
         chainId={chainId}
         networkName={getNetworkName(chainId)}
         onConnect={openWalletPicker}
@@ -54,7 +55,7 @@ export default function Layout({ children }) {
 
       {/* Mobile Bottom Navigation */}
       <MobileBottomNav
-        walletAddress={walletAddress}
+        walletAddress={walletDisplayAddress}
         tabs={tabs}
       />
 

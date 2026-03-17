@@ -22,6 +22,23 @@ const SUPPORTED_WALLETS = [
   },
 ];
 
+const SUPPORTED_SUBSTRATE_WALLETS = [
+  {
+    name: 'Polkadot.js',
+    source: 'polkadot-js',
+    matches(source) {
+      return String(source || '').toLowerCase() === 'polkadot-js';
+    },
+  },
+  {
+    name: 'Talisman Substrate',
+    source: 'talisman',
+    matches(source) {
+      return String(source || '').toLowerCase().includes('talisman');
+    },
+  },
+];
+
 function getSupportedWallet(info = {}, provider) {
   return SUPPORTED_WALLETS.find((wallet) => wallet.matches(info, provider)) || null;
 }
@@ -54,6 +71,29 @@ function normalizeInjectedWallet(info = {}, provider) {
       ? 'Injected Polkadot EVM wallet'
       : 'Injected EVM wallet',
     provider,
+    isAvailable: true,
+  };
+}
+
+function getSupportedSubstrateWallet(source) {
+  return SUPPORTED_SUBSTRATE_WALLETS.find((wallet) => wallet.matches(source)) || null;
+}
+
+function normalizeSubstrateWallet(source, extension) {
+  const supportedWallet = getSupportedSubstrateWallet(source);
+  if (!supportedWallet || !extension?.enable) {
+    return null;
+  }
+
+  return {
+    id: `substrate:${supportedWallet.source}`,
+    type: 'substrate',
+    name: supportedWallet.name,
+    icon: '',
+    rdns: source,
+    source,
+    provider: extension,
+    description: 'Injected Substrate wallet',
     isAvailable: true,
   };
 }
@@ -99,8 +139,24 @@ function appendLegacyProviders(walletMap) {
   providers.forEach((provider) => appendProvider(walletMap, {}, provider));
 }
 
+function appendSubstrateProviders(walletMap) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const injectedWeb3 = window.injectedWeb3 || {};
+  Object.entries(injectedWeb3).forEach(([source, extension]) => {
+    const wallet = normalizeSubstrateWallet(source, extension);
+    if (!wallet) {
+      return;
+    }
+
+    walletMap.set(wallet.id, wallet);
+  });
+}
+
 function sortWallets(wallets) {
-  const priority = ['Talisman', 'MetaMask', 'Rabby'];
+  const priority = ['Polkadot.js', 'Talisman', 'Talisman Substrate', 'MetaMask', 'Rabby'];
   return [...wallets].sort((left, right) => {
     const leftIndex = priority.indexOf(left.name);
     const rightIndex = priority.indexOf(right.name);
@@ -127,6 +183,7 @@ export async function discoverInjectedWallets(timeout = 250) {
       window.removeEventListener('eip6963:announceProvider', handleAnnouncement);
       // Add legacy providers after EIP-6963 so icons from EIP-6963 take priority
       appendLegacyProviders(walletMap);
+      appendSubstrateProviders(walletMap);
       resolve();
     }, timeout);
 
@@ -142,6 +199,7 @@ export async function discoverInjectedWallets(timeout = 250) {
       window.clearTimeout(timer);
       window.removeEventListener('eip6963:announceProvider', handleAnnouncement);
       appendLegacyProviders(walletMap);
+      appendSubstrateProviders(walletMap);
       resolve();
     }
   });
@@ -158,7 +216,7 @@ export async function resolveWalletSelection(selection, wallets = []) {
     return null;
   }
 
-  if (typeof selection === 'object' && selection.provider) {
+  if (typeof selection === 'object' && (selection.provider || selection.source)) {
     return selection;
   }
 
@@ -189,6 +247,14 @@ export async function resolveWalletSelection(selection, wallets = []) {
       rdns: 'io.metamask',
       uuid: 'metamask-fallback',
     }, provider);
+  }
+
+  if (String(selection).includes('substrate:polkadot-js') && window.injectedWeb3?.['polkadot-js']) {
+    return normalizeSubstrateWallet('polkadot-js', window.injectedWeb3['polkadot-js']);
+  }
+
+  if (String(selection).includes('substrate:talisman') && window.injectedWeb3?.talisman) {
+    return normalizeSubstrateWallet('talisman', window.injectedWeb3.talisman);
   }
 
   return null;

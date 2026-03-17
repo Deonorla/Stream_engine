@@ -36,7 +36,7 @@ export default function WalletPickerModal({
             <div className="text-xs uppercase tracking-[0.22em] text-cyan-300">Wallets</div>
             <h2 className="mt-2 text-2xl font-semibold text-white">Choose a wallet</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/50">
-              Supported injected wallets appear here automatically. Use Talisman, MetaMask, or Rabby.
+              Supported injected wallets appear here automatically. Use an EVM wallet or connect a native Substrate wallet like polkadot{`.js`} for Westend-native signing.
             </p>
           </div>
 
@@ -70,7 +70,7 @@ export default function WalletPickerModal({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-semibold text-white">{wallet.name}</span>
                     <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[11px] font-mono text-cyan-300">
-                      Injected
+                      {wallet.type === 'substrate' ? 'Substrate' : 'EVM'}
                     </span>
                     {isActive && (
                       <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-mono text-emerald-300">
