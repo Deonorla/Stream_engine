@@ -194,6 +194,7 @@ export default function Streams() {
   const [selectedStreamId, setSelectedStreamId] = useState('');
   const [routeResult, setRouteResult] = useState(null);
   const [isCallingRoute, setIsCallingRoute] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
 
   const explorerRoutes = [PUBLIC_ROUTE, ...(catalog?.routes || [])].filter(
     (route, index, routes) => routes.findIndex((candidate) => candidate.path === route.path) === index
@@ -261,10 +262,12 @@ export default function Streams() {
       toast.warning('Enter a valid stream ID');
       return;
     }
+    setIsChecking(true);
     setStatus('Checking claimable balance...');
     const balance = await getClaimableBalance(id);
     setClaimableBalance(balance);
     setStatus('Fetched claimable balance.');
+    setIsChecking(false);
   };
 
   const handleWithdrawManual = async () => {
@@ -443,18 +446,21 @@ export default function Streams() {
             <div className="flex flex-col sm:flex-row gap-2">
               <button
                 type="button"
-                className="btn-default flex-1 min-h-[44px]"
+                className="btn-default flex-1 min-h-[44px] flex items-center justify-center gap-2"
                 onClick={checkClaimableBalance}
+                disabled={isChecking}
               >
-                Check Balance
+                {isChecking && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {isChecking ? 'Checking...' : 'Check Balance'}
               </button>
               <button
                 type="button"
-                className="btn-primary flex-1 min-h-[44px]"
+                className="btn-primary flex-1 min-h-[44px] flex items-center justify-center gap-2"
                 onClick={handleWithdrawManual}
-                disabled={!manualStreamId || parseFloat(claimableBalance || '0') <= 0}
+                disabled={!manualStreamId || parseFloat(claimableBalance || '0') <= 0 || isProcessing}
               >
-                Withdraw
+                {isProcessing && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {isProcessing ? 'Withdrawing...' : 'Withdraw'}
               </button>
             </div>
 
@@ -468,6 +474,28 @@ export default function Streams() {
           </div>
         </CollapsibleSection>
       </section>
+
+      <div className="grid gap-6 lg:gap-8 lg:grid-cols-2">
+        <StreamList
+          title="Incoming Streams"
+          emptyText="No incoming streams found."
+          isLoading={isLoadingStreams}
+          streams={incomingStreams}
+          variant="incoming"
+          formatEth={formatEth}
+          onWithdraw={withdraw}
+          onCancel={cancel}
+        />
+        <StreamList
+          title="Outgoing Streams"
+          emptyText="No outgoing streams."
+          isLoading={isLoadingStreams}
+          streams={outgoingStreams}
+          variant="outgoing"
+          formatEth={formatEth}
+          onCancel={cancel}
+        />
+      </div>
 
       <section className="card-glass p-4 md:p-6 border border-white/5">
         <div className="flex items-center justify-between gap-4 mb-4">
@@ -546,28 +574,6 @@ export default function Streams() {
         isCallingRoute={isCallingRoute}
         onCallRoute={handleCallRoute}
       />
-
-      <div className="grid gap-6 lg:gap-8 lg:grid-cols-2">
-        <StreamList
-          title="Incoming Streams"
-          emptyText="No incoming streams found."
-          isLoading={isLoadingStreams}
-          streams={incomingStreams}
-          variant="incoming"
-          formatEth={formatEth}
-          onWithdraw={withdraw}
-          onCancel={cancel}
-        />
-        <StreamList
-          title="Outgoing Streams"
-          emptyText="No outgoing streams."
-          isLoading={isLoadingStreams}
-          streams={outgoingStreams}
-          variant="outgoing"
-          formatEth={formatEth}
-          onCancel={cancel}
-        />
-      </div>
     </div>
   );
 }

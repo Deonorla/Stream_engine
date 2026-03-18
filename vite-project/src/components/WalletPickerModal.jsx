@@ -23,6 +23,7 @@ export default function WalletPickerModal({
   activeWalletId,
   onClose,
   onSelect,
+  onDisconnect,
 }) {
   if (!isOpen) {
     return null;
@@ -36,17 +37,28 @@ export default function WalletPickerModal({
             <div className="text-xs uppercase tracking-[0.22em] text-cyan-300">Wallets</div>
             <h2 className="mt-2 text-2xl font-semibold text-white">Choose a wallet</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/50">
-              Supported injected wallets appear here automatically. Use an EVM wallet or connect a native Substrate wallet like polkadot{`.js`} for Westend-native signing.
+              Connect your polkadot{`.js`} extension for Westend-native signing.
             </p>
           </div>
 
-          <button
-            type="button"
-            className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/50 transition-colors hover:text-white"
-            onClick={onClose}
-          >
-            Close
-          </button>
+          <div className="flex items-center gap-2">
+            {onDisconnect && (
+              <button
+                type="button"
+                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400 transition-colors hover:bg-red-500/20 hover:text-red-300"
+                onClick={onDisconnect}
+              >
+                Disconnect
+              </button>
+            )}
+            <button
+              type="button"
+              className="rounded-xl border border-white/10 px-3 py-2 text-sm text-white/50 transition-colors hover:text-white"
+              onClick={onClose}
+            >
+              Close
+            </button>
+          </div>
         </div>
 
         <div className="grid gap-3">

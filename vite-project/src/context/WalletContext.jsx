@@ -799,14 +799,43 @@ export function WalletProvider({ children }) {
   const getClaimableBalance = async (streamId) => {
     if (!provider) return "0.0";
     try {
-      const readContract = new ethers.Contract(
-        contractAddress,
-        contractABI,
-        provider,
-      );
-      const amount = await readContract.getClaimableBalance(streamId);
+      let amount;
+      if (activeWallet?.type === 'substrate' && substrateSession) {
+        amount = await substrateReadContract(substrateSession, {
+          contractAddress,
+          abi: contractABI,
+          functionName: 'getClaimableBalance',
+          args: [streamId],
+        });
+      } else {
+        const readContract = new ethers.Contract(contractAddress, contractABI, provider);
+        amount = await readContract.getClaimableBalance(streamId);
+      }
       return ethers.formatUnits(amount, paymentTokenDecimals);
-    } catch {
+    } catch (err) {
+      // getClaimableBalance reverts if stream.isActive is false.
+      // Fall back to computing it from raw stream data so completed/expired
+      // streams still show the correct withdrawable amount.
+      try {
+        let s;
+        if (activeWallet?.type === 'substrate' && substrateSession) {
+          s = await substrateReadContract(substrateSession, {
+            contractAddress,
+            abi: contractABI,
+            functionName: 'streams',
+            args: [streamId],
+          });
+        } else {
+          const readContract = new ethers.Contract(contractAddress, contractABI, provider);
+          s = await readContract.streams(streamId);
+        }
+        const totalAmount = BigInt(s.totalAmount ?? s[2]);
+        const amountWithdrawn = BigInt(s.amountWithdrawn ?? s[6]);
+        const remaining = totalAmount > amountWithdrawn ? totalAmount - amountWithdrawn : 0n;
+        if (remaining > 0n) return ethers.formatUnits(remaining, paymentTokenDecimals);
+      } catch {}
+      const msg = err?.reason || err?.message || String(err);
+      toast.error(msg, { title: 'Balance check failed' });
       return "0.0";
     }
   };
