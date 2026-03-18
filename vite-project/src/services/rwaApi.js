@@ -54,6 +54,20 @@ export async function mintRwaAsset(payload) {
   });
 }
 
+export async function storeRwaEvidence(payload) {
+  return request('/api/rwa/evidence', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function submitRwaAttestation(payload) {
+  return request('/api/rwa/attestations', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function verifyRwaAsset(payload) {
   return request('/api/rwa/verify', {
     method: 'POST',

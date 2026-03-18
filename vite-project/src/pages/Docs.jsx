@@ -46,7 +46,14 @@ const DEPLOYED_CONTRACT_DEFAULTS = {
     onchainName: "FlowPayAssetRegistry",
     group: "RWA Rail",
     address: "0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f",
-    role: "Onchain provenance registry for CID hashes, tag hashes, issuer data, and active stream linkage.",
+    role: "Onchain asset identity registry for rights model, property reference hash, public metadata hash, evidence roots, and verification status.",
+  },
+  attestationRegistry: {
+    name: "Stream Engine Attestation Registry",
+    onchainName: "FlowPayAssetAttestationRegistry",
+    group: "RWA Rail",
+    address: "",
+    role: "Role-based attestation registry for lawyers, inspectors, valuers, insurers, registrars, issuers, and compliance operators.",
   },
   assetStream: {
     name: "Stream Engine Asset Stream",
@@ -92,7 +99,15 @@ function getDeployedContractDescriptors(catalog) {
         catalog?.rwa?.assetRegistryAddress
         || DEPLOYED_CONTRACT_DEFAULTS.assetRegistry.address,
       note:
-        "This registry stores the authenticity facts the verifier checks: metadata hash, verification tag hash, issuer, and stream linkage.",
+        "This registry stores the durable asset identity: rights model, public metadata hash, property reference hash, evidence roots, and verification state.",
+    },
+    {
+      ...DEPLOYED_CONTRACT_DEFAULTS.attestationRegistry,
+      address:
+        catalog?.rwa?.attestationRegistryAddress
+        || DEPLOYED_CONTRACT_DEFAULTS.attestationRegistry.address,
+      note:
+        "This registry stores who attested to what, when it was signed, when it expires, and whether it was revoked.",
     },
     {
       ...DEPLOYED_CONTRACT_DEFAULTS.assetStream,
@@ -565,7 +580,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "Verifier or auditor",
-          body: "Uses QR, NFC, CID, and activity history to decide whether the asset story is consistent.",
+          body: "Checks whether the public metadata, private evidence roots, attestation set, and activity history all tell the same asset story.",
         },
         {
           title: "Admin or compliance operator",
@@ -596,7 +611,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Verifier",
               "Reads registry and history",
-              "Judge authenticity and provenance",
+              "Judge evidence, attestation coverage, and provenance",
             ],
             [
               "Admin",
@@ -620,22 +635,22 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       title: "RWA Studio",
       eyebrow: "Assets",
       summary:
-        "How the rental asset side works: minting, verification, renting, and yield management.",
+        "How the rental asset side works now: minting a verified rental twin, anchoring private evidence, collecting attestations, renting, and managing yield.",
       plainEnglish:
-        "RWA Studio turns a real asset into a digital twin that can be verified, rented, and linked to revenue. The NFT represents the digital ownership record. The real-world usage still happens off-chain.",
+        "RWA Studio turns a house, vehicle, or machine into a verified productive rental twin. The NFT is not pretending to be a court-ready deed transfer. It is the onchain asset twin plus the future rental-yield record, while raw deeds, tax files, and inspections stay private by default.",
       takeaways: [
-        "The NFT is the digital twin, not the physical asset itself.",
+        "The NFT is the verified rental twin, not the physical asset itself.",
         "Renting means paying for access, not buying ownership.",
-        "Verification and metadata matter because RWAs are trust-heavy by nature.",
+        "Verification now depends on public metadata, private evidence roots, attestation coverage, and policy state.",
       ],
       points: [
         {
           title: "Minting",
-          body: "The issuer creates the asset NFT, pins metadata to IPFS, and binds a verification payload to the registry.",
+          body: "The issuer chooses the rights model, prepares sanitized public metadata, anchors a private evidence bundle, signs the mint authorization, and then mints the rental twin.",
         },
         {
           title: "Verification",
-          body: "Buyers, renters, and auditors can check QR, NFC, CID, and onchain registry data to confirm the asset is what it claims to be.",
+          body: "Buyers, renters, and auditors can verify the asset through public metadata, evidence roots, required attestation roles, freshness rules, and onchain policy state.",
         },
         {
           title: "Renting",
@@ -647,14 +662,15 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "Why this module exists",
-          body: "Most onchain RWAs today stop at tokenization. They prove ownership, but they do not make the asset more operational. Stream Engine focuses on assets that can actually be put to work and rented in the real world.",
+          body: "Most onchain RWAs today stop at tokenization. They prove that something was minted, but they do not make the asset operational or rental-aware. Stream Engine focuses on productive assets that can be verified, rented, and linked to future yield.",
         },
       ],
       stepsTitle: "The RWA Studio workflow",
       steps: [
-        "Mint the digital twin for the physical asset.",
-        "Pin standard metadata to IPFS and record the CID hash onchain.",
-        "Bind a verification tag for QR or NFC checks.",
+        "Choose the rights model for the asset: verified rental twin, beneficial interest, or revenue rights only.",
+        "Prepare sanitized public metadata for IPFS and keep raw deeds, tax records, and inspections private.",
+        "Anchor the private evidence bundle and its evidence root onchain.",
+        "Collect and record the required attestations for the asset type.",
         "Fund the asset-linked yield stream.",
         "Let renters stream payment for access while the owner keeps the NFT and revenue rights.",
       ],
@@ -663,11 +679,12 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           title: "Main studio workspaces",
           headers: ["Workspace", "Purpose"],
           rows: [
-            ["Minting", "Create the asset NFT and metadata"],
-            ["Verify", "Check authenticity and provenance"],
+            ["Minting", "Create the rental twin, public metadata, and evidence anchors"],
+            ["Verify", "Check trust status, evidence coverage, and attestation coverage"],
             ["Rent Assets", "Start real-world rental sessions"],
             ["Active Rentals", "Monitor live rental streams and refunds"],
             ["My Portfolio", "Track owned yield-bearing assets"],
+            ["Asset Workspace", "Inspect evidence, policies, attestations, and yield controls"],
           ],
         },
         {
@@ -695,7 +712,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           question:
             "Does owning the NFT automatically mean you physically possess the asset?",
           answer:
-            "No. The NFT is the digital ownership and revenue record. Physical custody and access controls still exist in the real world.",
+            "No. The NFT is the verified rental twin and revenue-rights record. Physical custody, legal title records, and access controls still exist in the real world.",
         },
       ],
     },
@@ -857,54 +874,58 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       title: "Verification",
       eyebrow: "Trust Layer",
       summary:
-        "How QR, NFC, IPFS, and the registry work together to prove authenticity and history.",
+        "How QR, NFC, IPFS, the private evidence vault, the attestation registry, and the status engine work together to prove whether a productive asset is ready to trust.",
       plainEnglish:
-        'Verification answers a very simple question: "Is this asset real, and is its story consistent everywhere?" The QR or NFC points to metadata, the registry stores hashes, and the activity log shows the history.',
+        'Verification answers a stricter question than before: "Is this productive asset record complete, current, and trusted enough to rent or underwrite?" The app now checks public metadata, private evidence roots, attestation coverage, freshness, and onchain freeze or dispute state instead of returning a shallow yes-or-no pass/fail verdict.',
       takeaways: [
-        "Verification is about consistency across metadata, registry facts, and activity history.",
-        "A good verifier does not only say valid or invalid; it explains why.",
-        "QR, NFC, CID, and token id are just different doors into the same truth-checking process.",
+        "Verification is about trust state, not only metadata consistency.",
+        "A good verifier explains what is missing, stale, frozen, revoked, or disputed.",
+        "QR, NFC, CID, and token id are just entry points into the same evidence-backed check.",
       ],
       points: [
         {
           title: "IPFS metadata",
-          body: "The metadata JSON is pinned to IPFS. That gives the asset a content-based identity through its CID.",
+          body: "Sanitized public metadata is pinned to IPFS so the asset has a public content identity without exposing raw deeds or tenant-sensitive documents.",
         },
         {
-          title: "Registry hashes",
-          body: "The contract stores hashes of the CID and verification tag so the app can compare the live metadata and tag against onchain truth.",
+          title: "Registry anchors",
+          body: "The registry stores the public metadata hash, property reference hash, evidence root, evidence manifest hash, rights model, and verification status.",
         },
         {
-          title: "QR and NFC payloads",
-          body: "The same asset can be checked through a QR code, an NFC tag, a raw CID, or a token id plus tag seed.",
+          title: "Evidence vault",
+          body: "Raw deed, survey, valuation, inspection, insurance, and tax files stay private by default. The app anchors their roots onchain and verifies them server-side.",
         },
         {
-          title: "Activity trail",
-          body: 'A useful verification result should not only say "valid" or "invalid". It should also explain the provenance trail: mint, stream setup, transfers, freezes, and updates.',
+          title: "Attestation coverage",
+          body: "Lawyers, inspectors, valuers, insurers, registrars, issuers, and compliance operators can attest to specific evidence hashes. Expired or missing roles downgrade the trust state.",
+        },
+        {
+          title: "Status engine",
+          body: 'A useful verification result should say whether the asset is verified, verified with warnings, stale, frozen, revoked, disputed, incomplete, mismatched, or only legacy-verified. The result should explain why, not just output a single pass/fail flag.',
         },
         {
           title: "IoT and smart access",
-          body: "Verification can be tied to physical control systems. A smart car, smart lock, or industrial controller can reference the same payment and provenance state when deciding whether access should remain active.",
+          body: "Verification can be tied to physical control systems. A smart car, smart lock, or industrial controller can reference the same payment, evidence, and policy state when deciding whether access should remain active.",
         },
       ],
       stepsTitle: "Verification flow",
       steps: [
-        "Read the QR or NFC payload, or accept a CID/token id directly.",
-        "Fetch metadata from IPFS.",
-        "Compare the CID hash and tag hash against the onchain registry.",
-        "Read indexed activity to understand provenance.",
-        "Return an authenticity verdict plus the history needed for audit.",
+        "Read the QR or NFC payload, or accept a token id, URI, or property reference directly.",
+        "Fetch sanitized public metadata from IPFS.",
+        "Load the onchain asset identity, evidence root, and verification state.",
+        "Check private evidence coverage and required attestation roles.",
+        "Return a structured trust verdict plus the history needed for audit.",
       ],
       tables: [
         {
           title: "Accepted verification inputs",
           headers: ["Input", "Best use"],
           rows: [
-            ["Full verification payload", "Fastest buyer or auditor check"],
-            ["IPFS URI or raw CID", "Metadata-first investigations"],
+            ["Full verification payload", "Fastest verifier flow with v2 status and evidence anchors"],
+            ["IPFS URI or raw CID", "Public metadata-first investigations"],
             [
-              "Token id + optional tag seed",
-              "Internal review when the token is already known",
+              "Token id + optional property reference",
+              "Internal review when the asset is already known",
             ],
           ],
         },
@@ -913,7 +934,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           question: "Why use both IPFS and onchain hashes?",
           answer:
-            "IPFS stores the content. Onchain hashes let the app prove that the content being shown is the same content that was bound to the asset.",
+            "IPFS stores the sanitized public content. Onchain hashes prove that the content, property reference, and private evidence roots being discussed are the same ones that were bound to the asset.",
         },
         {
           question: "What happens with a smart rented car if the stream ends?",
@@ -947,11 +968,11 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "RWA contracts",
-          body: "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores provenance facts, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
+          body: "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores asset identity anchors, the attestation registry stores verifier claims, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
         },
         {
           title: "How the RWA half really works",
-          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer mints the digital twin. Then metadata and verification facts are written into the registry. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
+          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer signs a mint authorization and anchors public metadata plus private evidence roots. Then required attestation roles are collected. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
         },
         {
           title: "Why we only care about productive assets here",
@@ -995,7 +1016,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Backend",
               "Node.js + Express",
-              "Catalog, IPFS pinning, verification API, indexed views, and middleware enforcement",
+              "Catalog, public IPFS pinning, private evidence storage, verification API, indexed views, and middleware enforcement",
             ],
             [
               "Stream contracts",
@@ -1005,7 +1026,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "RWA contracts",
               "Solidity",
-              "NFT minting, registry storage, compliance, and asset-linked yield",
+              "NFT minting, asset identity storage, attestations, compliance, and asset-linked yield",
             ],
             [
               "Indexer / provenance",
@@ -1030,8 +1051,13 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             ],
             [
               "Stream Engine Asset Registry",
-              "CID hash, verification tag hash, issuer facts, linked stream facts",
-              "Without it buyers and auditors cannot prove the physical asset story is consistent",
+              "Rights model, property reference hash, public metadata hash, evidence roots, status, linked stream facts",
+              "Without it buyers and auditors cannot prove that the asset record is complete and current",
+            ],
+            [
+              "Stream Engine Attestation Registry",
+              "Role-based attestations, expiries, and revocations",
+              "Without it the verifier cannot prove that lawyers, inspectors, valuers, or insurers actually signed off on the evidence set",
             ],
             [
               "Stream Engine Asset Stream",
@@ -1066,8 +1092,13 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             ],
             [
               "Stream Engine Asset Registry",
-              "Store CID hash, tag hash, issuer, and active stream mapping",
-              "Verifiers cannot prove that QR, NFC, and IPFS metadata match onchain truth",
+              "Store asset identity, evidence roots, rights model, and verification state",
+              "Verifiers cannot prove the asset record that the NFT is supposed to represent",
+            ],
+            [
+              "Stream Engine Attestation Registry",
+              "Store attestation roles, signatures, expiry, and revocation state",
+              "Verifiers cannot tell whether legal, inspection, insurance, or valuation review was actually completed",
             ],
             [
               "Stream Engine Asset Stream",
@@ -1093,7 +1124,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Passive asset NFT",
               "Mainly provenance and resale exposure",
-              "Useful for authenticity, but weak for ongoing operational finance",
+              "Useful for simple provenance, but weak for ongoing operational finance",
             ],
             [
               "Productive rental NFT",
@@ -1113,13 +1144,18 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           rows: [
             [
               "Mint",
-              "Issuer creates the digital twin and pins metadata",
+              "Issuer creates the digital twin, signs the mint request, and pins sanitized metadata",
               "RWAHub + AssetNFT + backend IPFS service",
             ],
             [
               "Bind truth",
-              "CID hash and tag hash are recorded for future verification",
-              "AssetRegistry",
+              "Property reference hash, metadata hash, and evidence roots are recorded for future verification",
+              "AssetRegistry + backend evidence vault",
+            ],
+            [
+              "Attest",
+              "Required roles review the evidence and record attestations",
+              "AttestationRegistry + RWAHub",
             ],
             [
               "Rent",
@@ -1153,18 +1189,26 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             ],
             [
               "POST /api/rwa/ipfs/metadata",
-              "Pins metadata and returns CID / URI",
+              "Pins sanitized public metadata and returns CID / URI",
+            ],
+            [
+              "POST /api/rwa/evidence",
+              "Stores the private evidence bundle and returns evidence roots",
             ],
             [
               "POST /api/rwa/assets",
-              "Mints a new asset and verification payload",
+              "Mints a new verified rental twin and returns the v2 verification payload",
+            ],
+            [
+              "POST /api/rwa/attestations",
+              "Registers or revokes evidence-backed attestations",
             ],
             ["GET /api/rwa/assets/:tokenId", "Reads asset detail"],
             [
               "GET /api/rwa/assets/:tokenId/activity",
               "Reads indexed asset activity",
             ],
-            ["POST /api/rwa/verify", "Runs authenticity checks"],
+            ["POST /api/rwa/verify", "Runs evidence, attestation, freshness, and policy checks"],
           ],
         },
       ],
@@ -1786,7 +1830,7 @@ function ArchitectureDiagram({ catalog }) {
                 },
                 {
                   title: "Backend + x402 middleware",
-                  body: "Serves route catalog, enforces paywalls, pins IPFS metadata, exposes verification endpoints, and turns onchain state into web access.",
+                  body: "Serves route catalog, enforces paywalls, pins sanitized IPFS metadata, stores private evidence bundles, exposes verification endpoints, and turns onchain state into web access.",
                 },
                 {
                   title: "Indexer + provenance service",
@@ -1903,11 +1947,15 @@ function ArchitectureDiagram({ catalog }) {
               {[
                 {
                   title: "IPFS metadata",
-                  body: "Stores asset metadata and media by CID so the verifier can compare content with registry hashes.",
+                  body: "Stores sanitized public metadata and media by CID so the verifier can compare content with registry hashes.",
                 },
                 {
-                  title: "QR / NFC payloads",
-                  body: "Bind the physical asset tag to the digital twin and give auditors a fast path into verification.",
+                  title: "Private evidence vault",
+                  body: "Keeps raw deeds, inspections, tax records, and insurance files private while exposing only evidence roots and summaries to the verifier.",
+                },
+                {
+                  title: "QR / NFC + attestations",
+                  body: "Bind the physical asset tag to the digital twin and give auditors a fast path into evidence-backed verification and role attestations.",
                 },
                 {
                   title: "Physical asset + IoT",

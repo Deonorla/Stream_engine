@@ -12,7 +12,10 @@ const { createIndexerStore, MemoryIndexerStore } = require("./services/indexerSt
 const { RWAIndexer } = require("./services/rwaIndexer");
 const { RWAChainService } = require("./services/rwaChainService");
 const { EvidenceVaultService } = require("./services/evidenceVault");
-const { verifyIssuerAuthorization } = require("./services/issuerAuthorization");
+const {
+    verifyAttestationAuthorization,
+    verifyIssuerAuthorization,
+} = require("./services/issuerAuthorization");
 const { evaluateVerification } = require("./services/rwaVerification");
 const {
     hashJson,
@@ -546,6 +549,8 @@ function createApp(config = defaultConfig) {
             expiry = 0,
             attestationId,
             reason = "",
+            attestorSignature,
+            attestationAuthorization,
         } = req.body || {};
 
         if (action === "revoke") {
@@ -568,6 +573,22 @@ function createApp(config = defaultConfig) {
         if (!tokenId || !role || !attestor || !evidenceHash || !statementType) {
             return res.status(400).json({
                 error: "tokenId, role, attestor, evidenceHash, and statementType are required",
+            });
+        }
+
+        const authorizationResult = await verifyAttestationAuthorization({
+            tokenId: Number(tokenId),
+            role,
+            attestor,
+            evidenceHash,
+            statementType,
+            expiry: Number(expiry || 0),
+            attestorSignature,
+            attestationAuthorization,
+        });
+        if (!authorizationResult.valid) {
+            return res.status(400).json({
+                error: authorizationResult.reason || "invalid attestation authorization",
             });
         }
 
@@ -720,11 +741,12 @@ function createApp(config = defaultConfig) {
 if (require.main === module) {
     const app = createApp();
     app.listen(PORT, () => {
-        console.log(`FlowPay server running on port ${PORT}`);
+        console.log(`Stream Engine server running on port ${PORT}`);
         console.log(`Payment recipient: ${RECIPIENT_ADDRESS}`);
-        console.log(`FlowPay stream contract: ${CONTRACT_ADDRESS}`);
+        console.log(`Stream contract: ${CONTRACT_ADDRESS}`);
         console.log(`Payment token (${runtimeConfig.paymentTokenSymbol}): ${PAYMENT_TOKEN_ADDRESS}`);
         console.log(`RWA hub: ${process.env.FLOWPAY_RWA_HUB_ADDRESS || "not configured"}`);
+        console.log(`RWA attestation registry: ${process.env.FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS || "not configured"}`);
     });
 }
 

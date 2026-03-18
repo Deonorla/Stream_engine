@@ -50,9 +50,11 @@ So Stream Engine does **not** replace `x402`. It makes `x402` economically usabl
 ### Rental RWAs
 
 - `FlowPayAssetNFT` mints the digital twin
-- `FlowPayRWAHub` binds metadata, registry state, compliance, and yield streams
-- metadata is pinned to IPFS and exposed as `ipfs://...`
-- QR or NFC payloads can be verified against on-chain registry and activity history
+- `FlowPayRWAHub` binds asset identity, compliance, evidence roots, and yield streams
+- `FlowPayAssetAttestationRegistry` records which roles attested to which evidence, when, and for how long
+- sanitized public metadata is pinned to IPFS and exposed as `ipfs://...`
+- raw deeds, tax files, and inspections remain private by default while their roots are anchored onchain
+- QR or NFC payloads now resolve into a structured trust verdict, not only a CID/tag consistency check
 
 ## Stack
 
@@ -127,6 +129,7 @@ FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
 FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
 FLOWPAY_USE_SUBSTRATE_READS=true
 FLOWPAY_USE_SUBSTRATE_WRITES=true
+FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xYOUR_ATTESTATION_REGISTRY
 SUBSTRATE_JSON_PATH=./substrate.json
 SUBSTRATE_PASSWORD=your_account_password
 FLOWPAY_RECIPIENT_ADDRESS=0xYOUR_SERVICE_WALLET
@@ -209,6 +212,8 @@ These are the latest live contract addresses from the native Westend deployment 
 - `FlowPayComplianceGuard`: `0x72a979756061c5993a4c9c95e87519e9492dd721`
 - `FlowPayAssetStream`: `0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396`
 - `FlowPayRWAHub`: `0x1286a0fe3413dd70083df2d654677a7c39096753`
+
+The v2 evidence and attestation flow also expects `FlowPayAssetAttestationRegistry`. Its live address is read from `FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS` and surfaced in `GET /api/engine/catalog`.
 
 ## Notes
 

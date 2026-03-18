@@ -14,10 +14,40 @@ export interface RWAClientConfig {
 export interface MintAssetParams {
     issuer: string;
     assetType: number;
-    metadata?: Record<string, unknown>;
-    metadataURI?: string;
+    rightsModel?: string;
+    jurisdiction?: string;
+    propertyRef: string;
+    publicMetadata?: Record<string, unknown>;
+    publicMetadataURI?: string;
+    evidenceBundle?: Record<string, unknown>;
+    evidenceRoot?: string;
+    evidenceManifestHash?: string;
     tag?: string;
     tagHash?: string;
+    issuerSignature?: string;
+    issuerAuthorization?: Record<string, unknown>;
+    statusReason?: string;
+}
+
+export interface StoreEvidenceParams {
+    rightsModel?: string;
+    propertyRef: string;
+    jurisdiction?: string;
+    evidenceBundle: Record<string, unknown>;
+}
+
+export interface SubmitAttestationParams {
+    action?: "register" | "revoke";
+    tokenId?: number;
+    role?: string | number;
+    attestor?: string;
+    evidenceHash?: string;
+    statementType?: string;
+    expiry?: number;
+    attestationId?: number;
+    reason?: string;
+    attestorSignature?: string;
+    attestationAuthorization?: Record<string, unknown>;
 }
 
 export class FlowPayRWAClient {
@@ -66,6 +96,20 @@ export class FlowPayRWAClient {
 
     async mintAsset(params: MintAssetParams) {
         return this.request("/api/rwa/assets", {
+            method: "POST",
+            body: JSON.stringify(params),
+        });
+    }
+
+    async storeEvidence(params: StoreEvidenceParams) {
+        return this.request("/api/rwa/evidence", {
+            method: "POST",
+            body: JSON.stringify(params),
+        });
+    }
+
+    async submitAttestation(params: SubmitAttestationParams) {
+        return this.request("/api/rwa/attestations", {
             method: "POST",
             body: JSON.stringify(params),
         });

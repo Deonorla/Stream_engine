@@ -2,7 +2,10 @@ const request = require("supertest");
 const { expect } = require("chai");
 const { ethers } = require("ethers");
 const createApp = require("../index");
-const { buildIssuerAuthorizationMessage } = require("../services/issuerAuthorization");
+const {
+    buildAttestationAuthorizationMessage,
+    buildIssuerAuthorizationMessage,
+} = require("../services/issuerAuthorization");
 const { EvidenceVaultService } = require("../services/evidenceVault");
 const { hashJson, hashText } = require("../services/rwaModel");
 
@@ -53,6 +56,33 @@ describe("RWA API Integration", function () {
         return {
             issuedAt: "2026-03-18T00:00:00Z",
             nonce: "mint-7",
+            signatureType: "evm",
+            signature: await issuerWallet.signMessage(message),
+        };
+    }
+
+    async function buildAttestationAuthorization({
+        tokenId = 7,
+        role = "lawyer",
+        attestor = issuerWallet.address,
+        evidenceHash = "0xdeed",
+        statementType = "title_review_complete",
+        expiry = 0,
+    } = {}) {
+        const message = buildAttestationAuthorizationMessage({
+            tokenId,
+            role,
+            attestor,
+            evidenceHash,
+            statementType,
+            expiry,
+            issuedAt: "2026-03-18T00:00:00Z",
+            nonce: "attest-7",
+        });
+
+        return {
+            issuedAt: "2026-03-18T00:00:00Z",
+            nonce: "attest-7",
             signatureType: "evm",
             signature: await issuerWallet.signMessage(message),
         };
@@ -526,5 +556,32 @@ describe("RWA API Integration", function () {
         expect(legacyResponse.status).to.equal(200);
         expect(legacyResponse.body.status).to.equal("legacy_verified");
         expect(legacyResponse.body.warnings[0]).to.match(/Legacy v1 asset/i);
+    });
+
+    it("registers attestations only when the attestor signed the request", async function () {
+        store.asset = {
+            ...(store.asset || {}),
+            tokenId: 7,
+            schemaVersion: 2,
+            attestationPolicies: [],
+            attestations: [],
+        };
+
+        const authorization = await buildAttestationAuthorization();
+        const response = await request(app)
+            .post("/api/rwa/attestations")
+            .send({
+                tokenId: 7,
+                role: "lawyer",
+                attestor: issuerWallet.address,
+                evidenceHash: "0xdeed",
+                statementType: "title_review_complete",
+                attestationAuthorization: authorization,
+            });
+
+        expect(response.status).to.equal(201);
+        expect(response.body.action).to.equal("register");
+        expect(response.body.role).to.equal("lawyer");
+        expect(response.body.attestationId).to.equal(3);
     });
 });

@@ -29,6 +29,8 @@ import {
   fetchRwaActivity,
   mintRwaAsset,
   pinRwaMetadata,
+  storeRwaEvidence,
+  submitRwaAttestation,
   verifyRwaAsset,
 } from "../services/rwaApi";
 import { useProtocolCatalog } from "../hooks/useProtocolCatalog";
@@ -46,9 +48,12 @@ import {
 import {
   buildRentalStreamMetadata,
   mapApiAssetToUiAsset,
+  ATTESTATION_ROLE_LABELS,
   PORTFOLIO_ASSETS,
+  RIGHTS_MODEL_LABELS,
   TYPE_TO_CHAIN_ASSET_TYPE,
   TYPE_META,
+  VERIFICATION_STATUS_LABELS,
   verifyAssetRecord,
 } from "./rwa/rwaData";
 
@@ -57,6 +62,16 @@ const TYPE_ICONS = {
   vehicle: Car,
   commodity: Package,
 };
+
+const ATTESTATION_ROLE_OPTIONS = [
+  "issuer",
+  "lawyer",
+  "registrar",
+  "inspector",
+  "valuer",
+  "insurer",
+  "compliance",
+];
 
 const STUDIO_TABS = [
   {
@@ -99,28 +114,45 @@ const STUDIO_TABS = [
 
 const MINT_FORM_DEFAULT = {
   type: "real_estate",
+  rightsModel: "verified_rental_asset",
   name: "",
   description: "",
   location: "",
+  jurisdiction: "NG-LA",
+  propertyRef: "",
   monthlyYieldTarget: "",
   imageUrl: "",
   tagSeed: "",
+  deedHash: "",
+  surveyHash: "",
+  valuationHash: "",
+  valuationExpiry: "",
+  inspectionHash: "",
+  inspectionExpiry: "",
+  insuranceHash: "",
+  insuranceExpiry: "",
+  taxHash: "",
+  taxExpiry: "",
 };
 
 function buildAssetMetadata(form) {
   return {
     name: form.name.trim() || "Untitled rental asset",
     description:
-      form.description.trim() || "Rental asset prepared in Stream Engine.",
+      form.description.trim() || "Verified productive rental twin prepared in Stream Engine.",
     image: form.imageUrl.trim(),
     assetType: form.type,
+    rightsModel: form.rightsModel,
     location: form.location.trim() || "Undisclosed",
+    jurisdiction: form.jurisdiction.trim() || "Undisclosed",
     monthlyYieldTarget: Number(form.monthlyYieldTarget || 0),
-    accessMechanism: "QR / NFC verification payload",
+    accessMechanism: "Evidence-backed QR / NFC verification payload",
     tagSeed: form.tagSeed.trim(),
     properties: {
       location: form.location.trim() || "Undisclosed",
-      accessMechanism: "QR / NFC verification payload",
+      accessMechanism: "Evidence-backed QR / NFC verification payload",
+      rightsModel: form.rightsModel,
+      jurisdiction: form.jurisdiction.trim() || "Undisclosed",
     },
     attributes: [
       { trait_type: "Asset Type", value: form.type },
@@ -133,7 +165,124 @@ function buildAssetMetadata(form) {
         trait_type: "Monthly Yield Target",
         value: Number(form.monthlyYieldTarget || 0),
       },
+      {
+        trait_type: "Rights Model",
+        value: form.rightsModel,
+      },
+      {
+        trait_type: "Jurisdiction",
+        value: form.jurisdiction.trim() || "Undisclosed",
+      },
     ],
+  };
+}
+
+function stableValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(stableValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.keys(value)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = stableValue(value[key]);
+        return result;
+      }, {});
+  }
+  return value;
+}
+
+function stableStringify(value) {
+  return JSON.stringify(stableValue(value));
+}
+
+function hashJson(value) {
+  return ethers.keccak256(ethers.toUtf8Bytes(stableStringify(value)));
+}
+
+function textToHex(value) {
+  const bytes = new TextEncoder().encode(value);
+  return `0x${Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+function buildIssuerAuthorizationMessage({
+  issuer,
+  rightsModel,
+  jurisdiction,
+  propertyRef,
+  publicMetadataHash,
+  evidenceRoot,
+  issuedAt,
+  nonce,
+}) {
+  return [
+    "Stream Engine RWA Mint Authorization",
+    `issuer:${String(issuer || "").toLowerCase()}`,
+    `rightsModel:${rightsModel || ""}`,
+    `jurisdiction:${jurisdiction || ""}`,
+    `propertyRef:${propertyRef || ""}`,
+    `publicMetadataHash:${publicMetadataHash || ""}`,
+    `evidenceRoot:${evidenceRoot || ""}`,
+    `issuedAt:${issuedAt || ""}`,
+    `nonce:${nonce || ""}`,
+  ].join("\n");
+}
+
+function buildAttestationAuthorizationMessage({
+  tokenId,
+  role,
+  attestor,
+  evidenceHash,
+  statementType,
+  expiry,
+  issuedAt,
+  nonce,
+}) {
+  return [
+    "Stream Engine RWA Attestation Authorization",
+    `tokenId:${tokenId || ""}`,
+    `role:${role || ""}`,
+    `attestor:${String(attestor || "").toLowerCase()}`,
+    `evidenceHash:${evidenceHash || ""}`,
+    `statementType:${statementType || ""}`,
+    `expiry:${expiry || 0}`,
+    `issuedAt:${issuedAt || ""}`,
+    `nonce:${nonce || ""}`,
+  ].join("\n");
+}
+
+function buildEvidenceBundle(form) {
+  return {
+    documents: {
+      deed: form.deedHash.trim() ? { hash: form.deedHash.trim() } : null,
+      survey: form.surveyHash.trim() ? { hash: form.surveyHash.trim() } : null,
+      valuation: form.valuationHash.trim()
+        ? {
+            hash: form.valuationHash.trim(),
+            expiresAt: form.valuationExpiry || null,
+          }
+        : null,
+      inspection: form.inspectionHash.trim()
+        ? {
+            hash: form.inspectionHash.trim(),
+            expiresAt: form.inspectionExpiry || null,
+          }
+        : null,
+      insurance: form.insuranceHash.trim()
+        ? {
+            hash: form.insuranceHash.trim(),
+            expiresAt: form.insuranceExpiry || null,
+          }
+        : null,
+      tax: form.taxHash.trim()
+        ? {
+            hash: form.taxHash.trim(),
+            expiresAt: form.taxExpiry || null,
+          }
+        : null,
+    },
   };
 }
 
@@ -325,7 +474,7 @@ function MintPanel({
   const previewName = form.name.trim() || "Untitled rental asset";
   const previewDescription =
     form.description.trim() ||
-    "Describe the unit, tenant profile, and income model.";
+    "Describe the rental unit, evidence posture, and income model.";
   const previewLocation = form.location.trim() || "Undisclosed";
   const previewYield = Number(form.monthlyYieldTarget || 0);
 
@@ -430,6 +579,24 @@ function MintPanel({
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block">
                 <span className="mb-1.5 block text-sm text-white/70">
+                  Rights model
+                </span>
+                <select
+                  className="input-default w-full"
+                  value={form.rightsModel}
+                  onChange={(event) =>
+                    updateField("rightsModel", event.target.value)
+                  }
+                >
+                  {Object.entries(RIGHTS_MODEL_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm text-white/70">
                   Location
                 </span>
                 <input
@@ -439,6 +606,19 @@ function MintPanel({
                     updateField("location", event.target.value)
                   }
                   placeholder="location"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm text-white/70">
+                  Jurisdiction
+                </span>
+                <input
+                  className="input-default w-full"
+                  value={form.jurisdiction}
+                  onChange={(event) =>
+                    updateField("jurisdiction", event.target.value)
+                  }
+                  placeholder="NG-LA"
                 />
               </label>
               <label className="block">
@@ -457,6 +637,20 @@ function MintPanel({
                 />
               </label>
             </div>
+
+            <label className="block">
+              <span className="mb-1.5 block text-sm text-white/70">
+                Property / asset reference
+              </span>
+              <input
+                className="input-default w-full"
+                value={form.propertyRef}
+                onChange={(event) =>
+                  updateField("propertyRef", event.target.value)
+                }
+                placeholder="plot-42-block-7 / VIN / chassis / yard slot"
+              />
+            </label>
 
             <label className="block">
               <span className="mb-1.5 block text-sm text-white/70">
@@ -483,6 +677,148 @@ function MintPanel({
                 placeholder="Tag serial, NFC UID, or internal reference"
               />
             </label>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-sm font-semibold text-white">
+                Private Evidence Bundle
+              </div>
+              <p className="mt-2 text-sm leading-6 text-white/55">
+                These hashes stay in the private evidence vault. The public NFT metadata stays sanitized; the deed, survey, tax, insurance, and inspection proofs stay server-side and only their roots are anchored onchain.
+              </p>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Deed hash
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={form.deedHash}
+                    onChange={(event) =>
+                      updateField("deedHash", event.target.value)
+                    }
+                    placeholder="0x..."
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Survey hash
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={form.surveyHash}
+                    onChange={(event) =>
+                      updateField("surveyHash", event.target.value)
+                    }
+                    placeholder="0x..."
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Valuation hash
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={form.valuationHash}
+                    onChange={(event) =>
+                      updateField("valuationHash", event.target.value)
+                    }
+                    placeholder="0x..."
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Valuation expiry
+                  </span>
+                  <input
+                    type="date"
+                    className="input-default w-full"
+                    value={form.valuationExpiry}
+                    onChange={(event) =>
+                      updateField("valuationExpiry", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Inspection hash
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={form.inspectionHash}
+                    onChange={(event) =>
+                      updateField("inspectionHash", event.target.value)
+                    }
+                    placeholder="0x..."
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Inspection expiry
+                  </span>
+                  <input
+                    type="date"
+                    className="input-default w-full"
+                    value={form.inspectionExpiry}
+                    onChange={(event) =>
+                      updateField("inspectionExpiry", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Insurance hash
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={form.insuranceHash}
+                    onChange={(event) =>
+                      updateField("insuranceHash", event.target.value)
+                    }
+                    placeholder="0x..."
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Insurance expiry
+                  </span>
+                  <input
+                    type="date"
+                    className="input-default w-full"
+                    value={form.insuranceExpiry}
+                    onChange={(event) =>
+                      updateField("insuranceExpiry", event.target.value)
+                    }
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Tax record hash
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={form.taxHash}
+                    onChange={(event) =>
+                      updateField("taxHash", event.target.value)
+                    }
+                    placeholder="0x..."
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Tax record expiry
+                  </span>
+                  <input
+                    type="date"
+                    className="input-default w-full"
+                    value={form.taxExpiry}
+                    onChange={(event) =>
+                      updateField("taxExpiry", event.target.value)
+                    }
+                  />
+                </label>
+              </div>
+            </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <button
@@ -559,6 +895,22 @@ function MintPanel({
                   </div>
                   <div className="mt-2 text-sm font-medium text-white/82">
                     {previewLocation}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-black/20 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                    Rights Model
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-white/82">
+                    {RIGHTS_MODEL_LABELS[form.rightsModel]}
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-black/20 p-4">
+                  <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                    Jurisdiction
+                  </div>
+                  <div className="mt-2 text-sm font-medium text-white/82">
+                    {form.jurisdiction || "Undisclosed"}
                   </div>
                 </div>
                 <div className="rounded-2xl bg-black/20 p-4">
@@ -758,7 +1110,7 @@ function VerifyPanel({
               </label>
               <label className="block">
                 <span className="mb-1.5 block text-sm text-white/70">
-                  CID or IPFS URI
+                  Public metadata URI
                 </span>
                 <input
                   className="input-default w-full"
@@ -773,13 +1125,15 @@ function VerifyPanel({
 
             <label className="block">
               <span className="mb-1.5 block text-sm text-white/70">
-                Optional tag seed
+                Optional property reference
               </span>
               <input
                 className="input-default w-full"
-                placeholder="Only needed if you are not using the full payload"
-                value={form.tagSeed}
-                onChange={(event) => updateField("tagSeed", event.target.value)}
+                placeholder="Only needed if you want to cross-check the property hash"
+                value={form.propertyRef}
+                onChange={(event) =>
+                  updateField("propertyRef", event.target.value)
+                }
               />
             </label>
 
@@ -824,9 +1178,7 @@ function VerifyPanel({
                     result.authentic ? "text-emerald-300" : "text-amber-300"
                   }`}
                 >
-                  {result.authentic
-                    ? "Authentic registry match"
-                    : "Verification mismatch detected"}
+                  {result.statusLabel}
                 </div>
               </div>
 
@@ -848,29 +1200,105 @@ function VerifyPanel({
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
                       <div className="rounded-2xl bg-black/20 p-3">
                         <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                          CID
+                          Verification Status
                         </div>
-                        <div className="mt-2 break-all font-mono text-xs text-white/72">
-                          {result.asset.verificationCid}
+                        <div className="mt-2 text-sm font-semibold text-white/82">
+                          {result.statusLabel}
                         </div>
                       </div>
                       <div className="rounded-2xl bg-black/20 p-3">
                         <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                          Tag Check
+                          Rights Model
                         </div>
                         <div className="mt-2 text-sm font-semibold text-white/82">
-                          {result.tagMatches ? "Matched" : "Mismatch"}
+                          {result.asset.rightsModelLabel}
                         </div>
                       </div>
                       <div className="rounded-2xl bg-black/20 p-3">
                         <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                          Registry
+                          Evidence Coverage
                         </div>
                         <div className="mt-2 text-sm font-semibold text-white/82">
-                          {result.cidMatches ? "CID matched" : "CID mismatch"}
+                          {result.evidenceCoverage.documentCount} documents
                         </div>
                       </div>
                     </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Missing Evidence
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.evidenceCoverage.missingRequiredDocuments
+                            ?.length ? (
+                            result.evidenceCoverage.missingRequiredDocuments.map(
+                              (item) => <div key={item}>{item}</div>,
+                            )
+                          ) : (
+                            <div>No missing required evidence.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Missing Attestations
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.attestationCoverage.missingRoles?.length ? (
+                            result.attestationCoverage.missingRoles.map(
+                              (item) => <div key={item}>{item}</div>,
+                            )
+                          ) : (
+                            <div>No missing attestation roles.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Warnings
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.warnings.length ? (
+                            result.warnings.map((warning) => (
+                              <div key={warning}>{warning}</div>
+                            ))
+                          ) : (
+                            <div>No warnings.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Required Actions
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.requiredActions.length ? (
+                            result.requiredActions.map((action) => (
+                              <div key={action}>{action}</div>
+                            ))
+                          ) : (
+                            <div>No action required.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {result.failures.length ? (
+                      <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/8 p-4">
+                        <div className="text-sm font-semibold text-amber-300">
+                          Failed Checks
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.failures.map((failure) => (
+                            <div key={failure}>{failure}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-5">
@@ -1283,12 +1711,14 @@ function AssetWorkspacePanel({
   claimableYieldDisplay,
   actionState,
   hasContractControls,
+  controllerAddress,
   onRefresh,
   onOpenVerify,
   onOpenRental,
   onFundYieldStream,
   onClaimYield,
   onFlashAdvance,
+  onSubmitAttestation,
   onSetCompliance,
   onFreezeStream,
   onUpdateMetadata,
@@ -1305,6 +1735,13 @@ function AssetWorkspacePanel({
   const [freezeForm, setFreezeForm] = useState({ frozen: false, reason: "" });
   const [metadataUri, setMetadataUri] = useState("");
   const [tagValue, setTagValue] = useState("");
+  const [attestationForm, setAttestationForm] = useState({
+    role: "lawyer",
+    attestor: "",
+    evidenceHash: "",
+    statementType: "title_review_complete",
+    expiry: "",
+  });
 
   useEffect(() => {
     if (!asset) {
@@ -1325,7 +1762,14 @@ function AssetWorkspacePanel({
     });
     setMetadataUri(asset.ipfsUri || "");
     setTagValue(asset.tagSeed || "");
-  }, [asset]);
+    setAttestationForm({
+      role: "lawyer",
+      attestor: controllerAddress || asset.currentOwner || asset.ownerAddress || "",
+      evidenceHash: "",
+      statementType: "title_review_complete",
+      expiry: "",
+    });
+  }, [asset, controllerAddress]);
 
   if (isLoading) {
     return (
@@ -1350,6 +1794,22 @@ function AssetWorkspacePanel({
   }
 
   const workspaceActivity = activity?.length ? activity : asset.activity || [];
+  const evidenceSummary = asset.evidenceSummary || {
+    presentDocuments: [],
+    missingRequiredDocuments: [],
+    freshness: [],
+  };
+  const requiredRoles = asset.attestationPolicies?.filter((policy) => policy.required) || [];
+
+  const handleSubmitAttestation = async () => {
+    await onSubmitAttestation(asset, attestationForm);
+    setAttestationForm((current) => ({
+      ...current,
+      evidenceHash: "",
+      statementType: "title_review_complete",
+      expiry: "",
+    }));
+  };
 
   return (
     <div className="space-y-6">
@@ -1439,7 +1899,7 @@ function AssetWorkspacePanel({
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-2xl bg-black/20 p-4">
                 <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  IPFS URI
+                  Public Metadata URI
                 </div>
                 <div className="mt-2 break-all font-mono text-xs text-white/72">
                   {asset.ipfsUri || "Unavailable"}
@@ -1447,25 +1907,117 @@ function AssetWorkspacePanel({
               </div>
               <div className="rounded-2xl bg-black/20 p-4">
                 <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  Verification Payload
-                </div>
-                <div className="mt-2 break-all font-mono text-xs text-white/72">
-                  {asset.verificationPayload || "Unavailable"}
-                </div>
-              </div>
-              <div className="rounded-2xl bg-black/20 p-4">
-                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  Location
+                  Verification Status
                 </div>
                 <div className="mt-2 text-sm text-white/82">
-                  {asset.location}
+                  {asset.verificationStatusLabel || "Pending"}
                 </div>
               </div>
               <div className="rounded-2xl bg-black/20 p-4">
                 <div className="text-xs uppercase tracking-[0.18em] text-white/45">
-                  Network
+                  Evidence Root
                 </div>
-                <div className="mt-2 text-sm text-white/82">{networkName}</div>
+                <div className="mt-2 break-all font-mono text-xs text-white/72">
+                  {asset.evidenceRoot || "Unavailable"}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Attestations
+                </div>
+                <div className="mt-2 text-sm text-white/82">
+                  {asset.attestations?.length || 0} recorded
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Property Ref Hash
+                </div>
+                <div className="mt-2 break-all font-mono text-xs text-white/72">
+                  {asset.propertyRefHash || "Unavailable"}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Public Metadata Hash
+                </div>
+                <div className="mt-2 break-all font-mono text-xs text-white/72">
+                  {asset.publicMetadataHash || "Unavailable"}
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 rounded-2xl bg-black/20 p-4">
+              <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                Status Reason
+              </div>
+              <div className="mt-2 text-sm text-white/72">
+                {asset.statusReason || "No status note yet."}
+              </div>
+            </div>
+          </div>
+
+          <div className="card-glass border border-white/10 p-6">
+            <div className="text-xs uppercase tracking-[0.22em] text-cyan-200">
+              Evidence &amp; Attestation Summary
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Present Evidence
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-white/72">
+                  {evidenceSummary.presentDocuments?.length ? (
+                    evidenceSummary.presentDocuments.map((item) => (
+                      <div key={item}>{item}</div>
+                    ))
+                  ) : (
+                    <div>No evidence documents indexed yet.</div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Missing Evidence
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-white/72">
+                  {evidenceSummary.missingRequiredDocuments?.length ? (
+                    evidenceSummary.missingRequiredDocuments.map((item) => (
+                      <div key={item}>{item}</div>
+                    ))
+                  ) : (
+                    <div>No missing required evidence.</div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Required Attestation Roles
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-white/72">
+                  {requiredRoles.length ? (
+                    requiredRoles.map((policy) => (
+                      <div key={`${policy.role}-${policy.maxAge}`}>
+                        {policy.roleLabel}{" "}
+                        <span className="text-white/45">
+                          {policy.maxAge ? `· refresh every ${Math.round(policy.maxAge / 86400)}d` : "· no max age"}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <div>No required attestation roles configured.</div>
+                  )}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Asset Policy
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-white/72">
+                  <div>Frozen: {asset.assetPolicy?.frozen ? "Yes" : "No"}</div>
+                  <div>Disputed: {asset.assetPolicy?.disputed ? "Yes" : "No"}</div>
+                  <div>Revoked: {asset.assetPolicy?.revoked ? "Yes" : "No"}</div>
+                  <div>Reason: {asset.assetPolicy?.reason || "No policy reason recorded."}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -1542,6 +2094,159 @@ function AssetWorkspacePanel({
         </div>
 
         <div className="space-y-6">
+          <div className="card-glass border border-white/10 p-6">
+            <div className="text-xs uppercase tracking-[0.22em] text-cyan-200">
+              Attestation Panel
+            </div>
+
+            <div className="mt-5 space-y-5">
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Record Attestation
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-white/70">
+                      Role
+                    </span>
+                    <select
+                      className="input-default w-full"
+                      value={attestationForm.role}
+                      onChange={(event) =>
+                        setAttestationForm((current) => ({
+                          ...current,
+                          role: event.target.value,
+                        }))
+                      }
+                    >
+                      {ATTESTATION_ROLE_OPTIONS.map((role) => (
+                        <option key={role} value={role}>
+                          {ATTESTATION_ROLE_LABELS[role] || role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-white/70">
+                      Attestor address
+                    </span>
+                    <input
+                      className="input-default w-full"
+                      value={attestationForm.attestor}
+                      onChange={(event) =>
+                        setAttestationForm((current) => ({
+                          ...current,
+                          attestor: event.target.value,
+                        }))
+                      }
+                      placeholder="0x..."
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-white/70">
+                      Evidence hash
+                    </span>
+                    <input
+                      className="input-default w-full"
+                      value={attestationForm.evidenceHash}
+                      onChange={(event) =>
+                        setAttestationForm((current) => ({
+                          ...current,
+                          evidenceHash: event.target.value,
+                        }))
+                      }
+                      placeholder="0x..."
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="mb-1.5 block text-sm text-white/70">
+                      Expiry
+                    </span>
+                    <input
+                      type="date"
+                      className="input-default w-full"
+                      value={attestationForm.expiry}
+                      onChange={(event) =>
+                        setAttestationForm((current) => ({
+                          ...current,
+                          expiry: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <label className="block">
+                  <span className="mb-1.5 block text-sm text-white/70">
+                    Statement type
+                  </span>
+                  <input
+                    className="input-default w-full"
+                    value={attestationForm.statementType}
+                    onChange={(event) =>
+                      setAttestationForm((current) => ({
+                        ...current,
+                        statementType: event.target.value,
+                      }))
+                    }
+                    placeholder="title_review_complete / inspection_current"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn-default w-full justify-center"
+                  onClick={handleSubmitAttestation}
+                  disabled={actionState.attestation || !hasContractControls}
+                >
+                  {actionState.attestation ? "Recording..." : "Record attestation"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Recorded Attestations
+                </div>
+                {asset.attestations?.length ? (
+                  asset.attestations.map((attestation) => (
+                    <div
+                      key={`${attestation.attestationId}-${attestation.roleLabel}-${attestation.issuedAt}`}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-sm font-semibold text-white">
+                          {ATTESTATION_ROLE_LABELS[attestation.roleLabel] || attestation.roleLabel}
+                        </div>
+                        <div className="text-xs text-white/45">
+                          {attestation.revoked ? "Revoked" : "Active"}
+                        </div>
+                      </div>
+                      <div className="mt-2 break-all font-mono text-xs text-cyan-200">
+                        {attestation.evidenceHash}
+                      </div>
+                      <div className="mt-3 text-sm leading-6 text-white/60">
+                        {attestation.statementType}
+                      </div>
+                      <div className="mt-3 grid gap-2 text-xs text-white/45 md:grid-cols-2">
+                        <div>Attestor: {attestation.attestor}</div>
+                        <div>
+                          Expiry: {attestation.expiry ? formatTimestamp(attestation.expiry) : "No expiry"}
+                        </div>
+                      </div>
+                      {attestation.revocationReason ? (
+                        <div className="mt-3 text-xs text-amber-300">
+                          Revocation reason: {attestation.revocationReason}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-white/45">
+                    No attestations recorded yet for this asset.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="card-glass border border-white/10 p-6">
             <div className="text-xs uppercase tracking-[0.22em] text-cyan-200">
               Admin Controls
@@ -1826,6 +2531,7 @@ export default function RWA() {
     signer,
     walletAddress,
     walletDisplayAddress,
+    nativeAccountAddress,
     substrateSession,
     openWalletPicker,
     createStream,
@@ -1853,7 +2559,7 @@ export default function RWA() {
     payload: "",
     tokenId: "",
     cidOrUri: "",
-    tagSeed: "",
+    propertyRef: "",
   });
   const [verificationResult, setVerificationResult] = useState(null);
   const [selectedRentalAsset, setSelectedRentalAsset] = useState(null);
@@ -1866,6 +2572,7 @@ export default function RWA() {
     funding: false,
     claim: false,
     flashAdvance: false,
+    attestation: false,
     compliance: false,
     freeze: false,
     metadata: false,
@@ -2148,26 +2855,164 @@ export default function RWA() {
     [setStatus, toast],
   );
 
+  const signIssuerAuthorization = useCallback(
+    async ({
+      issuer,
+      rightsModel,
+      jurisdiction,
+      propertyRef,
+      publicMetadataHash,
+      evidenceRoot,
+    }) => {
+      const issuedAt = new Date().toISOString();
+      const nonce = `mint-${Date.now()}`;
+      const message = buildIssuerAuthorizationMessage({
+        issuer,
+        rightsModel,
+        jurisdiction,
+        propertyRef,
+        publicMetadataHash,
+        evidenceRoot,
+        issuedAt,
+        nonce,
+      });
+
+      if (
+        substrateSession?.account?.injected?.signer?.signRaw &&
+        nativeAccountAddress
+      ) {
+        const signatureResult =
+          await substrateSession.account.injected.signer.signRaw({
+            address: nativeAccountAddress,
+            data: textToHex(message),
+            type: "bytes",
+          });
+
+        return {
+          issuedAt,
+          nonce,
+          signatureType: "substrate",
+          signerAddress: nativeAccountAddress,
+          signature: signatureResult.signature,
+        };
+      }
+
+      if (!signer) {
+        throw new Error("Connected wallet cannot sign the issuer authorization message.");
+      }
+
+      return {
+        issuedAt,
+        nonce,
+        signatureType: "evm",
+        signerAddress: walletAddress,
+        signature: await signer.signMessage(message),
+      };
+    },
+    [nativeAccountAddress, signer, substrateSession, walletAddress],
+  );
+
+  const signAttestationAuthorization = useCallback(
+    async ({
+      tokenId,
+      role,
+      attestor,
+      evidenceHash,
+      statementType,
+      expiry,
+    }) => {
+      const issuedAt = new Date().toISOString();
+      const nonce = `attest-${Date.now()}`;
+      const message = buildAttestationAuthorizationMessage({
+        tokenId,
+        role,
+        attestor,
+        evidenceHash,
+        statementType,
+        expiry,
+        issuedAt,
+        nonce,
+      });
+
+      if (
+        substrateSession?.account?.injected?.signer?.signRaw &&
+        nativeAccountAddress
+      ) {
+        const signatureResult =
+          await substrateSession.account.injected.signer.signRaw({
+            address: nativeAccountAddress,
+            data: textToHex(message),
+            type: "bytes",
+          });
+
+        return {
+          issuedAt,
+          nonce,
+          signatureType: "substrate",
+          signerAddress: nativeAccountAddress,
+          signature: signatureResult.signature,
+        };
+      }
+
+      if (!signer) {
+        throw new Error("Connected wallet cannot sign the attestation authorization message.");
+      }
+
+      return {
+        issuedAt,
+        nonce,
+        signatureType: "evm",
+        signerAddress: walletAddress,
+        signature: await signer.signMessage(message),
+      };
+    },
+    [nativeAccountAddress, signer, substrateSession, walletAddress],
+  );
+
   const buildVerificationResult = useCallback((response, fallbackAsset) => {
     const mappedAsset = response?.asset
       ? mapApiAssetToUiAsset({
           ...response.asset,
-          metadata: response.metadata || response.asset.metadata,
+          publicMetadata:
+            response.metadata || response.asset.publicMetadata || response.asset.metadata,
           activity: response.activity || [],
         })
       : fallbackAsset;
 
+    const status = response?.status || (response?.authentic ? "verified" : "mismatch");
+
     return {
-      authentic: Boolean(response?.authentic),
-      asset: mappedAsset || null,
-      cidMatches: Boolean(
-        response?.verification?.onChain?.cidMatches &&
-          response?.verification?.tokenUriMatches,
+      authentic: ["verified", "verified_with_warnings", "legacy_verified"].includes(
+        status,
       ),
-      tagMatches: Boolean(response?.verification?.onChain?.tagMatches),
-      reason: response?.authentic
-        ? "Verification payload matches the registry, metadata, and indexed activity trail."
-        : "One or more verification checks failed. Review the CID, tag binding, and activity trail below.",
+      asset: mappedAsset || null,
+      status,
+      statusLabel: VERIFICATION_STATUS_LABELS[status] || status,
+      checks: response?.checks || [],
+      warnings: response?.warnings || [],
+      failures: response?.failures || [],
+      requiredActions: response?.requiredActions || [],
+      evidenceCoverage: response?.evidenceCoverage || {
+        requiredDocuments: [],
+        presentDocuments: [],
+        missingRequiredDocuments: [],
+        documentCount: 0,
+      },
+      attestationCoverage: response?.attestationCoverage || {
+        requiredRoles: [],
+        presentRoles: [],
+        missingRoles: [],
+        staleRoles: [],
+      },
+      documentFreshness: response?.documentFreshness || {
+        staleDocuments: [],
+        validDocuments: [],
+      },
+      reason:
+        response?.failures?.[0] ||
+        response?.warnings?.[0] ||
+        response?.asset?.statusReason ||
+        "Verification completed.",
     };
   }, []);
 
@@ -2178,11 +3023,8 @@ export default function RWA() {
         const response = await verifyRwaAsset({
           payload: form.payload || undefined,
           tokenId: form.tokenId || undefined,
-          cid: form.cidOrUri?.startsWith("ipfs://")
-            ? undefined
-            : form.cidOrUri || undefined,
-          uri: form.cidOrUri?.startsWith("ipfs://") ? form.cidOrUri : undefined,
-          tag: form.tagSeed || undefined,
+          uri: form.cidOrUri || undefined,
+          propertyRef: form.propertyRef || undefined,
         });
         const result = buildVerificationResult(response);
         setVerificationResult(result);
@@ -2223,7 +3065,7 @@ export default function RWA() {
       payload: asset.verificationPayload || "",
       tokenId: String(asset.tokenId || asset.id || ""),
       cidOrUri: asset.ipfsUri || "",
-      tagSeed: asset.tagSeed || "",
+      propertyRef: asset.publicMetadata?.propertyRef || "",
     };
     setVerificationForm(nextForm);
     setVerificationResult(null);
@@ -2246,9 +3088,35 @@ export default function RWA() {
       return;
     }
 
+    const requiredEvidenceFields = [
+      "deedHash",
+      "surveyHash",
+      "valuationHash",
+      "inspectionHash",
+      "insuranceHash",
+      "taxHash",
+    ];
+    const missingEvidence = requiredEvidenceFields.filter(
+      (field) => !String(form[field] || "").trim(),
+    );
+    if (!form.propertyRef.trim()) {
+      toast.warning("Add a property or asset reference before minting.", {
+        title: "Reference required",
+      });
+      return;
+    }
+    if (missingEvidence.length > 0) {
+      toast.warning(
+        "Fill the private evidence hashes before minting the rental twin.",
+        { title: "Evidence required" },
+      );
+      return;
+    }
+
     setIsMintingAsset(true);
-    setStatus("Minting asset and pinning metadata...");
+    setStatus("Anchoring evidence, authorizing issuer, and minting the rental twin...");
     const metadata = buildAssetMetadata(form);
+    const evidenceBundle = buildEvidenceBundle(form);
     const preparedFingerprint = JSON.stringify(metadata);
     const preparedUri =
       preparedMetadata?.fingerprint === preparedFingerprint
@@ -2256,22 +3124,47 @@ export default function RWA() {
         : "";
 
     try {
+      const publicMetadataHash = hashJson(metadata);
+      const evidenceResponse = await storeRwaEvidence({
+        rightsModel: form.rightsModel,
+        propertyRef: form.propertyRef.trim(),
+        jurisdiction: form.jurisdiction.trim(),
+        evidenceBundle,
+      });
+      const issuerAuthorization = await signIssuerAuthorization({
+        issuer: walletAddress,
+        rightsModel: form.rightsModel,
+        jurisdiction: form.jurisdiction.trim(),
+        propertyRef: form.propertyRef.trim(),
+        publicMetadataHash,
+        evidenceRoot: evidenceResponse.evidenceRoot,
+      });
+
       const response = await mintRwaAsset({
         issuer: walletAddress,
         assetType: TYPE_TO_CHAIN_ASSET_TYPE[form.type] || 1,
-        metadata: preparedUri ? undefined : metadata,
-        metadataURI: preparedUri || undefined,
+        rightsModel: form.rightsModel,
+        jurisdiction: form.jurisdiction.trim(),
+        propertyRef: form.propertyRef.trim(),
+        publicMetadata: preparedUri ? metadata : metadata,
+        publicMetadataURI: preparedUri || undefined,
+        evidenceRoot: evidenceResponse.evidenceRoot,
+        evidenceManifestHash: evidenceResponse.evidenceManifestHash,
+        issuerAuthorization,
         tag: form.tagSeed.trim(),
       });
 
       const asset = mapApiAssetToUiAsset({
         ...(response.asset || {}),
-        metadata: response.asset?.metadata || metadata,
+        publicMetadata:
+          response.asset?.publicMetadata || response.metadata || metadata,
+        evidenceSummary: response.evidenceSummary,
         activity: response.asset?.activity || [],
       });
       asset.verificationPayload =
         response.verificationPayload || asset.verificationPayload;
       asset.verificationUrl = response.verificationUrl || asset.verificationUrl;
+      asset.evidenceSummary = response.evidenceSummary || asset.evidenceSummary;
 
       setSessionMints((current) => [
         asset,
@@ -2284,7 +3177,7 @@ export default function RWA() {
         payload: asset.verificationPayload || "",
         tokenId: String(asset.tokenId),
         cidOrUri: asset.ipfsUri,
-        tagSeed: metadata.tagSeed,
+        propertyRef: form.propertyRef.trim(),
       });
       setVerificationResult(null);
       setStatus(`Minted Asset #${asset.tokenId} in RWA Studio.`);
@@ -2370,6 +3263,59 @@ export default function RWA() {
       });
     } finally {
       setActionFlag("claim", false);
+    }
+  };
+
+  const handleSubmitAttestationAction = async (asset, form) => {
+    if (!walletAddress) {
+      toast.warning("Connect the attestor wallet before recording an attestation.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+    if (!form.evidenceHash.trim() || !form.statementType.trim()) {
+      toast.warning("Provide an evidence hash and statement type before recording the attestation.", {
+        title: "Attestation incomplete",
+      });
+      return;
+    }
+
+    setActionFlag("attestation", true);
+    try {
+      const attestationAddress = form.attestor.trim() || walletAddress;
+      const expiry = form.expiry
+        ? Math.floor(new Date(form.expiry).getTime() / 1000)
+        : 0;
+      const attestationAuthorization = await signAttestationAuthorization({
+        tokenId: Number(asset.tokenId),
+        role: form.role,
+        attestor: attestationAddress,
+        evidenceHash: form.evidenceHash.trim(),
+        statementType: form.statementType.trim(),
+        expiry,
+      });
+
+      await submitRwaAttestation({
+        tokenId: Number(asset.tokenId),
+        role: form.role,
+        attestor: attestationAddress,
+        evidenceHash: form.evidenceHash.trim(),
+        statementType: form.statementType.trim(),
+        expiry,
+        attestationAuthorization,
+      });
+
+      toast.success(`Attestation recorded for Asset #${asset.tokenId}.`, {
+        title: "Attestation recorded",
+      });
+      await Promise.all([loadRegistry(), loadWorkspaceAsset(asset.tokenId)]);
+    } catch (error) {
+      console.error("Failed to record attestation", error);
+      toast.error(error.message || "Unable to record the attestation right now.", {
+        title: "Attestation failed",
+      });
+    } finally {
+      setActionFlag("attestation", false);
     }
   };
 
@@ -2705,6 +3651,7 @@ export default function RWA() {
               claimableYieldDisplay={workspaceClaimableYield}
               actionState={actionState}
               hasContractControls={hasContractControls}
+              controllerAddress={walletAddress}
               onRefresh={() =>
                 loadWorkspaceAsset(selectedWorkspaceAssetId, { notify: true })
               }
@@ -2713,6 +3660,7 @@ export default function RWA() {
               onFundYieldStream={handleFundYieldStream}
               onClaimYield={handleClaimYieldAction}
               onFlashAdvance={handleFlashAdvanceAction}
+              onSubmitAttestation={handleSubmitAttestationAction}
               onSetCompliance={handleSetComplianceAction}
               onFreezeStream={handleFreezeStreamAction}
               onUpdateMetadata={handleUpdateMetadataAction}

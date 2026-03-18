@@ -139,9 +139,10 @@ The RWA lane uses the same payment and streaming mindset for rental assets:
 
 Verification checks:
 
-1. metadata from IPFS
-2. CID and tag hashes against the registry
-3. indexed activity history for provenance
+1. sanitized public metadata from IPFS
+2. property reference, public metadata hash, and evidence roots against the registry
+3. attestation coverage and document freshness
+4. indexed activity history and policy state for provenance
 
 ## Compatibility
 

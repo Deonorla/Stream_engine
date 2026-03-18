@@ -1,7 +1,6 @@
 const { ethers } = require("ethers");
 const { signatureVerify, cryptoWaitReady } = require("@polkadot/util-crypto");
-const { hexToU8a, stringToHex } = require("@polkadot/util");
-const { stableStringify } = require("./rwaModel");
+const { stringToHex } = require("@polkadot/util");
 
 function buildIssuerAuthorizationMessage(payload = {}) {
     return [
@@ -17,6 +16,89 @@ function buildIssuerAuthorizationMessage(payload = {}) {
     ].join("\n");
 }
 
+function buildAttestationAuthorizationMessage(payload = {}) {
+    return [
+        "Stream Engine RWA Attestation Authorization",
+        `tokenId:${payload.tokenId || ""}`,
+        `role:${payload.role || ""}`,
+        `attestor:${String(payload.attestor || "").toLowerCase()}`,
+        `evidenceHash:${payload.evidenceHash || ""}`,
+        `statementType:${payload.statementType || ""}`,
+        `expiry:${payload.expiry || 0}`,
+        `issuedAt:${payload.issuedAt || ""}`,
+        `nonce:${payload.nonce || ""}`,
+    ].join("\n");
+}
+
+async function verifyAuthorizationMessage({
+    expectedSigner,
+    signature,
+    authorization,
+    fallbackSignatureType = "evm",
+    message,
+    missingSignatureReason,
+}) {
+    const signatureType = String(
+        authorization.signatureType || fallbackSignatureType
+    ).toLowerCase();
+    const signerAddress = authorization.signerAddress || expectedSigner;
+
+    if (!expectedSigner || !signature) {
+        return {
+            valid: false,
+            reason: missingSignatureReason,
+        };
+    }
+
+    if (signatureType === "substrate") {
+        await cryptoWaitReady();
+        const verification = signatureVerify(
+            stringToHex(message),
+            signature,
+            signerAddress
+        );
+        return {
+            valid: verification.isValid,
+            reason: verification.isValid ? "" : "invalid substrate signature",
+            message,
+            signatureType,
+            signerAddress,
+        };
+    }
+
+    if (String(signerAddress).toLowerCase() !== String(expectedSigner).toLowerCase()) {
+        return {
+            valid: false,
+            reason: "evm signerAddress must match the declared signer",
+            message,
+            signatureType: "evm",
+            signerAddress,
+        };
+    }
+
+    try {
+        const recovered = ethers.verifyMessage(message, signature);
+        return {
+            valid: recovered.toLowerCase() === signerAddress.toLowerCase(),
+            reason:
+                recovered.toLowerCase() === signerAddress.toLowerCase()
+                    ? ""
+                    : "invalid evm signature",
+            recoveredAddress: recovered,
+            message,
+            signatureType: "evm",
+            signerAddress,
+        };
+    } catch (error) {
+        return {
+            valid: false,
+            reason: error.message || "invalid evm signature",
+            message,
+            signatureType: "evm",
+        };
+    }
+}
+
 async function verifyIssuerAuthorization({
     issuer,
     issuerSignature,
@@ -29,16 +111,8 @@ async function verifyIssuerAuthorization({
 }) {
     const authorization = issuerAuthorization || {};
     const signature = issuerSignature || authorization.signature;
-    const signatureType = String(authorization.signatureType || "evm").toLowerCase();
     const issuedAt = authorization.issuedAt || "";
     const nonce = authorization.nonce || "";
-
-    if (!issuer || !signature) {
-        return {
-            valid: false,
-            reason: "issuerSignature is required",
-        };
-    }
 
     const message = buildIssuerAuthorizationMessage({
         issuer,
@@ -51,44 +125,53 @@ async function verifyIssuerAuthorization({
         nonce,
     });
 
-    if (signatureType === "substrate") {
-        await cryptoWaitReady();
-        const verification = signatureVerify(
-            stringToHex(message),
-            signature,
-            issuer
-        );
-        return {
-            valid: verification.isValid,
-            reason: verification.isValid ? "" : "invalid substrate signature",
-            message,
-            signatureType,
-        };
-    }
+    return verifyAuthorizationMessage({
+        expectedSigner: issuer,
+        signature,
+        authorization,
+        message,
+        missingSignatureReason: "issuerSignature is required",
+    });
+}
 
-    try {
-        const recovered = ethers.verifyMessage(message, signature);
-        return {
-            valid: recovered.toLowerCase() === issuer.toLowerCase(),
-            reason:
-                recovered.toLowerCase() === issuer.toLowerCase()
-                    ? ""
-                    : "invalid evm signature",
-            recoveredAddress: recovered,
-            message,
-            signatureType: "evm",
-        };
-    } catch (error) {
-        return {
-            valid: false,
-            reason: error.message || "invalid evm signature",
-            message,
-            signatureType: "evm",
-        };
-    }
+async function verifyAttestationAuthorization({
+    tokenId,
+    role,
+    attestor,
+    evidenceHash,
+    statementType,
+    expiry,
+    attestationAuthorization,
+    attestorSignature,
+}) {
+    const authorization = attestationAuthorization || {};
+    const signature = attestorSignature || authorization.signature;
+    const issuedAt = authorization.issuedAt || "";
+    const nonce = authorization.nonce || "";
+
+    const message = buildAttestationAuthorizationMessage({
+        tokenId,
+        role,
+        attestor,
+        evidenceHash,
+        statementType,
+        expiry,
+        issuedAt,
+        nonce,
+    });
+
+    return verifyAuthorizationMessage({
+        expectedSigner: attestor,
+        signature,
+        authorization,
+        message,
+        missingSignatureReason: "attestorSignature is required",
+    });
 }
 
 module.exports = {
     buildIssuerAuthorizationMessage,
+    buildAttestationAuthorizationMessage,
     verifyIssuerAuthorization,
+    verifyAttestationAuthorization,
 };
