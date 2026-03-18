@@ -15,7 +15,7 @@
 |--------|------|---------|
 | `POST` | `/api/rwa/ipfs/metadata` | pin sanitized public metadata |
 | `POST` | `/api/rwa/evidence` | store private evidence bundle and return roots |
-| `POST` | `/api/rwa/assets` | mint a rental twin and return its current v2 verification state |
+| `POST` | `/api/rwa/assets` | mint a rental twin, auto-onboard the signed issuer when needed, and return its current v2 verification state |
 | `GET` | `/api/rwa/assets` | list hydrated assets |
 | `GET` | `/api/rwa/assets/:tokenId` | fetch one hydrated asset |
 | `GET` | `/api/rwa/assets/:tokenId/activity` | fetch indexed activity |
@@ -52,6 +52,9 @@ Fresh v2 mints return:
 - `verificationUrl`
 - `verificationApiUrl`
 - top-level `verificationStatus`
+- `issuerOnboarding`
 - `attestationRequirements`
 
 If the asset type has required attestation roles, new mints typically start as `pending_attestation`. If no required role policy exists, the asset can start as `verified`. New v2 mints do not emit a new legacy verification payload.
+
+`issuerOnboarding` reports whether the issuer was already approved or was auto-approved during minting by a configured hub owner/operator backend signer.

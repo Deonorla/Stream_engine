@@ -56,6 +56,7 @@ So Stream Engine does **not** replace `x402`. It makes `x402` economically usabl
 - raw deeds, tax files, and inspections remain private by default while their roots are anchored onchain
 - QR or NFC payloads now resolve into a structured trust verdict, not only a CID/tag consistency check
 - new twins can start as `pending_attestation` or `verified` depending on the attestation policy configured for that asset type
+- first-time issuers can be auto-onboarded during minting when the backend signer is configured as an RWA hub operator
 
 ## Stack
 
@@ -131,6 +132,7 @@ FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
 FLOWPAY_USE_SUBSTRATE_READS=true
 FLOWPAY_USE_SUBSTRATE_WRITES=true
 FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xYOUR_ATTESTATION_REGISTRY
+FLOWPAY_RWA_OPERATOR_ADDRESSES=0xYOUR_BACKEND_OPERATOR
 SUBSTRATE_JSON_PATH=./substrate.json
 SUBSTRATE_PASSWORD=your_account_password
 FLOWPAY_RECIPIENT_ADDRESS=0xYOUR_SERVICE_WALLET
@@ -141,6 +143,8 @@ The same account needs:
 
 - `WND` for gas on Westend Asset Hub
 - `USDC` asset `31337` for payment streams and RWA funding
+
+`FLOWPAY_RWA_OPERATOR_ADDRESSES` is the deploy-time list of platform operators. Include the backend signer there if you want the server to auto-approve new issuers during minting instead of relying on a separate owner-only onboarding step.
 
 ### 3. Deploy
 

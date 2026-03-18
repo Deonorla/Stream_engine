@@ -179,7 +179,7 @@ contract FlowPayRWAHub is Owned {
         complianceGuard.setCompliance(user, assetType, approved, expiry, jurisdiction);
     }
 
-    function setIssuerApproval(address issuer, bool approved, string calldata note) external onlyOwner {
+    function setIssuerApproval(address issuer, bool approved, string calldata note) external onlyOperator {
         complianceGuard.setIssuerApproval(issuer, approved, note);
     }
 

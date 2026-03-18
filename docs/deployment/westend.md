@@ -24,6 +24,7 @@ FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
 FLOWPAY_PAYMENT_ASSET_ID=31337
 FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
 FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
+FLOWPAY_RWA_OPERATOR_ADDRESSES=0xyour_backend_operator_here
 FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xyour_attestation_registry_here
 FLOWPAY_USE_SUBSTRATE_READS=true
 FLOWPAY_USE_SUBSTRATE_WRITES=true
@@ -55,6 +56,10 @@ The smoke flow validates:
 - flash advance
 - yield claim
 - verification and indexed activity reads
+
+`FLOWPAY_RWA_OPERATOR_ADDRESSES` should include the backend signer if you want issuer approval to happen automatically during minting. In the updated hub, operators can onboard issuers once and then mint on their behalf without a separate owner-only approval transaction per issuer.
+
+If your current hub was deployed before the operator-driven issuer onboarding change, redeploy the RWA hub/controller stack to pick up the new permission model. Old hubs keep the previous owner-only issuer approval behavior.
 
 ## What The Westend Deployment Proves
 

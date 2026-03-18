@@ -7,6 +7,7 @@ import {
   substrateCallContract,
   substrateReadContract,
 } from '../lib/substrateAssets.js';
+import { rwaAdminAction } from './rwaApi.js';
 
 const TOKEN_APPROVAL_GAS_LIMIT = 500000n;
 const ASSET_STREAM_CREATION_GAS_LIMIT = 1500000n;
@@ -151,48 +152,17 @@ export async function flashAdvanceAssetYield({ signer, substrateSession, hubAddr
 }
 
 export async function setAssetCompliance({
-  signer,
-  substrateSession,
-  hubAddress,
-  user,
   assetType,
+  user,
   approved,
   expiry,
   jurisdiction,
 }) {
-  requireAddress('RWA hub address', hubAddress);
-  requireWriteWallet({ signer, substrateSession });
-
-  if (hasNativeSubstrateSession(substrateSession)) {
-    return substrateCallContract(substrateSession, {
-      contractAddress: hubAddress,
-      abi: HUB_ABI,
-      functionName: 'setCompliance',
-      args: [user, assetType, approved, expiry, jurisdiction],
-    });
-  }
-
-  const hub = new Contract(hubAddress, HUB_ABI, signer);
-  const tx = await hub.setCompliance(user, assetType, approved, expiry, jurisdiction);
-  return tx.wait();
+  return rwaAdminAction({ action: 'setCompliance', user, assetType, approved, expiry, jurisdiction });
 }
 
-export async function setAssetStreamFreeze({ signer, substrateSession, hubAddress, streamId, frozen, reason }) {
-  requireAddress('RWA hub address', hubAddress);
-  requireWriteWallet({ signer, substrateSession });
-
-  if (hasNativeSubstrateSession(substrateSession)) {
-    return substrateCallContract(substrateSession, {
-      contractAddress: hubAddress,
-      abi: HUB_ABI,
-      functionName: 'freezeStream',
-      args: [streamId, frozen, reason],
-    });
-  }
-
-  const hub = new Contract(hubAddress, HUB_ABI, signer);
-  const tx = await hub.freezeStream(streamId, frozen, reason);
-  return tx.wait();
+export async function setAssetStreamFreeze({ hubAddress: _hub, streamId, frozen, reason }) {
+  return rwaAdminAction({ action: 'freezeStream', streamId, frozen, reason });
 }
 
 export async function setAssetIssuerApproval({
@@ -221,81 +191,30 @@ export async function setAssetIssuerApproval({
 }
 
 export async function setAssetAttestationPolicy({
-  signer,
-  substrateSession,
-  hubAddress,
   assetType,
   role,
   required,
   maxAge,
 }) {
-  requireAddress('RWA hub address', hubAddress);
-  requireWriteWallet({ signer, substrateSession });
-
-  if (hasNativeSubstrateSession(substrateSession)) {
-    return substrateCallContract(substrateSession, {
-      contractAddress: hubAddress,
-      abi: HUB_ABI,
-      functionName: 'setAttestationPolicy',
-      args: [assetType, role, required, maxAge],
-    });
-  }
-
-  const hub = new Contract(hubAddress, HUB_ABI, signer);
-  const tx = await hub.setAttestationPolicy(assetType, role, required, maxAge);
-  return tx.wait();
+  return rwaAdminAction({ action: 'setAttestationPolicy', assetType, role, required, maxAge });
 }
 
 export async function setAssetPolicyOnChain({
-  signer,
-  substrateSession,
-  hubAddress,
   tokenId,
   frozen,
   disputed,
   revoked,
   reason,
 }) {
-  requireAddress('RWA hub address', hubAddress);
-  requireWriteWallet({ signer, substrateSession });
-
-  if (hasNativeSubstrateSession(substrateSession)) {
-    return substrateCallContract(substrateSession, {
-      contractAddress: hubAddress,
-      abi: HUB_ABI,
-      functionName: 'setAssetPolicy',
-      args: [tokenId, frozen, disputed, revoked, reason],
-    });
-  }
-
-  const hub = new Contract(hubAddress, HUB_ABI, signer);
-  const tx = await hub.setAssetPolicy(tokenId, frozen, disputed, revoked, reason);
-  return tx.wait();
+  return rwaAdminAction({ action: 'setAssetPolicy', tokenId, frozen, disputed, revoked, reason });
 }
 
 export async function setAssetVerificationStatus({
-  signer,
-  substrateSession,
-  hubAddress,
   tokenId,
   status,
   reason,
 }) {
-  requireAddress('RWA hub address', hubAddress);
-  requireWriteWallet({ signer, substrateSession });
-
-  if (hasNativeSubstrateSession(substrateSession)) {
-    return substrateCallContract(substrateSession, {
-      contractAddress: hubAddress,
-      abi: HUB_ABI,
-      functionName: 'setVerificationStatus',
-      args: [tokenId, status, reason],
-    });
-  }
-
-  const hub = new Contract(hubAddress, HUB_ABI, signer);
-  const tx = await hub.setVerificationStatus(tokenId, status, reason);
-  return tx.wait();
+  return rwaAdminAction({ action: 'setVerificationStatus', tokenId, status, reason });
 }
 
 export async function updateAssetMetadataOnChain({ signer, substrateSession, hubAddress, tokenId, metadataURI }) {

@@ -28,6 +28,13 @@ function readArtifact(relativePath) {
     );
 }
 
+function parseOperatorAddresses(value) {
+    return String(value || "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+}
+
 async function deployArtifact(api, pair, artifactPath, constructorArgs = []) {
     const artifact = readArtifact(artifactPath);
     const iface = new ethers.Interface(artifact.abi);
@@ -134,6 +141,18 @@ async function main() {
         await callContract(api, pair, complianceGuard.artifact, complianceGuard.contractAddress, "setController", [rwaHub.contractAddress]);
         await callContract(api, pair, assetStream.artifact, assetStream.contractAddress, "setHub", [rwaHub.contractAddress]);
         await callContract(api, pair, assetStream.artifact, assetStream.contractAddress, "setComplianceGuard", [complianceGuard.contractAddress]);
+
+        const operatorAddresses = parseOperatorAddresses(process.env.FLOWPAY_RWA_OPERATOR_ADDRESSES);
+        for (const operatorAddress of operatorAddresses) {
+            if (!ethers.isAddress(operatorAddress)) {
+                throw new Error(`Invalid FLOWPAY_RWA_OPERATOR_ADDRESSES entry: ${operatorAddress}`);
+            }
+            if (operatorAddress.toLowerCase() === evmAddress.toLowerCase()) {
+                continue;
+            }
+            await callContract(api, pair, rwaHub.artifact, rwaHub.contractAddress, "setOperator", [operatorAddress, true]);
+            console.log(`Granted RWA hub operator access to ${operatorAddress}`);
+        }
 
         console.log("FlowPay RWA suite deployed on Westend Asset Hub:");
         console.log(`FLOWPAY_RWA_ASSET_NFT_ADDRESS=${assetNFT.contractAddress}`);

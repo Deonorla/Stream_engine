@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 
 describe("FlowPay RWA Module", function () {
     let owner;
+    let operator;
     let issuer;
     let buyer;
     let lawyer;
@@ -45,7 +46,7 @@ describe("FlowPay RWA Module", function () {
         );
         const propertyRefHash = hashText(propertyRef);
 
-        const tx = await hub.mintAsset(
+        const tx = await hub.connect(operator).mintAsset(
             publicMetadataURI,
             ASSET_TYPE_RENTAL,
             RIGHTS_MODEL_VERIFIED_RENTAL,
@@ -76,7 +77,7 @@ describe("FlowPay RWA Module", function () {
     }
 
     beforeEach(async function () {
-        [owner, issuer, buyer, lawyer, inspector] = await ethers.getSigners();
+        [owner, operator, issuer, buyer, lawyer, inspector] = await ethers.getSigners();
 
         const MockUSDC = await ethers.getContractFactory("MockUSDC");
         mockUSDC = await MockUSDC.deploy();
@@ -118,6 +119,7 @@ describe("FlowPay RWA Module", function () {
         await assetStream.setHub(await hub.getAddress());
         await assetStream.setComplianceGuard(await guard.getAddress());
         await attestationRegistry.setController(await hub.getAddress());
+        await hub.setOperator(operator.address, true);
 
         await mockUSDC.mint(issuer.address, parseUsdc("1000"));
         await mockUSDC.mint(buyer.address, parseUsdc("1000"));
@@ -125,13 +127,26 @@ describe("FlowPay RWA Module", function () {
         const validUntil = (await ethers.provider.getBlock("latest")).timestamp + 3600;
         await hub.setCompliance(issuer.address, ASSET_TYPE_RENTAL, true, validUntil, "NG");
         await hub.setCompliance(buyer.address, ASSET_TYPE_RENTAL, true, validUntil, "NG");
-        await hub.setIssuerApproval(issuer.address, true, "approved property originator");
+        await hub.connect(operator).setIssuerApproval(issuer.address, true, "approved property originator");
         await hub.setAttestationPolicy(ASSET_TYPE_RENTAL, ROLE_LAWYER, true, 86400);
         await hub.setAttestationPolicy(ASSET_TYPE_RENTAL, ROLE_INSPECTOR, true, 86400);
     });
 
+    it("lets platform operators onboard and offboard issuers without owner-only mint bottlenecks", async function () {
+        await hub.connect(operator).setIssuerApproval(issuer.address, false, "paused for review");
+        await expect(
+            hub.connect(issuer).setIssuerApproval(issuer.address, true, "self-approval")
+        ).to.be.revertedWith("Owned: caller is not operator");
+
+        await hub.connect(operator).setIssuerApproval(issuer.address, true, "re-approved");
+        const approval = await guard.getIssuerApproval(issuer.address);
+        expect(approval.approved).to.equal(true);
+        expect(approval.note).to.equal("re-approved");
+        expect(approval.updatedBy).to.equal(await hub.getAddress());
+    });
+
     it("rejects minting when the issuer is not approved", async function () {
-        await hub.setIssuerApproval(issuer.address, false, "offboarded issuer");
+        await hub.connect(operator).setIssuerApproval(issuer.address, false, "offboarded issuer");
 
         await expect(mintAsset()).to.be.revertedWith("FlowPayRWAHub: issuer not approved");
     });
@@ -171,7 +186,7 @@ describe("FlowPay RWA Module", function () {
     it("records attestations, supports revocation, and updates verification status", async function () {
         const minted = await mintAsset();
 
-        await hub.registerAttestation(
+        await hub.connect(operator).registerAttestation(
             minted.tokenId,
             ROLE_LAWYER,
             lawyer.address,
@@ -179,7 +194,7 @@ describe("FlowPay RWA Module", function () {
             "title_review_complete",
             0
         );
-        await hub.registerAttestation(
+        await hub.connect(operator).registerAttestation(
             minted.tokenId,
             ROLE_INSPECTOR,
             inspector.address,
@@ -193,7 +208,7 @@ describe("FlowPay RWA Module", function () {
         expect(await attestationRegistry.getActiveAttestationCount(minted.tokenId, ROLE_LAWYER)).to.equal(1);
         expect(await attestationRegistry.getActiveAttestationCount(minted.tokenId, ROLE_INSPECTOR)).to.equal(1);
 
-        await hub.revokeAttestation(attestationIds[1], "inspection superseded");
+        await hub.connect(operator).revokeAttestation(attestationIds[1], "inspection superseded");
         const revokedAttestation = await hub.getAttestation(attestationIds[1]);
         expect(revokedAttestation.revoked).to.equal(true);
 

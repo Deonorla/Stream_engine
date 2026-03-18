@@ -11,7 +11,8 @@ This repo currently targets **Westend Asset Hub** for active testing. Before any
 ## RWA v2
 
 - attestation registry is deployed and configured
-- issuer approval policy is active
+- backend mint signer is configured as the RWA hub owner or an approved hub operator
+- issuer approval policy is active and can be auto-applied during minting
 - attestation policy is defined per asset type
 - private evidence vault storage is configured
 - public metadata pinning is configured

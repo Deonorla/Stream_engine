@@ -281,7 +281,7 @@ class RWAChainService {
         };
     }
 
-    async ensureIssuerApproved(issuer, note = "Auto-approved by Stream Engine guided mint") {
+    async ensureIssuerApproved(issuer, note = "Auto-approved from signed Stream Engine mint authorization") {
         if (!issuer) {
             throw new Error("RWAChainService: issuer is required");
         }
@@ -343,47 +343,26 @@ class RWAChainService {
             );
         }
 
-        const legacyOwnerOnlyRisk = Boolean(hubOwner && hubOwner !== signerAddress && signerIsOperator);
-
         const args = [issuer, true, note];
 
         if (this.useSubstrateWrites) {
-            try {
-                const result = await this.submitSubstrateWrite(
-                    this.hubAddress,
-                    new ethers.Interface(this.hubAbi),
-                    "setIssuerApproval",
-                    args
-                );
+            const result = await this.submitSubstrateWrite(
+                this.hubAddress,
+                new ethers.Interface(this.hubAbi),
+                "setIssuerApproval",
+                args
+            );
 
-                return {
-                    approved: true,
-                    alreadyApproved: false,
-                    txHash: result.txHash,
-                    receipt: result,
-                };
-            } catch (error) {
-                if (legacyOwnerOnlyRisk) {
-                    throw new Error(
-                        "issuer approval reverted onchain. This RWA hub likely still uses the older owner-only issuer approval model. Use the hub owner as the backend signer or redeploy the updated hub so platform operators can auto-onboard issuers."
-                    );
-                }
-                throw error;
-            }
+            return {
+                approved: true,
+                alreadyApproved: false,
+                txHash: result.txHash,
+                receipt: result,
+            };
         }
 
         const hub = this.getContract(this.hubAddress, this.hubAbi, true);
-        let tx;
-        try {
-            tx = await hub.setIssuerApproval(...args);
-        } catch (error) {
-            if (legacyOwnerOnlyRisk) {
-                throw new Error(
-                    "issuer approval reverted onchain. This RWA hub likely still uses the older owner-only issuer approval model. Use the hub owner as the backend signer or redeploy the updated hub so platform operators can auto-onboard issuers."
-                );
-            }
-            throw error;
-        }
+        const tx = await hub.setIssuerApproval(...args);
         const receipt = await tx.wait();
 
         return {

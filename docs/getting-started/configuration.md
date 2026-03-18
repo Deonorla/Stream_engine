@@ -28,9 +28,12 @@ FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xyour_attestation_registry_here
 FLOWPAY_RWA_COMPLIANCE_GUARD_ADDRESS=0x72a979756061c5993a4c9c95e87519e9492dd721
 FLOWPAY_RWA_ASSET_STREAM_ADDRESS=0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396
 FLOWPAY_RWA_HUB_ADDRESS=0x1286a0fe3413dd70083df2d654677a7c39096753
+FLOWPAY_RWA_OPERATOR_ADDRESSES=0xyour_backend_operator_here
 ```
 
 The attestation registry is part of the v2 productive-RWA flow. If it is missing, the backend can still start, but the full evidence-backed verification and attestation workflow will be incomplete.
+
+`FLOWPAY_RWA_OPERATOR_ADDRESSES` is the deploy-time list of hub operators. Include the backend mint signer there if you want first-time issuers to be auto-approved during minting instead of going through a separate owner-only onboarding step.
 
 ## Demo Signer
 

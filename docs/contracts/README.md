@@ -17,7 +17,7 @@ Stream Engine uses Solidity contracts deployed on **Westend Asset Hub**.
 | `FlowPayAssetAttestationRegistry` | role-based attestation and revocation records |
 | `FlowPayComplianceGuard` | issuer approval, compliance policy, attestation policy, freeze / dispute state |
 | `FlowPayAssetStream` | asset-bound yield streams |
-| `FlowPayRWAHub` | orchestration layer |
+| `FlowPayRWAHub` | orchestration layer and operator-driven issuer onboarding |
 
 ## Payment Asset
 

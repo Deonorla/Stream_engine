@@ -646,7 +646,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       points: [
         {
           title: "Minting",
-          body: "The owner now uses a guided mint flow. They describe the asset in plain language, attach the supporting documents, and let the app generate the internal property reference, verification tag seed, and document fingerprints automatically. The backend still anchors evidence roots and signs mint authorization, but those lower-level details are abstracted away from ordinary owners.",
+          body: "The owner now uses a guided mint flow. They describe the asset in plain language, attach the supporting documents, and let the app generate the internal property reference, verification tag seed, and document fingerprints automatically. The backend still anchors evidence roots, verifies the owner's mint authorization, and auto-onboards a first-time issuer when the platform operator is configured, so ordinary owners do not face a separate issuer-approval step.",
         },
         {
           title: "Verification",
@@ -669,7 +669,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       steps: [
         "Describe the asset in plain language: what it is, where it is, and what monthly yield the owner expects.",
         "Attach the supporting documents. Stream Engine fingerprints them in-browser and keeps the raw files private by default.",
-        "Let the app generate the internal property reference, verification tag seed, and public metadata package automatically.",
+        "Let the app generate the internal property reference, verification tag seed, and public metadata package automatically while the platform handles issuer onboarding in the background.",
         "Mint the rental twin and read the signed v2 verification payload that comes back from the API.",
         "If the asset type has required attestation roles, collect and record them to move from Pending Attestation to verified.",
         "Fund the asset-linked yield stream.",
@@ -973,7 +973,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "How the RWA half really works",
-          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer signs a mint authorization and anchors public metadata plus private evidence roots. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
+          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer signs a mint authorization and anchors public metadata plus private evidence roots. The platform operator can auto-approve a first-time issuer during that mint, so the owner does not need a separate onboarding transaction. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
         },
         {
           title: "Why we only care about productive assets here",

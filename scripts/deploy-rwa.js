@@ -2,6 +2,13 @@ const hre = require("hardhat");
 const { ethers } = hre;
 const { createFlowPayRuntimeConfig, createWestmintRuntimeConfig } = require("../utils/polkadot");
 
+function parseOperatorAddresses(value) {
+    return String(value || "")
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+}
+
 async function main() {
     const runtimeConfig =
         hre.network.name === "westmint"
@@ -53,6 +60,18 @@ async function main() {
     await (await complianceGuard.setController(await rwaHub.getAddress())).wait();
     await (await assetStream.setHub(await rwaHub.getAddress())).wait();
     await (await assetStream.setComplianceGuard(await complianceGuard.getAddress())).wait();
+
+    const operatorAddresses = parseOperatorAddresses(process.env.FLOWPAY_RWA_OPERATOR_ADDRESSES);
+    for (const operatorAddress of operatorAddresses) {
+        if (!ethers.isAddress(operatorAddress)) {
+            throw new Error(`Invalid FLOWPAY_RWA_OPERATOR_ADDRESSES entry: ${operatorAddress}`);
+        }
+        if (operatorAddress.toLowerCase() === deployer.address.toLowerCase()) {
+            continue;
+        }
+        await (await rwaHub.setOperator(operatorAddress, true)).wait();
+        console.log(`Granted RWA hub operator access to ${operatorAddress}`);
+    }
 
     console.log("FlowPay RWA suite deployed:");
     console.log(`FLOWPAY_RWA_ASSET_NFT_ADDRESS=${await assetNFT.getAddress()}`);

@@ -839,16 +839,6 @@ function createApp(config = defaultConfig) {
     }));
 
     app.use((error, _req, res, _next) => {
-        console.error(error);
-        res.status(error.statusCode || 500).json({
-            error: error.message || "Internal server error",
-        });
-    });
-
-    return app;
-}
-
-if (require.main === module) {
     const app = createApp();
     app.listen(PORT, () => {
         console.log(`Stream Engine server running on port ${PORT}`);

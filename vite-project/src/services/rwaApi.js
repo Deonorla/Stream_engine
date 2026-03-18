@@ -95,3 +95,10 @@ export async function pinRwaMetadata(metadata) {
 export function getRwaApiBaseUrl() {
   return DEFAULT_RWA_API_URL;
 }
+
+export async function rwaAdminAction(payload) {
+  return request('/api/rwa/admin', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}

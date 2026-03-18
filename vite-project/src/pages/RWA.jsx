@@ -720,7 +720,7 @@ function MintPanel({
                 Guided owner flow
               </div>
               <div className="mt-2">
-                Tell Stream Engine what the asset is, attach the supporting documents, and mint the rental twin. Internal references, verification tag seeds, and evidence fingerprints are generated automatically unless you open the advanced controls.
+                Tell Stream Engine what the asset is, attach the supporting documents, and mint the rental twin. Internal references, verification tag seeds, evidence fingerprints, and first-time issuer onboarding are generated automatically unless you open the advanced controls.
               </div>
             </div>
 
@@ -856,7 +856,7 @@ function MintPanel({
                 Internal tracking details
               </div>
               <p className="mt-2 text-sm leading-6 text-white/55">
-                Stream Engine will generate the internal asset reference and verification tag for you. Advanced operators can override them if needed.
+                Stream Engine will generate the internal asset reference and verification tag for you. Ordinary owners do not need a separate issuer-approval step before minting. Advanced operators can override the internals only when they have a specific compliance reason.
               </p>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <div className="rounded-2xl bg-black/20 p-4">
@@ -1166,6 +1166,13 @@ function MintPanel({
                     ? " Open the workspace next to record the required role attestations and move the asset toward verified status."
                     : " No required attestation policy is configured for this asset type, so the twin can already verify as a v2 asset."}
                 </div>
+                {lastMint.issuerOnboarding ? (
+                  <div className="mt-3 rounded-2xl bg-black/25 p-3 text-sm leading-6 text-white/72">
+                    {lastMint.issuerOnboarding.automaticallyApproved
+                      ? "The platform operator auto-approved this issuer during minting, so the owner did not need a separate onboarding transaction."
+                      : "This issuer already had platform approval, so minting reused the existing issuer access record."}
+                  </div>
+                ) : null}
                 {lastMint.attestationRequirements?.length ? (
                   <div className="mt-3 rounded-2xl bg-black/25 p-3">
                     <div className="text-xs uppercase tracking-[0.18em] text-white/45">
@@ -2920,7 +2927,10 @@ function AssetWorkspacePanel({
 
               <div className="rounded-2xl bg-white/5 p-4 space-y-3">
                 <div className="text-sm font-semibold text-white">
-                  Issuer Approval
+                  Platform Issuer Access
+                </div>
+                <div className="text-sm leading-6 text-white/55">
+                  This is a platform-operator control for manual issuer onboarding or offboarding. Ordinary asset owners should not need this during the guided mint flow.
                 </div>
                 <input
                   className="input-default w-full"
@@ -2963,7 +2973,7 @@ function AssetWorkspacePanel({
                   onClick={() => onSetIssuerApproval(asset, issuerApprovalForm)}
                   disabled={actionState.issuerApproval || !hasContractControls}
                 >
-                  {actionState.issuerApproval ? "Updating..." : "Set issuer approval"}
+                  {actionState.issuerApproval ? "Updating..." : "Update issuer access"}
                 </button>
               </div>
 
@@ -3917,6 +3927,7 @@ export default function RWA() {
         evidenceSummary: response.evidenceSummary,
         activity: response.asset?.activity || [],
       });
+      asset.issuerOnboarding = response.issuerOnboarding || null;
       asset.attestationRequirements = response.attestationRequirements || [];
       asset.verificationPayload =
         response.verificationPayload || asset.verificationPayload;
@@ -4262,7 +4273,7 @@ export default function RWA() {
 
   const handleSetIssuerApprovalAction = async (_asset, form) => {
     if (!hasContractControls) {
-      toast.warning("Connect a controller wallet to update issuer approval.", {
+      toast.warning("Connect a platform operator wallet to update issuer access.", {
         title: "Wallet required",
       });
       return;
@@ -4284,7 +4295,7 @@ export default function RWA() {
         approved: Boolean(form.approved),
         note: form.note || "",
       });
-      toast.success(`Issuer approval updated for ${form.issuer.trim()}.`, {
+      toast.success(`Issuer access updated for ${form.issuer.trim()}.`, {
         title: "Issuer updated",
       });
       await loadRegistry();
@@ -4293,7 +4304,7 @@ export default function RWA() {
       }
     } catch (error) {
       console.error("Failed to update issuer approval", error);
-      toast.error(error.message || "Unable to update issuer approval.", {
+      toast.error(error.message || "Unable to update issuer access.", {
         title: "Issuer failed",
       });
     } finally {
