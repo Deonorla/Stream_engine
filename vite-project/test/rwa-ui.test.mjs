@@ -53,6 +53,7 @@ test("verifyAssetRecord still returns structured fallback results", () => {
     tokenId: "11",
     verificationCid: "bafyexamplecid",
     publicMetadata: { propertyRef: "plot-42-block-7" },
+    verificationStatus: "verified",
   };
 
   const result = verifyAssetRecord(
@@ -64,7 +65,7 @@ test("verifyAssetRecord still returns structured fallback results", () => {
     [asset],
   );
 
-  assert.equal(result.status, "legacy_verified");
+  assert.equal(result.status, "verified_with_warnings");
   assert.ok(Array.isArray(result.warnings));
   assert.ok(Array.isArray(result.failures));
   assert.ok(Array.isArray(result.requiredActions));
@@ -78,7 +79,7 @@ test("RWA page source exposes structured verification sections", async () => {
   assert.match(source, /Document Freshness/);
   assert.match(source, /Current Owner/);
   assert.match(source, /Claimable Yield/);
-  assert.match(source, /Pending Attestation/);
+  assert.match(source, /verificationStatusLabel/);
   assert.match(source, /Required attestation roles/);
 });
 

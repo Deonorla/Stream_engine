@@ -7,6 +7,7 @@ const {
     buildAttestationRevocationAuthorizationMessage,
     buildIssuerAuthorizationMessage,
 } = require("../services/issuerAuthorization");
+const { parseVerificationPayload } = require("../services/verificationPayload");
 const { EvidenceVaultService } = require("../services/evidenceVault");
 const { hashJson, hashText } = require("../services/rwaModel");
 
@@ -424,6 +425,8 @@ describe("RWA API Integration", function () {
         expect(response.body.publicMetadataURI).to.equal("ipfs://bafytestcid");
         expect(response.body.verificationStatus).to.equal("pending_attestation");
         expect(response.body.verificationPayload).to.be.a("string");
+        expect(parseVerificationPayload(response.body.verificationPayload).verificationStatus)
+            .to.equal("pending_attestation");
         expect(response.body.evidenceSummary.missingRequiredDocuments).to.deep.equal([]);
         expect(response.body.attestationRequirements).to.have.length(2);
         expect(response.body.asset.tokenId).to.equal(7);

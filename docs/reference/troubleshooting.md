@@ -16,6 +16,10 @@ Confirm the frontend is not relying on unsupported `eth_newFilter` subscriptions
 
 The asset is still using the old CID/tag model. Migrate it to the v2 evidence + attestation workflow.
 
+## RWA verify returns `verified_with_warnings`
+
+The frontend is likely using its cached registry snapshot because the backend verifier is unavailable. Start the backend with `npm run start:all` and re-run the verification flow to get live evidence and attestation checks.
+
 ## Native approval setup errors on Westend
 
 The wallet may only be exposing an EVM account. Native Westend approvals require the mapped Substrate account when the app uses the native approval path.

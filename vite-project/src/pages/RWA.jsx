@@ -982,10 +982,12 @@ function MintPanel({
                 <div className="mt-3 rounded-2xl bg-black/25 p-3 text-sm leading-6 text-white/72">
                   The mint step creates the verified rental twin in{" "}
                   <span className="font-semibold text-white">
-                    Pending Attestation
+                    {lastMint.verificationStatusLabel || "Pending Attestation"}
                   </span>{" "}
-                  state. Open the workspace next to record the required role
-                  attestations and move the asset toward verified status.
+                  state.
+                  {lastMint.attestationRequirements?.length
+                    ? " Open the workspace next to record the required role attestations and move the asset toward verified status."
+                    : " No required attestation policy is configured for this asset type, so the twin can already verify as a v2 asset."}
                 </div>
                 {lastMint.attestationRequirements?.length ? (
                   <div className="mt-3 rounded-2xl bg-black/25 p-3">
@@ -1003,10 +1005,19 @@ function MintPanel({
                       ))}
                     </div>
                   </div>
-                ) : null}
+                ) : (
+                  <div className="mt-3 rounded-2xl bg-black/25 p-3 text-sm text-white/72">
+                    This asset type currently has no mandatory attestation roles configured in the policy layer.
+                  </div>
+                )}
                 <div className="mt-3 rounded-2xl bg-black/25 p-3 font-mono text-xs text-white/70 break-all">
                   {lastMint.verificationPayload}
                 </div>
+                {lastMint.verificationUrl ? (
+                  <div className="mt-3 rounded-2xl bg-black/25 p-3 text-xs text-white/70 break-all">
+                    {lastMint.verificationUrl}
+                  </div>
+                ) : null}
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -2134,10 +2145,28 @@ function AssetWorkspacePanel({
               </div>
               <div className="rounded-2xl bg-black/20 p-4">
                 <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Evidence Manifest Hash
+                </div>
+                <div className="mt-2 break-all font-mono text-xs text-white/72">
+                  {asset.evidenceManifestHash || "Unavailable"}
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
                   Attestations
                 </div>
                 <div className="mt-2 text-sm text-white/82">
                   {asset.attestations?.length || 0} recorded
+                </div>
+              </div>
+              <div className="rounded-2xl bg-black/20 p-4">
+                <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                  Required Roles
+                </div>
+                <div className="mt-2 text-sm text-white/82">
+                  {asset.attestationRequirements?.length
+                    || asset.attestationPolicies?.filter((policy) => policy.required).length
+                    || 0} required
                 </div>
               </div>
               <div className="rounded-2xl bg-black/20 p-4">
@@ -3715,6 +3744,8 @@ export default function RWA() {
       asset.verificationPayload =
         response.verificationPayload || asset.verificationPayload;
       asset.verificationUrl = response.verificationUrl || asset.verificationUrl;
+      asset.verificationApiUrl =
+        response.verificationApiUrl || asset.verificationApiUrl;
       asset.evidenceSummary = response.evidenceSummary || asset.evidenceSummary;
 
       setSessionMints((current) => [

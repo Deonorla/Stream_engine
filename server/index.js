@@ -490,6 +490,21 @@ function createApp(config = defaultConfig) {
             await services.store.upsertAsset(snapshot);
         }
         const hydratedSnapshot = snapshot ? await hydrateAssetMetadata(services, snapshot) : null;
+        let attestationRequirements = collectAttestationRequirements(hydratedSnapshot || {});
+        let resolvedVerificationStatus = hydratedSnapshot?.verificationStatusLabel || "";
+        if (!resolvedVerificationStatus) {
+            const fallbackPolicies =
+                typeof chainService.getAttestationPolicies === "function"
+                    ? await chainService.getAttestationPolicies(assetType)
+                    : [];
+            attestationRequirements = collectAttestationRequirements({
+                attestationPolicies: fallbackPolicies,
+            });
+            resolvedVerificationStatus = attestationRequirements.length > 0
+                ? "pending_attestation"
+                : "verified";
+        }
+        const resolvedStatusReason = hydratedSnapshot?.statusReason || statusReason;
 
         const chainId = chainService.provider
             ? (await chainService.provider.getNetwork()).chainId
@@ -504,7 +519,7 @@ function createApp(config = defaultConfig) {
             propertyRefHash,
             evidenceRoot: evidenceRecord.evidenceRoot,
             rightsModel: normalizedRightsModel.label,
-            verificationStatus: "pending_attestation",
+            verificationStatus: resolvedVerificationStatus,
             signer: chainService.signer || null,
         });
         res.status(201).json({
@@ -514,14 +529,14 @@ function createApp(config = defaultConfig) {
             publicMetadataHash,
             evidenceRoot: evidenceRecord.evidenceRoot,
             evidenceManifestHash: evidenceRecord.evidenceManifestHash,
-            verificationStatus: hydratedSnapshot?.verificationStatusLabel || "pending_attestation",
-            statusReason: hydratedSnapshot?.statusReason || statusReason,
+            verificationStatus: resolvedVerificationStatus,
+            statusReason: resolvedStatusReason,
             verificationPayload,
             verificationUrl: buildVerificationUrl(resolvedConfig.appBaseUrl, verificationPayload),
             verificationApiUrl: `${resolvedConfig.appBaseUrl.replace(/5173$/, "3001")}/api/rwa/verify`,
             asset: hydratedSnapshot,
             evidenceSummary: evidenceRecord.evidenceSummary,
-            attestationRequirements: collectAttestationRequirements(hydratedSnapshot || {}),
+            attestationRequirements,
         });
     }));
 

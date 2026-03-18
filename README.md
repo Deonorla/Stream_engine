@@ -50,11 +50,12 @@ So Stream Engine does **not** replace `x402`. It makes `x402` economically usabl
 ### Rental RWAs
 
 - `FlowPayAssetNFT` mints the digital twin
-- `FlowPayRWAHub` binds asset identity, compliance, evidence roots, and yield streams
+- `FlowPayRWAHub` binds asset identity, compliance, evidence roots, verification state, and yield streams
 - `FlowPayAssetAttestationRegistry` records which roles attested to which evidence, when, and for how long
 - sanitized public metadata is pinned to IPFS and exposed as `ipfs://...`
 - raw deeds, tax files, and inspections remain private by default while their roots are anchored onchain
 - QR or NFC payloads now resolve into a structured trust verdict, not only a CID/tag consistency check
+- new twins can start as `pending_attestation` or `verified` depending on the attestation policy configured for that asset type
 
 ## Stack
 

@@ -646,7 +646,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       points: [
         {
           title: "Minting",
-          body: "The issuer chooses the rights model, prepares sanitized public metadata, anchors a private evidence bundle, signs the mint authorization, and then mints the rental twin.",
+          body: "The issuer chooses the rights model, prepares sanitized public metadata, anchors a private evidence bundle, signs the mint authorization, and then mints the rental twin. If the asset type has required attestation roles, the twin starts in Pending Attestation. If no role policy is configured, it can start verified immediately.",
         },
         {
           title: "Verification",
@@ -670,7 +670,8 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         "Choose the rights model for the asset: verified rental twin, beneficial interest, or revenue rights only.",
         "Prepare sanitized public metadata for IPFS and keep raw deeds, tax records, and inspections private.",
         "Anchor the private evidence bundle and its evidence root onchain.",
-        "Collect and record the required attestations for the asset type.",
+        "Mint the rental twin and read the signed v2 verification payload that comes back from the API.",
+        "If the asset type has required attestation roles, collect and record them to move from Pending Attestation to verified.",
         "Fund the asset-linked yield stream.",
         "Let renters stream payment for access while the owner keeps the NFT and revenue rights.",
       ],
@@ -972,7 +973,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "How the RWA half really works",
-          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer signs a mint authorization and anchors public metadata plus private evidence roots. Then required attestation roles are collected. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
+          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer signs a mint authorization and anchors public metadata plus private evidence roots. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
         },
         {
           title: "Why we only care about productive assets here",
@@ -1197,7 +1198,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             ],
             [
               "POST /api/rwa/assets",
-              "Mints a new verified rental twin and returns the v2 verification payload",
+              "Mints a new rental twin and returns the signed v2 verification payload plus the current verification state",
             ],
             [
               "POST /api/rwa/attestations",

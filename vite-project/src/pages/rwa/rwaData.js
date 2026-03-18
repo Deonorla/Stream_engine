@@ -288,6 +288,55 @@ function buildCid(id) {
   return `bafybeistreamenginerwa${id.toLowerCase()}metadata${id.toLowerCase()}`;
 }
 
+function encodeVerificationPayload(payload) {
+  const json = JSON.stringify(payload);
+  if (typeof Buffer !== 'undefined') {
+    return Buffer.from(json, 'utf8').toString('base64url');
+  }
+
+  const bytes = new TextEncoder().encode(json);
+  let binary = '';
+  bytes.forEach((value) => {
+    binary += String.fromCharCode(value);
+  });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function pseudoHash(seed) {
+  const normalized = Array.from(String(seed || '').trim() || 'stream-engine')
+    .map((char) => char.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('')
+    .slice(0, 64);
+  return `0x${normalized.padEnd(64, '0')}`;
+}
+
+function buildFallbackVerificationPayload({
+  tokenId,
+  verificationCid,
+  propertyRefHash,
+  publicMetadataHash,
+  evidenceRoot,
+  rightsModel = 'verified_rental_asset',
+  verificationStatus = 'verified',
+}) {
+  return encodeVerificationPayload({
+    version: 2,
+    chainId: 420420421,
+    assetContract: '0x0340b3f493bae901f740c494b2f7744f5fffe348',
+    tokenId: Number(tokenId),
+    publicMetadataURI: `ipfs://${verificationCid}`,
+    publicMetadataHash,
+    propertyRefHash,
+    evidenceRoot,
+    rightsModel,
+    verificationStatus,
+  });
+}
+
+function buildFallbackVerificationUrl(payload) {
+  return `https://app.streamengine.so/rwa/verify?payload=${encodeURIComponent(payload)}`;
+}
+
 function buildActivity(asset) {
   return [
     {
@@ -312,7 +361,19 @@ function enrichAsset(asset, index) {
   const verificationCid = buildCid(asset.id);
   const ipfsUri = `ipfs://${verificationCid}`;
   const tagSeed = `STREAMENGINE-${asset.id.toUpperCase()}-TAG`;
-  const verificationPayload = `https://app.streamengine.so/rwa/verify?tokenId=${asset.id}&cid=${verificationCid}&tag=${encodeURIComponent(tagSeed)}`;
+  const propertyRef = `STREAM-ASSET-${asset.id.toUpperCase()}`;
+  const propertyRefHash = pseudoHash(`property:${propertyRef}`);
+  const publicMetadataHash = pseudoHash(`metadata:${verificationCid}`);
+  const evidenceRoot = pseudoHash(`evidence:${asset.id}`);
+  const evidenceManifestHash = pseudoHash(`manifest:${asset.id}`);
+  const verificationPayload = buildFallbackVerificationPayload({
+    tokenId: asset.id,
+    verificationCid,
+    propertyRefHash,
+    publicMetadataHash,
+    evidenceRoot,
+    verificationStatus: 'verified',
+  });
   const activity = buildActivity(asset);
 
   return {
@@ -323,12 +384,71 @@ function enrichAsset(asset, index) {
     ipfsUri,
     tagSeed,
     verificationPayload,
+    verificationUrl: buildFallbackVerificationUrl(verificationPayload),
+    verificationApiUrl: 'http://localhost:3001/api/rwa/verify',
     activity,
-    status: 'Active',
+    status: 'Verified',
     completionRatio: 1,
     monthlyYieldTarget: Number((asset.pricePerHour * 24 * 30).toFixed(2)),
     ownerAddress: asset.assetAddress,
     renterAddress: index % 4 === 0 ? `0x${asset.id}${asset.id}${asset.id}`.slice(0, 10) : null,
+    rightsModel: 'verified_rental_asset',
+    rightsModelLabel: RIGHTS_MODEL_LABELS.verified_rental_asset,
+    verificationStatus: 'verified',
+    verificationStatusLabel: VERIFICATION_STATUS_LABELS.verified,
+    propertyRefHash,
+    publicMetadataHash,
+    evidenceRoot,
+    evidenceManifestHash,
+    verificationUpdatedAt: Math.floor(Date.now() / 1000) - (index + 1) * 3600,
+    publicMetadata: {
+      name: asset.name,
+      description: asset.description,
+      location: asset.location,
+      propertyRef,
+      tagSeed,
+      rightsModel: 'verified_rental_asset',
+      monthlyYieldTarget: Number((asset.pricePerHour * 24 * 30).toFixed(2)),
+      accessMechanism: asset.accessMechanism,
+    },
+    evidenceSummary: {
+      requiredDocuments: ['deed', 'survey', 'valuation', 'inspection', 'insurance', 'tax'],
+      presentDocuments: ['deed', 'survey', 'valuation', 'inspection', 'insurance', 'tax'],
+      missingRequiredDocuments: [],
+      documentCount: 6,
+      freshness: [
+        { key: 'deed', expired: false },
+        { key: 'survey', expired: false },
+        { key: 'valuation', expired: false },
+        { key: 'inspection', expired: false },
+        { key: 'insurance', expired: false },
+        { key: 'tax', expired: false },
+      ],
+    },
+    attestationPolicies: [
+      { role: 2, roleLabel: 'Lawyer', required: true, maxAge: 2592000 },
+      { role: 4, roleLabel: 'Inspector', required: true, maxAge: 2592000 },
+    ],
+    attestations: [
+      {
+        attestationId: index + 1,
+        role: 2,
+        roleLabel: 'Lawyer',
+        attestor: asset.assetAddress,
+        issuedAt: Math.floor(Date.now() / 1000) - (index + 1) * 86400,
+        expiry: Math.floor(Date.now() / 1000) + 1209600,
+        revoked: false,
+      },
+      {
+        attestationId: index + 101,
+        role: 4,
+        roleLabel: 'Inspector',
+        attestor: asset.assetAddress,
+        issuedAt: Math.floor(Date.now() / 1000) - (index + 2) * 86400,
+        expiry: Math.floor(Date.now() / 1000) + 1209600,
+        revoked: false,
+      },
+    ],
   };
 }
 
@@ -534,6 +654,7 @@ export function mapApiAssetToUiAsset(asset = {}) {
     tagSeed,
     verificationPayload: asset.verificationPayload || metadata.verificationPayload || '',
     verificationUrl: asset.verificationUrl || metadata.verificationUrl || '',
+    verificationApiUrl: asset.verificationApiUrl || metadata.verificationApiUrl || '',
     status: stream.isFrozen ? 'Frozen' : statusLabel,
     completionRatio: durationSeconds > 0 && stream.startTime ? Math.min(1, Math.max(0, (Date.now() / 1000 - Number(stream.startTime)) / durationSeconds)) : 0,
     monthlyYieldTarget,
@@ -562,6 +683,7 @@ export function mapApiAssetToUiAsset(asset = {}) {
     assetPolicy: asset.assetPolicy || null,
     propertyRefHash: asset.propertyRefHash || '',
     publicMetadataHash: asset.publicMetadataHash || '',
+    attestationRequirements: asset.attestationRequirements || [],
   };
 }
 
@@ -609,19 +731,67 @@ export function verifyAssetRecord({ payload, tokenId, cidOrUri, propertyRef }, a
   const propertyRefMatches =
     !resolvedPropertyRef || asset.publicMetadata?.propertyRef === resolvedPropertyRef;
   const authentic = cidMatches && propertyRefMatches;
+  const cachedStatus = String(asset.verificationStatus || 'verified').trim().toLowerCase();
+  const fallbackStatus = !authentic
+    ? 'mismatch'
+    : ['frozen', 'revoked', 'disputed', 'stale', 'pending_attestation', 'incomplete'].includes(cachedStatus)
+      ? cachedStatus
+      : 'verified_with_warnings';
+  const requiredRoles = asset.attestationPolicies
+    ?.filter((policy) => policy.required)
+    .map((policy) => policy.roleLabel) || [];
+  const presentRoles = asset.attestations?.filter((attestation) => !attestation.revoked)
+    .map((attestation) => attestation.roleLabel) || [];
+  const missingRoles = requiredRoles.filter((role) => !presentRoles.includes(role));
+  const staleDocuments = asset.evidenceSummary?.freshness
+    ?.filter((item) => item.expired)
+    .map((item) => item.key) || [];
+  const checks = [
+    {
+      key: 'asset_exists',
+      label: 'Asset exists in cached registry',
+      passed: true,
+      detail: 'The frontend found the asset in the local registry snapshot.',
+    },
+    {
+      key: 'cid_match',
+      label: 'Public metadata CID matches',
+      passed: cidMatches,
+      detail: cidMatches
+        ? 'The supplied CID matches the cached public metadata pointer.'
+        : 'The supplied CID does not match the cached public metadata pointer.',
+    },
+    {
+      key: 'property_ref_match',
+      label: 'Property reference matches',
+      passed: propertyRefMatches,
+      detail: propertyRefMatches
+        ? 'The supplied property reference matches the cached registry record.'
+        : 'The supplied property reference does not match the cached registry record.',
+    },
+  ];
 
   return {
     authentic,
     asset,
-    status: authentic ? 'legacy_verified' : 'legacy_incomplete',
-    statusLabel: authentic
-      ? VERIFICATION_STATUS_LABELS.legacy_verified
-      : VERIFICATION_STATUS_LABELS.legacy_incomplete,
-    checks: [],
-    warnings: ['Frontend fallback is using cached registry data only.'],
-    failures: authentic ? [] : ['At least one supplied verification field does not match the indexed registry record.'],
+    status: fallbackStatus,
+    statusLabel: VERIFICATION_STATUS_LABELS[fallbackStatus] || fallbackStatus,
+    checks,
+    warnings: authentic
+      ? ['Live backend verification is unavailable, so this result is based on the cached registry snapshot only.']
+      : ['Frontend fallback is using cached registry data only.'],
+    failures: authentic
+      ? []
+      : ['At least one supplied verification field does not match the indexed registry record.'],
     requiredActions: authentic
-      ? ['Reconnect the backend to run evidence and attestation checks against the full v2 verifier.']
+      ? [
+        ...(
+          fallbackStatus === 'pending_attestation'
+            ? ['Record the required attestations before promoting the asset to verified.']
+            : []
+        ),
+        'Reconnect the backend to run live evidence and attestation checks against the full v2 verifier.',
+      ]
       : ['Reconnect the backend and re-run verification against the live verifier.'],
     evidenceCoverage: asset.evidenceSummary || {
       requiredDocuments: [],
@@ -630,14 +800,16 @@ export function verifyAssetRecord({ payload, tokenId, cidOrUri, propertyRef }, a
       documentCount: 0,
     },
     attestationCoverage: {
-      requiredRoles: asset.attestationPolicies?.filter((policy) => policy.required).map((policy) => policy.roleLabel) || [],
-      presentRoles: asset.attestations?.map((attestation) => attestation.roleLabel) || [],
-      missingRoles: [],
+      requiredRoles,
+      presentRoles,
+      missingRoles,
       staleRoles: [],
     },
     documentFreshness: {
-      staleDocuments: [],
-      validDocuments: [],
+      staleDocuments,
+      validDocuments: asset.evidenceSummary?.freshness
+        ?.filter((item) => !item.expired)
+        .map((item) => item.key) || [],
     },
     reason: authentic
       ? 'The cached registry view matches the supplied identifiers, but live evidence and attestation checks still require the backend verifier.'
@@ -656,7 +828,19 @@ export function createMintedAsset(form, sequence = 0) {
   const verificationCid = buildCid(nextId);
   const tagSeed = (form.tagSeed || `STREAMENGINE-${nextId.toUpperCase()}-TAG`).trim();
   const ipfsUri = `ipfs://${verificationCid}`;
-  const verificationPayload = `https://app.streamengine.so/rwa/verify?tokenId=${nextId}&cid=${verificationCid}&tag=${encodeURIComponent(tagSeed)}`;
+  const propertyRef = form.propertyRef?.trim() || `STREAM-ASSET-${nextId.toUpperCase()}`;
+  const propertyRefHash = pseudoHash(`property:${propertyRef}`);
+  const publicMetadataHash = pseudoHash(`metadata:${verificationCid}`);
+  const evidenceRoot = pseudoHash(`evidence:${nextId}`);
+  const evidenceManifestHash = pseudoHash(`manifest:${nextId}`);
+  const verificationPayload = buildFallbackVerificationPayload({
+    tokenId: nextId,
+    verificationCid,
+    propertyRefHash,
+    publicMetadataHash,
+    evidenceRoot,
+    verificationStatus: 'pending_attestation',
+  });
 
   return {
     id: nextId,
@@ -675,12 +859,23 @@ export function createMintedAsset(form, sequence = 0) {
     ipfsUri,
     tagSeed,
     verificationPayload,
-    status: 'Ready',
+    verificationUrl: buildFallbackVerificationUrl(verificationPayload),
+    verificationApiUrl: 'http://localhost:3001/api/rwa/verify',
+    status: 'Pending Attestation',
     completionRatio: 0,
     monthlyYieldTarget,
     imageUrl: form.imageUrl.trim(),
     ownerAddress: assetAddress,
     renterAddress: null,
+    rightsModel: form.rightsModel || 'verified_rental_asset',
+    rightsModelLabel: RIGHTS_MODEL_LABELS[form.rightsModel || 'verified_rental_asset'] || 'Verified Rental Twin',
+    verificationStatus: 'pending_attestation',
+    verificationStatusLabel: VERIFICATION_STATUS_LABELS.pending_attestation,
+    propertyRefHash,
+    publicMetadataHash,
+    evidenceRoot,
+    evidenceManifestHash,
+    verificationUpdatedAt: Math.floor(Date.now() / 1000),
     activity: [
       {
         label: 'Studio draft created',
@@ -694,7 +889,7 @@ export function createMintedAsset(form, sequence = 0) {
       },
       {
         label: 'Verification payload generated',
-        detail: `QR / NFC binding seed ${tagSeed} is ready for sharing.`,
+        detail: `Signed-style v2 verification payload and QR / NFC binding seed ${tagSeed} are ready for sharing.`,
         timestamp: 'Just now',
       },
     ],
