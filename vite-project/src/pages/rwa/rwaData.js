@@ -300,9 +300,7 @@ function encodeVerificationPayload(payload) {
 
   const bytes = new TextEncoder().encode(json);
   let binary = '';
-  bytes.forEach((value) => {
-    binary += String.fromCharCode(value);
-  });
+  bytes.forEach((value) => { binary += String.fromCharCode(value); });
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
