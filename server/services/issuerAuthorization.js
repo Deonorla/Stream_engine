@@ -30,6 +30,17 @@ function buildAttestationAuthorizationMessage(payload = {}) {
     ].join("\n");
 }
 
+function buildAttestationRevocationAuthorizationMessage(payload = {}) {
+    return [
+        "Stream Engine RWA Attestation Revocation Authorization",
+        `attestationId:${payload.attestationId || ""}`,
+        `attestor:${String(payload.attestor || "").toLowerCase()}`,
+        `reason:${payload.reason || ""}`,
+        `issuedAt:${payload.issuedAt || ""}`,
+        `nonce:${payload.nonce || ""}`,
+    ].join("\n");
+}
+
 async function verifyAuthorizationMessage({
     expectedSigner,
     signature,
@@ -169,9 +180,40 @@ async function verifyAttestationAuthorization({
     });
 }
 
+async function verifyAttestationRevocationAuthorization({
+    attestationId,
+    attestor,
+    reason,
+    revocationAuthorization,
+    attestorSignature,
+}) {
+    const authorization = revocationAuthorization || {};
+    const signature = attestorSignature || authorization.signature;
+    const issuedAt = authorization.issuedAt || "";
+    const nonce = authorization.nonce || "";
+
+    const message = buildAttestationRevocationAuthorizationMessage({
+        attestationId,
+        attestor,
+        reason,
+        issuedAt,
+        nonce,
+    });
+
+    return verifyAuthorizationMessage({
+        expectedSigner: attestor,
+        signature,
+        authorization,
+        message,
+        missingSignatureReason: "attestorSignature is required",
+    });
+}
+
 module.exports = {
     buildIssuerAuthorizationMessage,
     buildAttestationAuthorizationMessage,
+    buildAttestationRevocationAuthorizationMessage,
     verifyIssuerAuthorization,
     verifyAttestationAuthorization,
+    verifyAttestationRevocationAuthorization,
 };

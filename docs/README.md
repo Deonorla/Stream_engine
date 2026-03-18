@@ -19,12 +19,13 @@ Stream Engine is an x402-compatible payment and settlement stack for AI agents a
 - how reusable payment streams reduce agent payment overhead
 - how the Westend deployment is configured
 - how the SDK, middleware, and contracts fit together
-- how rental RWA minting, verification, and yield streaming work
+- how rental RWA minting, evidence anchoring, attestation, verification, and yield streaming work
 
 ## Recommended Reading Order
 
 1. [Getting Started](getting-started/README.md)
 2. [Architecture Overview](architecture/README.md)
 3. [Smart Contracts](contracts/README.md)
-4. [SDK Reference](sdk/README.md)
-5. [Deployment](deployment/README.md)
+4. [API Reference](api/README.md)
+5. [SDK Reference](sdk/README.md)
+6. [Deployment](deployment/README.md)

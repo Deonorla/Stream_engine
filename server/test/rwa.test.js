@@ -4,6 +4,7 @@ const { ethers } = require("ethers");
 const createApp = require("../index");
 const {
     buildAttestationAuthorizationMessage,
+    buildAttestationRevocationAuthorizationMessage,
     buildIssuerAuthorizationMessage,
 } = require("../services/issuerAuthorization");
 const { EvidenceVaultService } = require("../services/evidenceVault");
@@ -83,6 +84,27 @@ describe("RWA API Integration", function () {
         return {
             issuedAt: "2026-03-18T00:00:00Z",
             nonce: "attest-7",
+            signatureType: "evm",
+            signature: await issuerWallet.signMessage(message),
+        };
+    }
+
+    async function buildAttestationRevocationAuthorization({
+        attestationId = 1,
+        attestor = issuerWallet.address,
+        reason = "title opinion superseded",
+    } = {}) {
+        const message = buildAttestationRevocationAuthorizationMessage({
+            attestationId,
+            attestor,
+            reason,
+            issuedAt: "2026-03-18T00:00:00Z",
+            nonce: "revoke-7",
+        });
+
+        return {
+            issuedAt: "2026-03-18T00:00:00Z",
+            nonce: "revoke-7",
             signatureType: "evm",
             signature: await issuerWallet.signMessage(message),
         };
@@ -279,6 +301,11 @@ describe("RWA API Integration", function () {
                     async revokeAttestation() {
                         store.asset.attestations[0].revoked = true;
                         return { txHash: "0xrevoke" };
+                    },
+                    async getAttestationRecord(attestationId) {
+                        return store.asset?.attestations?.find(
+                            (item) => Number(item.attestationId) === Number(attestationId)
+                        ) || null;
                     },
                     async getAssetSnapshot() {
                         return store.asset;
@@ -558,6 +585,170 @@ describe("RWA API Integration", function () {
         expect(legacyResponse.body.warnings[0]).to.match(/Legacy v1 asset/i);
     });
 
+    it("returns stale, incomplete, revoked, and mismatch states for v2 assets", async function () {
+        const services = await app.locals.ready;
+        const evidenceRecord = await services.evidenceVault.storeBundle(baseEvidenceBundle, {
+            rightsModel: "verified_rental_asset",
+            propertyRef: "plot-42-block-7",
+            jurisdiction: "NG-LA",
+        });
+        ipfsPins.set("bafytestcid", basePublicMetadata);
+
+        const baseAsset = {
+            tokenId: 7,
+            schemaVersion: 2,
+            assetType: 1,
+            rightsModel: 1,
+            rightsModelLabel: "verified_rental_asset",
+            verificationStatus: 2,
+            verificationStatusLabel: "verified",
+            cidHash: hashText("ipfs://bafytestcid"),
+            tagHash: hashText("tag-7"),
+            issuer: issuerWallet.address,
+            activeStreamId: 0,
+            propertyRefHash: hashText("plot-42-block-7"),
+            publicMetadataHash: hashJson(basePublicMetadata),
+            evidenceRoot: evidenceRecord.evidenceRoot,
+            evidenceManifestHash: evidenceRecord.evidenceManifestHash,
+            publicMetadataURI: "ipfs://bafytestcid",
+            metadataURI: "ipfs://bafytestcid",
+            tokenURI: "ipfs://bafytestcid",
+            jurisdiction: "NG-LA",
+            statusReason: "verified and rentable",
+            createdAt: 1710720000,
+            updatedAt: 1710720000,
+            verificationUpdatedAt: 1710720000,
+            exists: true,
+            currentOwner: issuerWallet.address,
+            claimableYield: "0",
+            stream: {
+                streamId: 0,
+                sender: issuerWallet.address,
+                assetType: 1,
+                totalAmount: "0",
+                flowRate: "0",
+                startTime: 0,
+                stopTime: 0,
+                amountWithdrawn: "0",
+                isActive: false,
+                isFrozen: false,
+            },
+            compliance: {
+                approved: true,
+                expiry: 1710806400,
+                jurisdiction: "NG-LA",
+                currentlyValid: true,
+            },
+            assetPolicy: {
+                frozen: false,
+                disputed: false,
+                revoked: false,
+                updatedAt: 1710720000,
+                updatedBy: backendSigner.address,
+                reason: "",
+            },
+            attestationPolicies: [
+                { role: 2, roleLabel: "lawyer", required: true, maxAge: 86400 },
+                { role: 4, roleLabel: "inspector", required: true, maxAge: 86400 },
+            ],
+            attestations: [
+                {
+                    attestationId: 1,
+                    tokenId: 7,
+                    role: 2,
+                    roleLabel: "lawyer",
+                    attestor: backendSigner.address,
+                    evidenceHash: "0xdeed",
+                    statementType: "title_review_complete",
+                    issuedAt: Math.floor(Date.now() / 1000),
+                    expiry: 0,
+                    revoked: false,
+                    revocationReason: "",
+                },
+                {
+                    attestationId: 2,
+                    tokenId: 7,
+                    role: 4,
+                    roleLabel: "inspector",
+                    attestor: backendSigner.address,
+                    evidenceHash: "0xinspection",
+                    statementType: "inspection_current",
+                    issuedAt: Math.floor(Date.now() / 1000),
+                    expiry: 0,
+                    revoked: false,
+                    revocationReason: "",
+                },
+            ],
+        };
+
+        store.asset = {
+            ...baseAsset,
+            attestations: [
+                {
+                    ...baseAsset.attestations[0],
+                    issuedAt: Math.floor(Date.now() / 1000) - (3 * 86400),
+                },
+                baseAsset.attestations[1],
+            ],
+        };
+
+        const staleResponse = await request(app)
+            .post("/api/rwa/verify")
+            .send({
+                tokenId: 7,
+                publicMetadataURI: "ipfs://bafytestcid",
+                propertyRef: "plot-42-block-7",
+            });
+        expect(staleResponse.status).to.equal(200);
+        expect(staleResponse.body.status).to.equal("stale");
+
+        store.asset = {
+            ...baseAsset,
+            attestations: [baseAsset.attestations[0]],
+        };
+
+        const incompleteResponse = await request(app)
+            .post("/api/rwa/verify")
+            .send({
+                tokenId: 7,
+                publicMetadataURI: "ipfs://bafytestcid",
+                propertyRef: "plot-42-block-7",
+            });
+        expect(incompleteResponse.status).to.equal(200);
+        expect(incompleteResponse.body.status).to.equal("incomplete");
+
+        store.asset = {
+            ...baseAsset,
+            verificationStatusLabel: "revoked",
+            assetPolicy: {
+                ...baseAsset.assetPolicy,
+                revoked: true,
+                reason: "title withdrawn",
+            },
+        };
+
+        const revokedResponse = await request(app)
+            .post("/api/rwa/verify")
+            .send({
+                tokenId: 7,
+                publicMetadataURI: "ipfs://bafytestcid",
+                propertyRef: "plot-42-block-7",
+            });
+        expect(revokedResponse.status).to.equal(200);
+        expect(revokedResponse.body.status).to.equal("revoked");
+
+        store.asset = baseAsset;
+        const mismatchResponse = await request(app)
+            .post("/api/rwa/verify")
+            .send({
+                tokenId: 7,
+                publicMetadataURI: "ipfs://bafytestcid",
+                propertyRef: "wrong-property-ref",
+            });
+        expect(mismatchResponse.status).to.equal(200);
+        expect(mismatchResponse.body.status).to.equal("mismatch");
+    });
+
     it("registers attestations only when the attestor signed the request", async function () {
         store.asset = {
             ...(store.asset || {}),
@@ -583,5 +774,44 @@ describe("RWA API Integration", function () {
         expect(response.body.action).to.equal("register");
         expect(response.body.role).to.equal("lawyer");
         expect(response.body.attestationId).to.equal(3);
+    });
+
+    it("revokes attestations only when the attestor signed the revocation request", async function () {
+        store.asset = {
+            ...(store.asset || {}),
+            tokenId: 7,
+            schemaVersion: 2,
+            attestationPolicies: [],
+            attestations: [
+                {
+                    attestationId: 1,
+                    tokenId: 7,
+                    role: 2,
+                    roleLabel: "lawyer",
+                    attestor: issuerWallet.address,
+                    evidenceHash: "0xdeed",
+                    statementType: "title_review_complete",
+                    issuedAt: Math.floor(Date.now() / 1000),
+                    expiry: 0,
+                    revoked: false,
+                    revocationReason: "",
+                },
+            ],
+        };
+
+        const authorization = await buildAttestationRevocationAuthorization();
+        const response = await request(app)
+            .post("/api/rwa/attestations")
+            .send({
+                action: "revoke",
+                attestationId: 1,
+                reason: "title opinion superseded",
+                revocationAuthorization: authorization,
+            });
+
+        expect(response.status).to.equal(200);
+        expect(response.body.action).to.equal("revoke");
+        expect(response.body.attestationId).to.equal(1);
+        expect(store.asset.attestations[0].revoked).to.equal(true);
     });
 });

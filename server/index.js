@@ -14,6 +14,7 @@ const { RWAChainService } = require("./services/rwaChainService");
 const { EvidenceVaultService } = require("./services/evidenceVault");
 const {
     verifyAttestationAuthorization,
+    verifyAttestationRevocationAuthorization,
     verifyIssuerAuthorization,
 } = require("./services/issuerAuthorization");
 const { evaluateVerification } = require("./services/rwaVerification");
@@ -556,6 +557,22 @@ function createApp(config = defaultConfig) {
         if (action === "revoke") {
             if (!attestationId) {
                 return res.status(400).json({ error: "attestationId is required for revoke" });
+            }
+            const existingAttestation = await chainService.getAttestationRecord(Number(attestationId));
+            if (!existingAttestation) {
+                return res.status(404).json({ error: "attestation not found" });
+            }
+            const authorizationResult = await verifyAttestationRevocationAuthorization({
+                attestationId: Number(attestationId),
+                attestor: existingAttestation.attestor,
+                reason,
+                revocationAuthorization: req.body?.revocationAuthorization,
+                attestorSignature: req.body?.attestorSignature,
+            });
+            if (!authorizationResult.valid) {
+                return res.status(400).json({
+                    error: authorizationResult.reason || "invalid attestation revocation authorization",
+                });
             }
             const result = await chainService.revokeAttestation({
                 attestationId,

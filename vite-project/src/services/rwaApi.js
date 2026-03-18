@@ -68,6 +68,16 @@ export async function submitRwaAttestation(payload) {
   });
 }
 
+export async function revokeRwaAttestation(payload) {
+  return request('/api/rwa/attestations', {
+    method: 'POST',
+    body: JSON.stringify({
+      action: 'revoke',
+      ...payload,
+    }),
+  });
+}
+
 export async function verifyRwaAsset(payload) {
   return request('/api/rwa/verify', {
     method: 'POST',

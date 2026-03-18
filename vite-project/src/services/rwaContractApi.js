@@ -17,8 +17,13 @@ const HUB_ABI = [
   'function flashAdvance(uint256 tokenId, uint256 amount) external',
   'function claimableYield(uint256 tokenId) external view returns (uint256)',
   'function setCompliance(address user, uint8 assetType, bool approved, uint64 expiry, string jurisdiction) external',
+  'function setIssuerApproval(address issuer, bool approved, string note) external',
+  'function setAttestationPolicy(uint8 assetType, uint8 role, bool required, uint64 maxAge) external',
   'function freezeStream(uint256 streamId, bool frozen, string reason) external',
+  'function setAssetPolicy(uint256 tokenId, bool frozen, bool disputed, bool revoked, string reason) external',
+  'function setVerificationStatus(uint256 tokenId, uint8 status, string reason) external',
   'function updateAssetMetadata(uint256 tokenId, string metadataURI, bytes32 cidHash) external',
+  'function updateAssetEvidence(uint256 tokenId, bytes32 evidenceRoot, bytes32 evidenceManifestHash) external',
   'function updateVerificationTag(uint256 tokenId, bytes32 tagHash) external',
 ];
 
@@ -190,6 +195,109 @@ export async function setAssetStreamFreeze({ signer, substrateSession, hubAddres
   return tx.wait();
 }
 
+export async function setAssetIssuerApproval({
+  signer,
+  substrateSession,
+  hubAddress,
+  issuer,
+  approved,
+  note,
+}) {
+  requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'setIssuerApproval',
+      args: [issuer, approved, note],
+    });
+  }
+
+  const hub = new Contract(hubAddress, HUB_ABI, signer);
+  const tx = await hub.setIssuerApproval(issuer, approved, note);
+  return tx.wait();
+}
+
+export async function setAssetAttestationPolicy({
+  signer,
+  substrateSession,
+  hubAddress,
+  assetType,
+  role,
+  required,
+  maxAge,
+}) {
+  requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'setAttestationPolicy',
+      args: [assetType, role, required, maxAge],
+    });
+  }
+
+  const hub = new Contract(hubAddress, HUB_ABI, signer);
+  const tx = await hub.setAttestationPolicy(assetType, role, required, maxAge);
+  return tx.wait();
+}
+
+export async function setAssetPolicyOnChain({
+  signer,
+  substrateSession,
+  hubAddress,
+  tokenId,
+  frozen,
+  disputed,
+  revoked,
+  reason,
+}) {
+  requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'setAssetPolicy',
+      args: [tokenId, frozen, disputed, revoked, reason],
+    });
+  }
+
+  const hub = new Contract(hubAddress, HUB_ABI, signer);
+  const tx = await hub.setAssetPolicy(tokenId, frozen, disputed, revoked, reason);
+  return tx.wait();
+}
+
+export async function setAssetVerificationStatus({
+  signer,
+  substrateSession,
+  hubAddress,
+  tokenId,
+  status,
+  reason,
+}) {
+  requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'setVerificationStatus',
+      args: [tokenId, status, reason],
+    });
+  }
+
+  const hub = new Contract(hubAddress, HUB_ABI, signer);
+  const tx = await hub.setVerificationStatus(tokenId, status, reason);
+  return tx.wait();
+}
+
 export async function updateAssetMetadataOnChain({ signer, substrateSession, hubAddress, tokenId, metadataURI }) {
   requireAddress('RWA hub address', hubAddress);
   requireWriteWallet({ signer, substrateSession });
@@ -205,6 +313,31 @@ export async function updateAssetMetadataOnChain({ signer, substrateSession, hub
 
   const hub = new Contract(hubAddress, HUB_ABI, signer);
   const tx = await hub.updateAssetMetadata(tokenId, metadataURI, hashText(metadataURI));
+  return tx.wait();
+}
+
+export async function updateAssetEvidenceOnChain({
+  signer,
+  substrateSession,
+  hubAddress,
+  tokenId,
+  evidenceRoot,
+  evidenceManifestHash,
+}) {
+  requireAddress('RWA hub address', hubAddress);
+  requireWriteWallet({ signer, substrateSession });
+
+  if (hasNativeSubstrateSession(substrateSession)) {
+    return substrateCallContract(substrateSession, {
+      contractAddress: hubAddress,
+      abi: HUB_ABI,
+      functionName: 'updateAssetEvidence',
+      args: [tokenId, evidenceRoot, evidenceManifestHash],
+    });
+  }
+
+  const hub = new Contract(hubAddress, HUB_ABI, signer);
+  const tx = await hub.updateAssetEvidence(tokenId, evidenceRoot, evidenceManifestHash);
   return tx.wait();
 }
 

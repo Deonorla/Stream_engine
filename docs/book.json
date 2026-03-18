@@ -1,7 +1,7 @@
 {
-  "title": "FlowPay Documentation",
-  "description": "The Streaming Extension for x402 - AI Agent Payment Protocol",
-  "author": "FlowPay Team",
+  "title": "Stream Engine Documentation",
+  "description": "x402-compatible agent payments plus productive RWA verification on Westend Asset Hub",
+  "author": "Stream Engine Team",
   "language": "en",
   "gitbook": ">=3.0.0",
   "links": {

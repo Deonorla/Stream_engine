@@ -431,6 +431,41 @@ class RWAChainService {
         return items;
     }
 
+    async getAttestationRecord(attestationId) {
+        if (!this.hubAddress) {
+            return null;
+        }
+
+        let attestation;
+        try {
+            attestation = await this.readContract(
+                this.hubAddress,
+                this.hubAbi,
+                "getAttestation",
+                [attestationId]
+            );
+        } catch (error) {
+            return null;
+        }
+        if (!toNumber(attestation.tokenId)) {
+            return null;
+        }
+
+        return {
+            attestationId: toNumber(attestationId),
+            tokenId: toNumber(attestation.tokenId),
+            role: toNumber(attestation.role),
+            roleLabel: codeToAttestationRole(attestation.role),
+            attestor: attestation.attestor,
+            evidenceHash: attestation.evidenceHash,
+            statementType: attestation.statementType,
+            issuedAt: toNumber(attestation.issuedAt),
+            expiry: toNumber(attestation.expiry),
+            revoked: Boolean(attestation.revoked),
+            revocationReason: attestation.revocationReason,
+        };
+    }
+
     async getAssetSnapshot(tokenId) {
         if (!this.isConfigured()) {
             throw new Error("RWAChainService: contracts are not configured");

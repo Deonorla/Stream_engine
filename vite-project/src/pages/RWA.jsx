@@ -29,6 +29,7 @@ import {
   fetchRwaActivity,
   mintRwaAsset,
   pinRwaMetadata,
+  revokeRwaAttestation,
   storeRwaEvidence,
   submitRwaAttestation,
   verifyRwaAsset,
@@ -40,8 +41,13 @@ import {
   flashAdvanceAssetYield,
   parseTokenAmount,
   readClaimableYield,
+  setAssetAttestationPolicy,
   setAssetCompliance,
+  setAssetIssuerApproval,
+  setAssetPolicyOnChain,
   setAssetStreamFreeze,
+  setAssetVerificationStatus,
+  updateAssetEvidenceOnChain,
   updateAssetMetadataOnChain,
   updateAssetVerificationTag,
 } from "../services/rwaContractApi";
@@ -71,6 +77,27 @@ const ATTESTATION_ROLE_OPTIONS = [
   "valuer",
   "insurer",
   "compliance",
+];
+
+const ATTESTATION_ROLE_CODES = {
+  issuer: 1,
+  lawyer: 2,
+  registrar: 3,
+  inspector: 4,
+  valuer: 5,
+  insurer: 6,
+  compliance: 7,
+};
+
+const ONCHAIN_VERIFICATION_STATUS_OPTIONS = [
+  "draft",
+  "pending_attestation",
+  "verified",
+  "verified_with_warnings",
+  "stale",
+  "frozen",
+  "revoked",
+  "disputed",
 ];
 
 const STUDIO_TABS = [
@@ -248,6 +275,23 @@ function buildAttestationAuthorizationMessage({
     `evidenceHash:${evidenceHash || ""}`,
     `statementType:${statementType || ""}`,
     `expiry:${expiry || 0}`,
+    `issuedAt:${issuedAt || ""}`,
+    `nonce:${nonce || ""}`,
+  ].join("\n");
+}
+
+function buildAttestationRevocationAuthorizationMessage({
+  attestationId,
+  attestor,
+  reason,
+  issuedAt,
+  nonce,
+}) {
+  return [
+    "Stream Engine RWA Attestation Revocation Authorization",
+    `attestationId:${attestationId || ""}`,
+    `attestor:${String(attestor || "").toLowerCase()}`,
+    `reason:${reason || ""}`,
     `issuedAt:${issuedAt || ""}`,
     `nonce:${nonce || ""}`,
   ].join("\n");
@@ -1222,9 +1266,33 @@ function VerifyPanel({
                           {result.evidenceCoverage.documentCount} documents
                         </div>
                       </div>
+                      <div className="rounded-2xl bg-black/20 p-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Current Owner
+                        </div>
+                        <div className="mt-2 break-all font-mono text-xs text-white/82">
+                          {result.asset.currentOwner || "Unavailable"}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Active Stream
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white/82">
+                          {result.asset.activeStreamId || 0}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-3">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Claimable Yield
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-white/82">
+                          {Number(result.asset.yieldBalance || 0).toFixed(4)} {paymentTokenSymbol}
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                       <div className="rounded-2xl bg-black/20 p-4">
                         <div className="text-xs uppercase tracking-[0.18em] text-white/45">
                           Missing Evidence
@@ -1254,9 +1322,60 @@ function VerifyPanel({
                           )}
                         </div>
                       </div>
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Asset Policy
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          <div>Frozen: {result.asset.assetPolicy?.frozen ? "Yes" : "No"}</div>
+                          <div>Disputed: {result.asset.assetPolicy?.disputed ? "Yes" : "No"}</div>
+                          <div>Revoked: {result.asset.assetPolicy?.revoked ? "Yes" : "No"}</div>
+                          <div>Reason: {result.asset.assetPolicy?.reason || "No policy note."}</div>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="mt-5 grid gap-3 md:grid-cols-2">
+                    <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Checks
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.checks.length ? (
+                            result.checks.map((check) => (
+                              <div key={check.key}>
+                                <span className={check.passed ? "text-emerald-300" : "text-amber-300"}>
+                                  {check.passed ? "Pass" : "Fail"}
+                                </span>{" "}
+                                {check.label}
+                              </div>
+                            ))
+                          ) : (
+                            <div>No explicit checks returned.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl bg-black/20 p-4">
+                        <div className="text-xs uppercase tracking-[0.18em] text-white/45">
+                          Document Freshness
+                        </div>
+                        <div className="mt-3 space-y-2 text-sm text-white/72">
+                          {result.documentFreshness.staleDocuments?.length ? (
+                            result.documentFreshness.staleDocuments.map((item) => (
+                              <div key={item} className="text-amber-300">
+                                Stale: {item}
+                              </div>
+                            ))
+                          ) : (
+                            <div>No stale documents.</div>
+                          )}
+                          {result.documentFreshness.validDocuments?.length ? (
+                            result.documentFreshness.validDocuments.map((item) => (
+                              <div key={item}>Valid: {item}</div>
+                            ))
+                          ) : null}
+                        </div>
+                      </div>
                       <div className="rounded-2xl bg-black/20 p-4">
                         <div className="text-xs uppercase tracking-[0.18em] text-white/45">
                           Warnings
@@ -1711,6 +1830,7 @@ function AssetWorkspacePanel({
   claimableYieldDisplay,
   actionState,
   hasContractControls,
+  hasFundingControls,
   controllerAddress,
   onRefresh,
   onOpenVerify,
@@ -1719,8 +1839,14 @@ function AssetWorkspacePanel({
   onClaimYield,
   onFlashAdvance,
   onSubmitAttestation,
+  onRevokeAttestation,
   onSetCompliance,
+  onSetVerificationStatus,
+  onSetAssetPolicy,
+  onSetIssuerApproval,
+  onSetAttestationPolicy,
   onFreezeStream,
+  onUpdateEvidence,
   onUpdateMetadata,
   onUpdateTag,
 }) {
@@ -1735,6 +1861,30 @@ function AssetWorkspacePanel({
   const [freezeForm, setFreezeForm] = useState({ frozen: false, reason: "" });
   const [metadataUri, setMetadataUri] = useState("");
   const [tagValue, setTagValue] = useState("");
+  const [verificationFormState, setVerificationFormState] = useState({
+    status: "pending_attestation",
+    reason: "",
+  });
+  const [assetPolicyForm, setAssetPolicyForm] = useState({
+    frozen: false,
+    disputed: false,
+    revoked: false,
+    reason: "",
+  });
+  const [issuerApprovalForm, setIssuerApprovalForm] = useState({
+    issuer: "",
+    approved: true,
+    note: "",
+  });
+  const [attestationPolicyForm, setAttestationPolicyForm] = useState({
+    role: "lawyer",
+    required: true,
+    maxAgeDays: "30",
+  });
+  const [evidenceForm, setEvidenceForm] = useState({
+    evidenceRoot: "",
+    evidenceManifestHash: "",
+  });
   const [attestationForm, setAttestationForm] = useState({
     role: "lawyer",
     attestor: "",
@@ -1742,6 +1892,7 @@ function AssetWorkspacePanel({
     statementType: "title_review_complete",
     expiry: "",
   });
+  const [revokeReasons, setRevokeReasons] = useState({});
 
   useEffect(() => {
     if (!asset) {
@@ -1762,6 +1913,33 @@ function AssetWorkspacePanel({
     });
     setMetadataUri(asset.ipfsUri || "");
     setTagValue(asset.tagSeed || "");
+    setVerificationFormState({
+      status: asset.verificationStatus || "pending_attestation",
+      reason: asset.statusReason || "",
+    });
+    setAssetPolicyForm({
+      frozen: Boolean(asset.assetPolicy?.frozen),
+      disputed: Boolean(asset.assetPolicy?.disputed),
+      revoked: Boolean(asset.assetPolicy?.revoked),
+      reason: asset.assetPolicy?.reason || "",
+    });
+    setIssuerApprovalForm({
+      issuer: asset.issuerAddress || asset.currentOwner || "",
+      approved: asset.compliance?.approved ?? true,
+      note: "",
+    });
+    const defaultPolicy = asset.attestationPolicies?.[0];
+    setAttestationPolicyForm({
+      role: defaultPolicy?.roleLabel || "lawyer",
+      required: defaultPolicy?.required ?? true,
+      maxAgeDays: defaultPolicy?.maxAge
+        ? String(Math.max(1, Math.round(Number(defaultPolicy.maxAge) / 86400)))
+        : "30",
+    });
+    setEvidenceForm({
+      evidenceRoot: asset.evidenceRoot || "",
+      evidenceManifestHash: asset.evidenceManifestHash || "",
+    });
     setAttestationForm({
       role: "lawyer",
       attestor: controllerAddress || asset.currentOwner || asset.ownerAddress || "",
@@ -1808,6 +1986,14 @@ function AssetWorkspacePanel({
       evidenceHash: "",
       statementType: "title_review_complete",
       expiry: "",
+    }));
+  };
+
+  const handleRevokeAttestation = async (attestationId) => {
+    await onRevokeAttestation(asset, attestationId, revokeReasons[attestationId] || "");
+    setRevokeReasons((current) => ({
+      ...current,
+      [attestationId]: "",
     }));
   };
 
@@ -2054,7 +2240,7 @@ function AssetWorkspacePanel({
                   type="button"
                   className="btn-primary justify-center"
                   onClick={() => onFundYieldStream(asset, fundForm)}
-                  disabled={actionState.funding || !hasContractControls}
+                  disabled={actionState.funding || !hasFundingControls}
                 >
                   {actionState.funding ? "Funding..." : "Fund stream"}
                 </button>
@@ -2231,6 +2417,33 @@ function AssetWorkspacePanel({
                           Expiry: {attestation.expiry ? formatTimestamp(attestation.expiry) : "No expiry"}
                         </div>
                       </div>
+                      {!attestation.revoked ? (
+                        <div className="mt-4 space-y-3">
+                          <input
+                            className="input-default w-full"
+                            value={revokeReasons[attestation.attestationId] || ""}
+                            onChange={(event) =>
+                              setRevokeReasons((current) => ({
+                                ...current,
+                                [attestation.attestationId]: event.target.value,
+                              }))
+                            }
+                            placeholder="Revocation reason"
+                          />
+                          <button
+                            type="button"
+                            className="btn-default w-full justify-center"
+                            onClick={() => handleRevokeAttestation(attestation.attestationId)}
+                            disabled={
+                              actionState.revokeAttestation || !hasContractControls
+                            }
+                          >
+                            {actionState.revokeAttestation
+                              ? "Revoking..."
+                              : "Revoke attestation"}
+                          </button>
+                        </div>
+                      ) : null}
                       {attestation.revocationReason ? (
                         <div className="mt-3 text-xs text-amber-300">
                           Revocation reason: {attestation.revocationReason}
@@ -2356,6 +2569,255 @@ function AssetWorkspacePanel({
                   {actionState.freeze
                     ? "Submitting..."
                     : "Update stream freeze"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Verification Status
+                </div>
+                <select
+                  className="input-default w-full"
+                  value={verificationFormState.status}
+                  onChange={(event) =>
+                    setVerificationFormState((current) => ({
+                      ...current,
+                      status: event.target.value,
+                    }))
+                  }
+                >
+                  {ONCHAIN_VERIFICATION_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {VERIFICATION_STATUS_LABELS[status] || status}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="input-default w-full"
+                  value={verificationFormState.reason}
+                  onChange={(event) =>
+                    setVerificationFormState((current) => ({
+                      ...current,
+                      reason: event.target.value,
+                    }))
+                  }
+                  placeholder="Reason for the verification state"
+                />
+                <button
+                  type="button"
+                  className="btn-default w-full justify-center"
+                  onClick={() => onSetVerificationStatus(asset, verificationFormState)}
+                  disabled={actionState.verificationStatus || !hasContractControls}
+                >
+                  {actionState.verificationStatus ? "Updating..." : "Set verification status"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Asset Policy
+                </div>
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={assetPolicyForm.frozen}
+                    onChange={(event) =>
+                      setAssetPolicyForm((current) => ({
+                        ...current,
+                        frozen: event.target.checked,
+                      }))
+                    }
+                  />
+                  Frozen
+                </label>
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={assetPolicyForm.disputed}
+                    onChange={(event) =>
+                      setAssetPolicyForm((current) => ({
+                        ...current,
+                        disputed: event.target.checked,
+                      }))
+                    }
+                  />
+                  Disputed
+                </label>
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={assetPolicyForm.revoked}
+                    onChange={(event) =>
+                      setAssetPolicyForm((current) => ({
+                        ...current,
+                        revoked: event.target.checked,
+                      }))
+                    }
+                  />
+                  Revoked
+                </label>
+                <input
+                  className="input-default w-full"
+                  value={assetPolicyForm.reason}
+                  onChange={(event) =>
+                    setAssetPolicyForm((current) => ({
+                      ...current,
+                      reason: event.target.value,
+                    }))
+                  }
+                  placeholder="Policy reason"
+                />
+                <button
+                  type="button"
+                  className="btn-default w-full justify-center"
+                  onClick={() => onSetAssetPolicy(asset, assetPolicyForm)}
+                  disabled={actionState.assetPolicy || !hasContractControls}
+                >
+                  {actionState.assetPolicy ? "Updating..." : "Set asset policy"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Issuer Approval
+                </div>
+                <input
+                  className="input-default w-full"
+                  value={issuerApprovalForm.issuer}
+                  onChange={(event) =>
+                    setIssuerApprovalForm((current) => ({
+                      ...current,
+                      issuer: event.target.value,
+                    }))
+                  }
+                  placeholder="Issuer address"
+                />
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={issuerApprovalForm.approved}
+                    onChange={(event) =>
+                      setIssuerApprovalForm((current) => ({
+                        ...current,
+                        approved: event.target.checked,
+                      }))
+                    }
+                  />
+                  Approved
+                </label>
+                <input
+                  className="input-default w-full"
+                  value={issuerApprovalForm.note}
+                  onChange={(event) =>
+                    setIssuerApprovalForm((current) => ({
+                      ...current,
+                      note: event.target.value,
+                    }))
+                  }
+                  placeholder="Approval note"
+                />
+                <button
+                  type="button"
+                  className="btn-default w-full justify-center"
+                  onClick={() => onSetIssuerApproval(asset, issuerApprovalForm)}
+                  disabled={actionState.issuerApproval || !hasContractControls}
+                >
+                  {actionState.issuerApproval ? "Updating..." : "Set issuer approval"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Attestation Policy
+                </div>
+                <select
+                  className="input-default w-full"
+                  value={attestationPolicyForm.role}
+                  onChange={(event) =>
+                    setAttestationPolicyForm((current) => ({
+                      ...current,
+                      role: event.target.value,
+                    }))
+                  }
+                >
+                  {ATTESTATION_ROLE_OPTIONS.map((role) => (
+                    <option key={role} value={role}>
+                      {ATTESTATION_ROLE_LABELS[role] || role}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="input-default w-full"
+                  value={attestationPolicyForm.maxAgeDays}
+                  onChange={(event) =>
+                    setAttestationPolicyForm((current) => ({
+                      ...current,
+                      maxAgeDays: event.target.value,
+                    }))
+                  }
+                  placeholder="Max age in days"
+                />
+                <label className="flex items-center gap-2 text-sm text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={attestationPolicyForm.required}
+                    onChange={(event) =>
+                      setAttestationPolicyForm((current) => ({
+                        ...current,
+                        required: event.target.checked,
+                      }))
+                    }
+                  />
+                  Required for verification
+                </label>
+                <button
+                  type="button"
+                  className="btn-default w-full justify-center"
+                  onClick={() => onSetAttestationPolicy(asset, attestationPolicyForm)}
+                  disabled={actionState.attestationPolicy || !hasContractControls}
+                >
+                  {actionState.attestationPolicy ? "Updating..." : "Set attestation policy"}
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white/5 p-4 space-y-3">
+                <div className="text-sm font-semibold text-white">
+                  Evidence Root Refresh
+                </div>
+                <input
+                  className="input-default w-full"
+                  value={evidenceForm.evidenceRoot}
+                  onChange={(event) =>
+                    setEvidenceForm((current) => ({
+                      ...current,
+                      evidenceRoot: event.target.value,
+                    }))
+                  }
+                  placeholder="0x evidence root"
+                />
+                <input
+                  className="input-default w-full"
+                  value={evidenceForm.evidenceManifestHash}
+                  onChange={(event) =>
+                    setEvidenceForm((current) => ({
+                      ...current,
+                      evidenceManifestHash: event.target.value,
+                    }))
+                  }
+                  placeholder="0x evidence manifest hash"
+                />
+                <button
+                  type="button"
+                  className="btn-default w-full justify-center"
+                  onClick={() => onUpdateEvidence(asset, evidenceForm)}
+                  disabled={
+                    actionState.evidence
+                    || !hasContractControls
+                    || !evidenceForm.evidenceRoot
+                    || !evidenceForm.evidenceManifestHash
+                  }
+                >
+                  {actionState.evidence ? "Updating..." : "Update evidence anchors"}
                 </button>
               </div>
 
@@ -2573,8 +3035,14 @@ export default function RWA() {
     claim: false,
     flashAdvance: false,
     attestation: false,
+    revokeAttestation: false,
     compliance: false,
+    verificationStatus: false,
+    assetPolicy: false,
+    issuerApproval: false,
+    attestationPolicy: false,
     freeze: false,
+    evidence: false,
     metadata: false,
     tag: false,
   });
@@ -2583,11 +3051,9 @@ export default function RWA() {
   const hubAddress = catalog?.rwa?.hubAddress || "";
   const assetStreamAddress = catalog?.rwa?.assetStreamAddress || "";
   const tokenAddress = catalog?.payments?.tokenAddress || "";
-  const hasContractControls = Boolean(
-    (signer || substrateSession) &&
-      hubAddress &&
-      assetStreamAddress &&
-      tokenAddress,
+  const hasContractControls = Boolean((signer || substrateSession) && hubAddress);
+  const hasFundingControls = Boolean(
+    hasContractControls && assetStreamAddress && tokenAddress,
   );
 
   const activeTab = STUDIO_TABS.some(
@@ -2969,6 +3435,55 @@ export default function RWA() {
     [nativeAccountAddress, signer, substrateSession, walletAddress],
   );
 
+  const signAttestationRevocationAuthorization = useCallback(
+    async ({ attestationId, attestor, reason }) => {
+      const issuedAt = new Date().toISOString();
+      const nonce = `revoke-${Date.now()}`;
+      const message = buildAttestationRevocationAuthorizationMessage({
+        attestationId,
+        attestor,
+        reason,
+        issuedAt,
+        nonce,
+      });
+
+      if (
+        substrateSession?.account?.injected?.signer?.signRaw &&
+        nativeAccountAddress
+      ) {
+        const signatureResult =
+          await substrateSession.account.injected.signer.signRaw({
+            address: nativeAccountAddress,
+            data: textToHex(message),
+            type: "bytes",
+          });
+
+        return {
+          issuedAt,
+          nonce,
+          signatureType: "substrate",
+          signerAddress: nativeAccountAddress,
+          signature: signatureResult.signature,
+        };
+      }
+
+      if (!signer) {
+        throw new Error(
+          "Connected wallet cannot sign the attestation revocation message.",
+        );
+      }
+
+      return {
+        issuedAt,
+        nonce,
+        signatureType: "evm",
+        signerAddress: walletAddress,
+        signature: await signer.signMessage(message),
+      };
+    },
+    [nativeAccountAddress, signer, substrateSession, walletAddress],
+  );
+
   const buildVerificationResult = useCallback((response, fallbackAsset) => {
     const mappedAsset = response?.asset
       ? mapApiAssetToUiAsset({
@@ -3319,6 +3834,53 @@ export default function RWA() {
     }
   };
 
+  const handleRevokeAttestationAction = async (asset, attestationId, reason) => {
+    if (!walletAddress) {
+      toast.warning("Connect the attestor wallet before revoking an attestation.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+
+    const attestation = asset.attestations?.find(
+      (item) => Number(item.attestationId) === Number(attestationId),
+    );
+    if (!attestation) {
+      toast.warning("That attestation could not be found in the current workspace snapshot.", {
+        title: "Attestation missing",
+      });
+      return;
+    }
+
+    setActionFlag("revokeAttestation", true);
+    try {
+      const revocationAuthorization =
+        await signAttestationRevocationAuthorization({
+          attestationId: Number(attestationId),
+          attestor: attestation.attestor,
+          reason: reason || "",
+        });
+
+      await revokeRwaAttestation({
+        attestationId: Number(attestationId),
+        reason: reason || "",
+        revocationAuthorization,
+      });
+
+      toast.success(`Attestation #${attestationId} revoked.`, {
+        title: "Attestation revoked",
+      });
+      await Promise.all([loadRegistry(), loadWorkspaceAsset(asset.tokenId)]);
+    } catch (error) {
+      console.error("Failed to revoke attestation", error);
+      toast.error(error.message || "Unable to revoke the attestation right now.", {
+        title: "Revocation failed",
+      });
+    } finally {
+      setActionFlag("revokeAttestation", false);
+    }
+  };
+
   const handleFlashAdvanceAction = async (asset, amountValue) => {
     if (!hasContractControls) {
       toast.warning("Connect a compatible wallet to flash advance yield.", {
@@ -3385,6 +3947,178 @@ export default function RWA() {
       });
     } finally {
       setActionFlag("compliance", false);
+    }
+  };
+
+  const handleSetVerificationStatusAction = async (asset, form) => {
+    if (!hasContractControls) {
+      toast.warning("Connect a controller wallet to update verification status.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+
+    setActionFlag("verificationStatus", true);
+    try {
+      await setAssetVerificationStatus({
+        signer,
+        substrateSession,
+        hubAddress,
+        tokenId: Number(asset.tokenId),
+        status: ONCHAIN_VERIFICATION_STATUS_OPTIONS.indexOf(form.status),
+        reason: form.reason || "",
+      });
+      toast.success(`Verification status updated for Asset #${asset.tokenId}.`, {
+        title: "Verification updated",
+      });
+      await loadWorkspaceAsset(asset.tokenId);
+    } catch (error) {
+      console.error("Failed to update verification status", error);
+      toast.error(error.message || "Unable to update verification status.", {
+        title: "Verification failed",
+      });
+    } finally {
+      setActionFlag("verificationStatus", false);
+    }
+  };
+
+  const handleSetAssetPolicyAction = async (asset, form) => {
+    if (!hasContractControls) {
+      toast.warning("Connect a controller wallet to update asset policy.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+
+    setActionFlag("assetPolicy", true);
+    try {
+      await setAssetPolicyOnChain({
+        signer,
+        substrateSession,
+        hubAddress,
+        tokenId: Number(asset.tokenId),
+        frozen: Boolean(form.frozen),
+        disputed: Boolean(form.disputed),
+        revoked: Boolean(form.revoked),
+        reason: form.reason || "",
+      });
+      toast.success(`Asset policy updated for Asset #${asset.tokenId}.`, {
+        title: "Policy updated",
+      });
+      await loadWorkspaceAsset(asset.tokenId);
+    } catch (error) {
+      console.error("Failed to update asset policy", error);
+      toast.error(error.message || "Unable to update asset policy.", {
+        title: "Policy failed",
+      });
+    } finally {
+      setActionFlag("assetPolicy", false);
+    }
+  };
+
+  const handleSetIssuerApprovalAction = async (_asset, form) => {
+    if (!hasContractControls) {
+      toast.warning("Connect a controller wallet to update issuer approval.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+    if (!form.issuer.trim()) {
+      toast.warning("Provide an issuer address before updating approval.", {
+        title: "Issuer required",
+      });
+      return;
+    }
+
+    setActionFlag("issuerApproval", true);
+    try {
+      await setAssetIssuerApproval({
+        signer,
+        substrateSession,
+        hubAddress,
+        issuer: form.issuer.trim(),
+        approved: Boolean(form.approved),
+        note: form.note || "",
+      });
+      toast.success(`Issuer approval updated for ${form.issuer.trim()}.`, {
+        title: "Issuer updated",
+      });
+      await loadRegistry();
+      if (selectedWorkspaceAssetId) {
+        await loadWorkspaceAsset(selectedWorkspaceAssetId);
+      }
+    } catch (error) {
+      console.error("Failed to update issuer approval", error);
+      toast.error(error.message || "Unable to update issuer approval.", {
+        title: "Issuer failed",
+      });
+    } finally {
+      setActionFlag("issuerApproval", false);
+    }
+  };
+
+  const handleSetAttestationPolicyAction = async (asset, form) => {
+    if (!hasContractControls) {
+      toast.warning("Connect a controller wallet to update attestation policy.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+
+    setActionFlag("attestationPolicy", true);
+    try {
+      await setAssetAttestationPolicy({
+        signer,
+        substrateSession,
+        hubAddress,
+        assetType: TYPE_TO_CHAIN_ASSET_TYPE[asset.type] || Number(asset.assetType || 1),
+        role: ATTESTATION_ROLE_CODES[form.role],
+        required: Boolean(form.required),
+        maxAge: Number(form.maxAgeDays || 0) * 86400,
+      });
+      toast.success(`Attestation policy updated for ${ATTESTATION_ROLE_LABELS[form.role] || form.role}.`, {
+        title: "Policy updated",
+      });
+      await loadWorkspaceAsset(asset.tokenId);
+    } catch (error) {
+      console.error("Failed to update attestation policy", error);
+      toast.error(error.message || "Unable to update attestation policy.", {
+        title: "Policy failed",
+      });
+    } finally {
+      setActionFlag("attestationPolicy", false);
+    }
+  };
+
+  const handleUpdateEvidenceAction = async (asset, form) => {
+    if (!hasContractControls) {
+      toast.warning("Connect a controller wallet to update evidence anchors.", {
+        title: "Wallet required",
+      });
+      return;
+    }
+
+    setActionFlag("evidence", true);
+    try {
+      await updateAssetEvidenceOnChain({
+        signer,
+        substrateSession,
+        hubAddress,
+        tokenId: Number(asset.tokenId),
+        evidenceRoot: form.evidenceRoot,
+        evidenceManifestHash: form.evidenceManifestHash,
+      });
+      toast.success(`Evidence anchors updated for Asset #${asset.tokenId}.`, {
+        title: "Evidence updated",
+      });
+      await loadWorkspaceAsset(asset.tokenId);
+    } catch (error) {
+      console.error("Failed to update evidence anchors", error);
+      toast.error(error.message || "Unable to update evidence anchors.", {
+        title: "Evidence failed",
+      });
+    } finally {
+      setActionFlag("evidence", false);
     }
   };
 
@@ -3651,6 +4385,7 @@ export default function RWA() {
               claimableYieldDisplay={workspaceClaimableYield}
               actionState={actionState}
               hasContractControls={hasContractControls}
+              hasFundingControls={hasFundingControls}
               controllerAddress={walletAddress}
               onRefresh={() =>
                 loadWorkspaceAsset(selectedWorkspaceAssetId, { notify: true })
@@ -3661,8 +4396,14 @@ export default function RWA() {
               onClaimYield={handleClaimYieldAction}
               onFlashAdvance={handleFlashAdvanceAction}
               onSubmitAttestation={handleSubmitAttestationAction}
+              onRevokeAttestation={handleRevokeAttestationAction}
               onSetCompliance={handleSetComplianceAction}
+              onSetVerificationStatus={handleSetVerificationStatusAction}
+              onSetAssetPolicy={handleSetAssetPolicyAction}
+              onSetIssuerApproval={handleSetIssuerApprovalAction}
+              onSetAttestationPolicy={handleSetAttestationPolicyAction}
               onFreezeStream={handleFreezeStreamAction}
+              onUpdateEvidence={handleUpdateEvidenceAction}
               onUpdateMetadata={handleUpdateMetadataAction}
               onUpdateTag={handleUpdateTagAction}
             />

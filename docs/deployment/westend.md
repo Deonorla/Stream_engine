@@ -5,6 +5,7 @@ This repo deploys Stream Engine to **Westend Asset Hub** using:
 - `WND` for gas
 - `Circle USDC` asset id `31337` for payment and RWA flows
 - native Substrate `revive` execution for reliable contract interaction
+- a separate attestation registry for productive-RWA verification
 
 ## Prerequisites
 
@@ -23,6 +24,7 @@ FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
 FLOWPAY_PAYMENT_ASSET_ID=31337
 FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
 FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
+FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xyour_attestation_registry_here
 FLOWPAY_USE_SUBSTRATE_READS=true
 FLOWPAY_USE_SUBSTRATE_WRITES=true
 SUBSTRATE_JSON_PATH=./substrate.json
@@ -47,7 +49,20 @@ The smoke flow validates:
 - USDC approval
 - payment stream creation
 - RWA minting
+- evidence-root anchoring
+- attestation registration
 - asset yield stream funding
 - flash advance
 - yield claim
 - verification and indexed activity reads
+
+## What The Westend Deployment Proves
+
+The deployed stack proves the **verified rental twin** model:
+
+- public metadata is stored on IPFS
+- private evidence stays offchain in the server vault
+- onchain records anchor evidence roots and attestation state
+- verification returns structured trust states instead of a single boolean
+
+It does **not** claim that the NFT alone is a jurisdiction-specific legal title transfer.

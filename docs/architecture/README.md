@@ -1,33 +1,98 @@
 # Architecture Overview
 
-Stream Engine combines:
+Stream Engine has two linked rails:
 
-1. `x402` payment negotiation at the HTTP layer
-2. stream-based settlement on Westend Asset Hub
-3. a rental RWA lane built on the same payment and verification model
+1. an **x402-compatible payment rail** for agents and paid APIs
+2. a **productive RWA rail** for verified rental twins and ownership-linked yield
 
-## Core System
+The important design choice in v2 is that RWA NFTs are **not presented as direct legal title transfer instruments**. They are verified digital twins backed by:
+
+- public metadata
+- private evidence bundles
+- attestation records
+- compliance / policy state
+- yield streams that follow NFT ownership
+
+## System Shape
 
 ```text
-Agent / Wallet
-  -> x402-aware provider
-  -> Stream Engine SDK/runtime
-  -> FlowPayStream + RWA contracts
-  -> Westend Asset Hub + Circle USDC
+agent / user / renter
+  -> frontend or sdk
+  -> x402 middleware + RWA API
+  -> Stream Engine contracts on Westend Asset Hub
+  -> private evidence vault + IPFS + indexer
+  -> productive real-world asset
 ```
 
-## Key Components
+## Payment Rail
 
 | Component | Role |
 |----------|------|
-| Provider middleware | emits 402 responses and verifies payment proof |
-| SDK | interprets payment requirements and executes settlement |
-| FlowPayStream | reusable payment stream contract |
-| RWA Hub + Registry | minting, verification, compliance, yield orchestration |
-| Indexer | provenance and activity transparency |
+| Provider middleware | emits HTTP 402 responses and verifies payment proof |
+| SDK/runtime | parses x402 payment terms and chooses direct payment vs streaming |
+| `FlowPayStream` | reusable payment stream contract for repeated paid requests |
+| Circle USDC (`31337`) | settlement asset on Westend Asset Hub |
 
-## Why This Shape
+## Productive RWA Rail
 
-- `x402` standardizes how agents discover that payment is required
-- streaming makes repeated paid usage economically viable
-- the same pattern also works for rental RWAs where access is metered but ownership stays with the issuer
+| Component | Role |
+|----------|------|
+| `FlowPayAssetNFT` | the onchain rental twin / digital twin NFT |
+| `FlowPayAssetRegistry` | stores identity, metadata hash, evidence root, and verification state |
+| `FlowPayAssetAttestationRegistry` | stores role-based attestations and revocations |
+| `FlowPayComplianceGuard` | issuer approval, compliance checks, asset policy, attestation policy |
+| `FlowPayAssetStream` | binds rental yield to NFT ownership |
+| `FlowPayRWAHub` | orchestration layer for minting, attestation, policy, and yield actions |
+| Private evidence vault | stores deed/tax/inspection/insurance evidence offchain |
+| IPFS | stores sanitized public metadata only |
+| Indexer | exposes activity history and hydrated asset snapshots |
+
+## Why The RWA Rail Looks Like This
+
+The v2 design is built for **productive** assets such as:
+
+- houses and rental apartments
+- cars and fleet vehicles
+- heavy equipment and machinery
+
+These assets can generate rental revenue. That makes streaming useful:
+
+- renters can stream usage payments
+- unused value can be refunded when usage ends early
+- future unclaimed yield follows current NFT ownership
+
+The system intentionally does **not** treat raw onchain metadata as enough proof for a deed-grade claim. Instead, it separates:
+
+- **public metadata**: safe to expose publicly
+- **private evidence**: deed, survey, tax, valuation, inspection, insurance, tenancy records
+- **attestations**: lawyer, registrar, inspector, valuer, insurer, compliance
+- **policy state**: verified, stale, frozen, revoked, disputed
+
+## Verification Model
+
+RWA verification in v2 is no longer just “CID matched”.
+
+The verifier now checks:
+
+- property identity and public metadata binding
+- evidence-root availability in the private vault
+- missing or expired evidence documents
+- required role attestations
+- stale or revoked attestations
+- freeze / dispute / revoke status
+- current owner, stream linkage, and indexed activity
+
+The result is a structured trust state such as:
+
+- `verified`
+- `verified_with_warnings`
+- `stale`
+- `incomplete`
+- `frozen`
+- `revoked`
+- `disputed`
+- `mismatch`
+
+## Deployed Runtime
+
+The active Westend Asset Hub deployment is documented in [deployment/README.md](../deployment/README.md), including the attestation registry address used by the v2 flow.
