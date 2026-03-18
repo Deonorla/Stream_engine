@@ -3038,11 +3038,15 @@ function StartRentalModal({ asset, onClose, onConfirm, isProcessing }) {
           </button>
           <button
             type="button"
-            className="btn-primary flex-1 justify-center"
+            className="btn-primary flex-1 justify-center flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => onConfirm(asset, hours)}
             disabled={isProcessing}
           >
-            Confirm &amp; Start Stream
+            {isProcessing ? (
+              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Processing...</>
+            ) : (
+              'Confirm & Start Stream'
+            )}
           </button>
         </div>
       </div>

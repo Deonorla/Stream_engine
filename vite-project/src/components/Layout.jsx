@@ -28,6 +28,7 @@ export default function Layout({ children }) {
     status,
     isProcessing,
     isConnectingWallet,
+    disconnectWallet,
   } = useWallet();
 
   return (
@@ -77,11 +78,12 @@ export default function Layout({ children }) {
 
       <WalletPickerModal
         isOpen={isWalletPickerOpen}
-        wallets={availableWallets}
+        wallets={availableWallets.filter((w) => w.id === 'substrate:polkadot-js')}
         isConnecting={isConnectingWallet}
         activeWalletId={activeWallet?.id || ''}
         onClose={closeWalletPicker}
         onSelect={connectWallet}
+        onDisconnect={walletAddress ? () => { disconnectWallet(); closeWalletPicker(); } : null}
       />
     </div>
   );
