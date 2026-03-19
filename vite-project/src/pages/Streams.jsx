@@ -195,6 +195,7 @@ export default function Streams() {
   const [routeResult, setRouteResult] = useState(null);
   const [isCallingRoute, setIsCallingRoute] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const explorerRoutes = [PUBLIC_ROUTE, ...(catalog?.routes || [])].filter(
     (route, index, routes) => routes.findIndex((candidate) => candidate.path === route.path) === index
@@ -276,8 +277,13 @@ export default function Streams() {
       toast.warning('Enter a valid stream ID');
       return;
     }
-    await withdraw(id);
-    await checkClaimableBalance();
+    setIsWithdrawing(true);
+    try {
+      await withdraw(id);
+      await checkClaimableBalance();
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   const handleCallRoute = async () => {
@@ -457,10 +463,10 @@ export default function Streams() {
                 type="button"
                 className="btn-primary flex-1 min-h-[44px] flex items-center justify-center gap-2"
                 onClick={handleWithdrawManual}
-                disabled={!manualStreamId || parseFloat(claimableBalance || '0') <= 0 || isProcessing}
+                disabled={!manualStreamId || parseFloat(claimableBalance || '0') <= 0 || isWithdrawing}
               >
-                {isProcessing && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-                {isProcessing ? 'Withdrawing...' : 'Withdraw'}
+                {isWithdrawing && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                {isWithdrawing ? 'Withdrawing...' : 'Withdraw'}
               </button>
             </div>
 

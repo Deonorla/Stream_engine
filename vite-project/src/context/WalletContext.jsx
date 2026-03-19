@@ -614,10 +614,11 @@ export function WalletProvider({ children }) {
   };
 
   const cancel = async (streamId) => {
+    let loadingToast;
     try {
       setStatus("Cancelling stream...");
       setIsProcessing(true);
-      const loadingToast = toast.transaction.pending("Cancelling stream...");
+      loadingToast = toast.transaction.pending("Cancelling stream...");
 
       if (activeWallet?.type === 'substrate') {
         if (!substrateSession) {
@@ -631,7 +632,9 @@ export function WalletProvider({ children }) {
           args: [streamId],
         });
       } else {
-        if (!contractWithSigner) return;
+        if (!contractWithSigner) {
+          throw new Error('No signer available. Reconnect your wallet and try again.');
+        }
         const tx = await contractWithSigner.cancelStream(streamId, {
           gasLimit: 300000n,
         });
@@ -641,9 +644,8 @@ export function WalletProvider({ children }) {
       toast.dismiss(loadingToast);
       setStatus("Stream cancelled.");
       toast.stream.cancelled(streamId);
-      await refreshStreams();
-      await fetchPaymentBalance();
     } catch (error) {
+      toast.dismiss(loadingToast);
       console.error(error);
       setStatus(error?.shortMessage || error?.message || "Cancel failed.");
       toast.error(error?.shortMessage || error?.message || "Cancel failed", {
@@ -651,6 +653,12 @@ export function WalletProvider({ children }) {
       });
     } finally {
       setIsProcessing(false);
+      try {
+        await refreshStreams();
+        await fetchPaymentBalance();
+      } catch {
+        // Refresh failure should not mask the cancel result.
+      }
     }
   };
 

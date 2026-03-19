@@ -37,7 +37,7 @@ export default function WalletPickerModal({
             <div className="text-xs uppercase tracking-[0.22em] text-cyan-300">Wallets</div>
             <h2 className="mt-2 text-2xl font-semibold text-white">Choose a wallet</h2>
             <p className="mt-2 text-sm leading-relaxed text-white/50">
-              Prefer a Substrate wallet like polkadot{`.js`}, Talisman, or SubWallet for Westend-native signing. EVM wallets still appear for compatible flows.
+              Connect your polkadot{`.js`} extension for Westend-native signing.
             </p>
           </div>
 

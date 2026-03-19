@@ -1,26 +1,4 @@
-const SUPPORTED_WALLETS = [
-  {
-    name: 'Talisman',
-    rdns: 'xyz.talisman',
-    matches(info, provider) {
-      return provider?.isTalisman || String(info?.name || '').toLowerCase().includes('talisman') || String(info?.rdns || '').includes('talisman');
-    },
-  },
-  {
-    name: 'MetaMask',
-    rdns: 'io.metamask',
-    matches(info, provider) {
-      return provider?.isMetaMask || String(info?.name || '').toLowerCase().includes('metamask') || String(info?.rdns || '').includes('metamask');
-    },
-  },
-  {
-    name: 'Rabby',
-    rdns: 'io.rabby',
-    matches(info, provider) {
-      return provider?.isRabby || String(info?.name || '').toLowerCase().includes('rabby') || String(info?.rdns || '').includes('rabby');
-    },
-  },
-];
+const SUPPORTED_WALLETS = [];
 
 const SUPPORTED_SUBSTRATE_WALLETS = [
   {
@@ -28,13 +6,6 @@ const SUPPORTED_SUBSTRATE_WALLETS = [
     source: 'polkadot-js',
     matches(source) {
       return String(source || '').toLowerCase() === 'polkadot-js';
-    },
-  },
-  {
-    name: 'Talisman Substrate',
-    source: 'talisman',
-    matches(source) {
-      return String(source || '').toLowerCase().includes('talisman');
     },
   },
 ];
@@ -156,7 +127,7 @@ function appendSubstrateProviders(walletMap) {
 }
 
 function sortWallets(wallets) {
-  const priority = ['Polkadot.js', 'Talisman', 'Talisman Substrate', 'MetaMask', 'Rabby'];
+  const priority = ['Polkadot.js'];
   return [...wallets].sort((left, right) => {
     const leftIndex = priority.indexOf(left.name);
     const rightIndex = priority.indexOf(right.name);
@@ -230,31 +201,8 @@ export async function resolveWalletSelection(selection, wallets = []) {
     return null;
   }
 
-  if (String(selection).includes('talisman') && window.talismanEth?.request) {
-    return normalizeInjectedWallet({
-      name: 'Talisman',
-      rdns: 'xyz.talisman',
-      uuid: 'talisman-global',
-    }, window.talismanEth);
-  }
-
-  if (String(selection).includes('metamask') && window.ethereum?.request) {
-    const provider = Array.isArray(window.ethereum.providers)
-      ? window.ethereum.providers.find((item) => item?.isMetaMask) || window.ethereum
-      : window.ethereum;
-    return normalizeInjectedWallet({
-      name: 'MetaMask',
-      rdns: 'io.metamask',
-      uuid: 'metamask-fallback',
-    }, provider);
-  }
-
   if (String(selection).includes('substrate:polkadot-js') && window.injectedWeb3?.['polkadot-js']) {
     return normalizeSubstrateWallet('polkadot-js', window.injectedWeb3['polkadot-js']);
-  }
-
-  if (String(selection).includes('substrate:talisman') && window.injectedWeb3?.talisman) {
-    return normalizeSubstrateWallet('talisman', window.injectedWeb3.talisman);
   }
 
   return null;

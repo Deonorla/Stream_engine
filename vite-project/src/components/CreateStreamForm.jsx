@@ -244,16 +244,7 @@ export default function CreateStreamForm({
     }
   }, [durationSeconds]);
 
-  useEffect(() => {
-    if (recipient && parseFloat(amountEth) > 0 && Number(durationSeconds || 0) > 0) {
-      setCurrentStep((current) => (current < 3 ? 3 : current));
-      return;
-    }
 
-    if (recipient && parseFloat(amountEth) > 0) {
-      setCurrentStep((current) => (current < 2 ? 2 : current));
-    }
-  }, [amountEth, durationSeconds, recipient]);
 
   // Sync with parent state
   const handleDurationChange = (preset) => {
