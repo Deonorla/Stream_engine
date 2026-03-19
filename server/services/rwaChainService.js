@@ -134,7 +134,20 @@ class RWAChainService {
     }
 
     async init() {
-        if ((!this.useSubstrateWrites && !this.useSubstrateReads) || this.substrateApi) {
+        if (!this.useSubstrateWrites && !this.useSubstrateReads) {
+            return;
+        }
+
+        // Reconnect if the WS connection has dropped
+        if (this.substrateApi && !this.substrateApi.isConnected) {
+            console.warn("[RWAChainService] Substrate WS disconnected — reconnecting...");
+            try {
+                await this.substrateApi.disconnect();
+            } catch (_) { /* ignore */ }
+            this.substrateApi = null;
+        }
+
+        if (this.substrateApi) {
             return;
         }
 
@@ -173,26 +186,70 @@ class RWAChainService {
 
         await this.init();
 
-        return reviveCall(this.substrateApi, this.substratePair, {
-            dest: address,
-            data: iface.encodeFunctionData(functionName, args),
-            weightLimit: this.substrateConfig.weightLimit,
-            storageDepositLimit: this.substrateConfig.storageDepositLimit,
-        });
+        try {
+            return await reviveCall(this.substrateApi, this.substratePair, {
+                dest: address,
+                data: iface.encodeFunctionData(functionName, args),
+                weightLimit: this.substrateConfig.weightLimit,
+                storageDepositLimit: this.substrateConfig.storageDepositLimit,
+            });
+        } catch (error) {
+            const isWsError = error.message && (
+                error.message.includes("WebSocket is not connected") ||
+                error.message.includes("disconnected") ||
+                error.message.includes("Failed WS Request")
+            );
+            if (!isWsError) {
+                throw error;
+            }
+            // WS dropped mid-call — force reconnect and retry once
+            console.warn("[RWAChainService] WS error during write, reconnecting and retrying...");
+            this.substrateApi = null;
+            await this.init();
+            return reviveCall(this.substrateApi, this.substratePair, {
+                dest: address,
+                data: iface.encodeFunctionData(functionName, args),
+                weightLimit: this.substrateConfig.weightLimit,
+                storageDepositLimit: this.substrateConfig.storageDepositLimit,
+            });
+        }
     }
 
     async readContract(address, abi, functionName, args = []) {
         if (this.useSubstrateReads) {
             await this.init();
             const iface = abi instanceof ethers.Interface ? abi : new ethers.Interface(abi);
-            const result = await reviveRead(this.substrateApi, this.substratePair.address, {
-                dest: address,
-                data: iface.encodeFunctionData(functionName, args),
-                weightLimit: this.substrateConfig.weightLimit,
-                storageDepositLimit: this.substrateConfig.storageDepositLimit,
-            });
-            const decoded = iface.decodeFunctionResult(functionName, result.data);
-            return decoded.length === 1 ? decoded[0] : decoded;
+            try {
+                const result = await reviveRead(this.substrateApi, this.substratePair.address, {
+                    dest: address,
+                    data: iface.encodeFunctionData(functionName, args),
+                    weightLimit: this.substrateConfig.weightLimit,
+                    storageDepositLimit: this.substrateConfig.storageDepositLimit,
+                });
+                const decoded = iface.decodeFunctionResult(functionName, result.data);
+                return decoded.length === 1 ? decoded[0] : decoded;
+            } catch (error) {
+                const isWsError = error.message && (
+                    error.message.includes("WebSocket is not connected") ||
+                    error.message.includes("disconnected") ||
+                    error.message.includes("Failed WS Request")
+                );
+                if (!isWsError) {
+                    throw error;
+                }
+                // WS dropped — force reconnect and retry once
+                console.warn("[RWAChainService] WS error during read, reconnecting and retrying...");
+                this.substrateApi = null;
+                await this.init();
+                const result = await reviveRead(this.substrateApi, this.substratePair.address, {
+                    dest: address,
+                    data: iface.encodeFunctionData(functionName, args),
+                    weightLimit: this.substrateConfig.weightLimit,
+                    storageDepositLimit: this.substrateConfig.storageDepositLimit,
+                });
+                const decoded = iface.decodeFunctionResult(functionName, result.data);
+                return decoded.length === 1 ? decoded[0] : decoded;
+            }
         }
 
         const contract = this.getContract(address, abi);
