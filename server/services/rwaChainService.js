@@ -355,12 +355,15 @@ class RWAChainService {
                 [issuer]
             );
         } catch (error) {
+            console.warn("[RWAChainService] getIssuerApproval read failed (treating as unapproved):", error.message);
             currentApproval = null;
         }
 
         const alreadyApproved = Array.isArray(currentApproval)
             ? Boolean(currentApproval[0])
             : Boolean(currentApproval?.approved);
+
+        console.log(`[RWAChainService] ensureIssuerApproved: issuer=${issuer} alreadyApproved=${alreadyApproved}`);
 
         if (alreadyApproved) {
             return { approved: true, alreadyApproved: true };
@@ -382,6 +385,7 @@ class RWAChainService {
                 await this.readContract(this.hubAddress, this.hubAbi, "owner", [])
             ).toLowerCase();
         } catch (error) {
+            console.warn("[RWAChainService] hub owner read failed:", error.message);
             hubOwner = "";
         }
 
@@ -391,8 +395,11 @@ class RWAChainService {
                 await this.readContract(this.hubAddress, this.hubAbi, "operators", [signerAddress])
             );
         } catch (error) {
+            console.warn("[RWAChainService] operators read failed:", error.message);
             signerIsOperator = false;
         }
+
+        console.log(`[RWAChainService] hubOwner=${hubOwner} signerAddress=${signerAddress} signerIsOperator=${signerIsOperator}`);
 
         if (hubOwner && hubOwner !== signerAddress && !signerIsOperator) {
             throw new Error(
@@ -406,13 +413,14 @@ class RWAChainService {
 
         if (this.useSubstrateWrites) {
             try {
+                console.log(`[RWAChainService] calling setIssuerApproval via substrate: issuer=${issuer} signer=${this.substrateEvmAddress}`);
                 const result = await this.submitSubstrateWrite(
                     this.hubAddress,
                     new ethers.Interface(this.hubAbi),
                     "setIssuerApproval",
                     args
                 );
-
+                console.log(`[RWAChainService] setIssuerApproval succeeded: txHash=${result.txHash}`);
                 return {
                     approved: true,
                     alreadyApproved: false,
@@ -420,6 +428,7 @@ class RWAChainService {
                     receipt: result,
                 };
             } catch (error) {
+                console.error(`[RWAChainService] setIssuerApproval failed: ${error.message}`);
                 if (legacyOwnerOnlyRisk) {
                     throw new Error(
                         "issuer approval reverted onchain. This RWA hub likely still uses the older owner-only issuer approval model. Use the hub owner as the backend signer or redeploy the updated hub so platform operators can auto-onboard issuers."
