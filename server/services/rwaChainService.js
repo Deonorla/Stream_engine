@@ -309,12 +309,38 @@ class RWAChainService {
                 "nextTokenId",
                 []
             );
+
+            // Verify issuer is approved before attempting mint (catches timing issues)
+            if (this.complianceGuardAddress) {
+                try {
+                    const guardIface = new ethers.Interface(this.guardAbi);
+                    const isApprovedResult = await this.readContract(
+                        this.complianceGuardAddress,
+                        this.guardAbi,
+                        "getIssuerApproval",
+                        [issuer]
+                    );
+                    const isApproved = Array.isArray(isApprovedResult)
+                        ? Boolean(isApprovedResult[0])
+                        : Boolean(isApprovedResult?.approved);
+                    console.log(`[RWAChainService] mintAsset pre-check: issuer=${issuer} isApproved=${isApproved}`);
+                    if (!isApproved) {
+                        throw new Error(`mintAsset pre-check failed: issuer ${issuer} is not approved in ComplianceGuard. Call ensureIssuerApproved first.`);
+                    }
+                } catch (error) {
+                    if (error.message.includes("mintAsset pre-check failed")) throw error;
+                    console.warn(`[RWAChainService] mintAsset pre-check read failed (proceeding): ${error.message}`);
+                }
+            }
+
+            console.log(`[RWAChainService] mintAsset args: issuer=${issuer} assetType=${assetType} rightsModel=${rightsModel} publicMetadataURI=${publicMetadataURI} publicMetadataHash=${publicMetadataHash} evidenceRoot=${evidenceRoot}`);
             const result = await this.submitSubstrateWrite(
                 this.hubAddress,
                 new ethers.Interface(this.hubAbi),
                 "mintAsset",
                 args
             );
+            console.log(`[RWAChainService] mintAsset succeeded: txHash=${result.txHash} tokenId=${toNumber(nextTokenId)}`);
 
             return {
                 tokenId: toNumber(nextTokenId),
