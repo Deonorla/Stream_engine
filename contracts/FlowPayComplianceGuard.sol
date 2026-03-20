@@ -67,7 +67,7 @@ contract FlowPayComplianceGuard is Owned {
 
     modifier onlyController() {
         require(
-            msg.sender == controller || msg.sender == owner || operators[msg.sender],
+            msg.sender == controller || msg.sender == owner() || operators[msg.sender],
             "FlowPayComplianceGuard: caller is not controller"
         );
         _;

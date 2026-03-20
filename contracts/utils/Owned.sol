@@ -1,36 +1,56 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-abstract contract Owned {
-    address public owner;
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+/**
+ * @dev Owned extends OpenZeppelin Ownable and AccessControl.
+ * Provides owner-only and operator role-based access control
+ * using audited OpenZeppelin primitives.
+ */
+abstract contract Owned is Ownable, AccessControl {
+    bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
+
+    // Legacy mapping kept for read compatibility
     mapping(address => bool) public operators;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event OperatorUpdated(address indexed operator, bool allowed);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Owned: caller is not owner");
-        _;
-    }
-
     modifier onlyOperator() {
-        require(msg.sender == owner || operators[msg.sender], "Owned: caller is not operator");
+        require(
+            msg.sender == owner() || hasRole(OPERATOR_ROLE, msg.sender),
+            "Owned: caller is not operator"
+        );
         _;
     }
 
-    constructor() {
-        owner = msg.sender;
-        emit OwnershipTransferred(address(0), msg.sender);
-    }
-
-    function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Owned: new owner is zero");
-        emit OwnershipTransferred(owner, newOwner);
-        owner = newOwner;
+    constructor() Ownable(msg.sender) {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(OPERATOR_ROLE, msg.sender);
     }
 
     function setOperator(address operator, bool allowed) external onlyOwner {
         operators[operator] = allowed;
+        if (allowed) {
+            _grantRole(OPERATOR_ROLE, operator);
+        } else {
+            _revokeRole(OPERATOR_ROLE, operator);
+        }
         emit OperatorUpdated(operator, allowed);
+    }
+
+    /**
+     * @dev Override required by Solidity for multiple inheritance.
+     * Restricts supportsInterface to owner check.
+     */
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(AccessControl)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 }

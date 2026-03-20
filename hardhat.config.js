@@ -63,6 +63,7 @@ module.exports = {
         runs: 200,
       },
       viaIR: true,
+      evmVersion: "cancun",
     },
   },
   ...(usePolkadotToolchain

@@ -360,7 +360,7 @@ contract FlowPayRWAHub is Owned {
 
         address currentOwner = assetNFT.ownerOf(tokenId);
         require(
-            msg.sender == currentOwner || msg.sender == asset.issuer || msg.sender == owner || operators[msg.sender],
+            msg.sender == currentOwner || msg.sender == asset.issuer || msg.sender == owner() || operators[msg.sender],
             "FlowPayRWAHub: caller is not asset manager"
         );
     }
