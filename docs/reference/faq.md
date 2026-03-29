@@ -1,5 +1,7 @@
 # Frequently Asked Questions
 
+> Legacy note: references to Westend in this page describe the archived Polkadot demo path, not the active Stellar hackathon path.
+
 ## General
 
 ### What is Stream Engine?
@@ -46,14 +48,15 @@ That is the role of `HTTP 402 Payment Required` plus machine-readable headers.
 
 ### Which network is the current target?
 
-The verified deployment target is **Polkadot Westend Asset Hub**.
+The active hackathon runtime is **Stellar testnet**.
 
 ### What payment asset does Stream Engine use?
 
-Circle test **USDC** on Westend Asset Hub:
+Stellar test **USDC** via SAC:
 
-- asset id: `31337`
-- decimals: `6`
+- settlement mode: `soroban-sac`
+- asset code: `USDC`
+- decimals: `7`
 
 ### What does the middleware do?
 
@@ -64,7 +67,7 @@ Its job is to:
 1. inspect the request
 2. determine whether the route is free, direct-pay, or streaming
 3. return a 402 response when payment is required
-4. verify stream or payment proof when the client retries
+4. verify session or payment proof when the client retries
 5. serve the resource when payment requirements are satisfied
 
 ### Does Stream Engine require a new payment for every API call?

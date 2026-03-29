@@ -19,7 +19,7 @@ import {
 import { useProtocolCatalog } from "../hooks/useProtocolCatalog";
 import { ACTIVE_NETWORK } from "../networkConfig.js";
 
-const DEPLOYED_CONTRACT_DEFAULTS = {
+const LEGACY_CONTRACT_DEFAULTS = {
   stream: {
     name: "Stream Engine Stream",
     onchainName: "FlowPayStream",
@@ -71,57 +71,215 @@ const DEPLOYED_CONTRACT_DEFAULTS = {
   },
 };
 
+const STELLAR_RUNTIME_COMPONENT_DEFAULTS = {
+  sessionMeter: {
+    name: "Stream Engine Session Meter",
+    onchainName: "SessionMeter",
+    group: "Payment Rail",
+    address: "stellar:session-meter",
+    role: "Reusable paid-session rail for x402-compatible API access, rentals, cancellation, and refunds.",
+  },
+  usdcSac: {
+    name: "Stellar USDC SAC",
+    onchainName: "USDC SAC",
+    group: "Payment Rail",
+    address: ACTIVE_NETWORK.paymentTokenAddress || "stellar:usdc-sac",
+    role: "Settlement asset used for session funding, direct payments, rentals, and yield operations.",
+  },
+  assetTwin: {
+    name: "Stream Engine Asset Twin",
+    onchainName: "AssetTwin",
+    group: "RWA Rail",
+    address: "stellar:asset-twin",
+    role: "Digital twin representation for productive rental assets and ownership-linked yield.",
+  },
+  assetRegistry: {
+    name: "Stream Engine RWA Registry",
+    onchainName: "RwaRegistry",
+    group: "RWA Rail",
+    address: "stellar:rwa-registry",
+    role: "Asset identity anchor for rights model, property reference hash, public metadata hash, evidence roots, and verification status.",
+  },
+  attestationRegistry: {
+    name: "Stream Engine Attestation Registry",
+    onchainName: "AttestationRegistry",
+    group: "RWA Rail",
+    address: "stellar:attestation-registry",
+    role: "Role-based attestation registry for lawyers, inspectors, valuers, insurers, registrars, issuers, and compliance operators.",
+  },
+  yieldVault: {
+    name: "Stream Engine Yield Vault",
+    onchainName: "YieldVault",
+    group: "RWA Rail",
+    address: "stellar:yield-vault",
+    role: "Asset-linked revenue engine that keeps future yield coupled to the current twin owner.",
+  },
+  policyService: {
+    name: "Stream Engine Policy Orchestrator",
+    onchainName: "PolicyOrchestrator",
+    group: "RWA Rail",
+    address: "stellar:policy-orchestrator",
+    role: "Admin/operator relay surface for issuer onboarding, verification status, compliance, and asset policy actions.",
+  },
+};
+
+function getRuntimeKind(catalog) {
+  return String(catalog?.network?.kind || ACTIVE_NETWORK.kind || "stellar").toLowerCase();
+}
+
+function isStellarRuntime(catalog) {
+  return getRuntimeKind(catalog) === "stellar";
+}
+
+function isPlaceholderRuntimeAddress(value) {
+  return String(value || "").startsWith("stellar:");
+}
+
+function getExplorerBase(catalog) {
+  return String(
+    ACTIVE_NETWORK.explorerUrl
+    || (isStellarRuntime(catalog)
+      ? "https://stellar.expert/explorer/testnet"
+      : "https://westmint.subscan.io"),
+  ).replace(/\/$/, "");
+}
+
+function buildExplorerHref(catalog, value) {
+  const address = String(value || "").trim();
+  if (!address || isPlaceholderRuntimeAddress(address)) {
+    return "";
+  }
+
+  const explorerBase = getExplorerBase(catalog);
+  if (address.startsWith("0x")) {
+    return `${explorerBase}/account/${address}`;
+  }
+
+  if (address.startsWith("C")) {
+    return `${explorerBase}/contract/${address}`;
+  }
+
+  if (address.startsWith("G")) {
+    return `${explorerBase}/account/${address}`;
+  }
+
+  return "";
+}
+
 function getDeployedContractDescriptors(catalog) {
+  if (isStellarRuntime(catalog)) {
+    return [
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter,
+        address:
+          catalog?.payments?.contractAddress
+          || ACTIVE_NETWORK.contractAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter.address,
+        note:
+          "This is the active payment-session rail the middleware checks before serving a paid route or allowing an early refund.",
+      },
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.usdcSac,
+        address:
+          catalog?.payments?.tokenAddress
+          || ACTIVE_NETWORK.paymentTokenAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.usdcSac.address,
+        note:
+          "This is the settlement asset the current Stellar-backed runtime uses for sessions, direct payments, rentals, and yield funding.",
+      },
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetTwin,
+        address:
+          catalog?.rwa?.assetNFTAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetTwin.address,
+        note:
+          "This twin is the durable ownership anchor that yield and verification status resolve back to.",
+      },
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetRegistry,
+        address:
+          catalog?.rwa?.assetRegistryAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetRegistry.address,
+        note:
+          "This registry stores the durable asset identity: rights model, public metadata hash, property reference hash, evidence roots, and verification state.",
+      },
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.attestationRegistry,
+        address:
+          catalog?.rwa?.attestationRegistryAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.attestationRegistry.address,
+        note:
+          "This registry stores who attested to what, when it was signed, when it expires, and whether it was revoked.",
+      },
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.yieldVault,
+        address:
+          catalog?.rwa?.assetStreamAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.yieldVault.address,
+        note:
+          "This is where productive RWA logic becomes real. It tracks rental yield, claimable balances, and flash-advance behavior.",
+      },
+      {
+        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.policyService,
+        address:
+          catalog?.rwa?.hubAddress
+          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.policyService.address,
+        note:
+          "This is the platform-facing relay and policy surface for issuer onboarding, verification status changes, and asset freezes.",
+      },
+    ];
+  }
+
   return [
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.stream,
+      ...LEGACY_CONTRACT_DEFAULTS.stream,
       address:
-        catalog?.payments?.contractAddress || DEPLOYED_CONTRACT_DEFAULTS.stream.address,
+        catalog?.payments?.contractAddress || LEGACY_CONTRACT_DEFAULTS.stream.address,
       note:
         "This is the contract the payment runtime uses for sender budgets, claims, and stream cancellation.",
     },
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.rwaHub,
-      address: catalog?.rwa?.hubAddress || DEPLOYED_CONTRACT_DEFAULTS.rwaHub.address,
+      ...LEGACY_CONTRACT_DEFAULTS.rwaHub,
+      address: catalog?.rwa?.hubAddress || LEGACY_CONTRACT_DEFAULTS.rwaHub.address,
       note:
         "This is the user-facing entrypoint for the RWA subsystem. It ties together minting, yield funding, claims, compliance, and freezes.",
     },
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.assetNft,
+      ...LEGACY_CONTRACT_DEFAULTS.assetNft,
       address:
-        catalog?.rwa?.assetNFTAddress || DEPLOYED_CONTRACT_DEFAULTS.assetNft.address,
+        catalog?.rwa?.assetNFTAddress || LEGACY_CONTRACT_DEFAULTS.assetNft.address,
       note:
         "This NFT is the digital twin. Ownership of this token is what future uncaptured yield follows.",
     },
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.assetRegistry,
+      ...LEGACY_CONTRACT_DEFAULTS.assetRegistry,
       address:
         catalog?.rwa?.assetRegistryAddress
-        || DEPLOYED_CONTRACT_DEFAULTS.assetRegistry.address,
+        || LEGACY_CONTRACT_DEFAULTS.assetRegistry.address,
       note:
         "This registry stores the durable asset identity: rights model, public metadata hash, property reference hash, evidence roots, and verification state.",
     },
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.attestationRegistry,
+      ...LEGACY_CONTRACT_DEFAULTS.attestationRegistry,
       address:
         catalog?.rwa?.attestationRegistryAddress
-        || DEPLOYED_CONTRACT_DEFAULTS.attestationRegistry.address,
+        || LEGACY_CONTRACT_DEFAULTS.attestationRegistry.address,
       note:
         "This registry stores who attested to what, when it was signed, when it expires, and whether it was revoked.",
     },
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.assetStream,
+      ...LEGACY_CONTRACT_DEFAULTS.assetStream,
       address:
         catalog?.rwa?.assetStreamAddress
-        || DEPLOYED_CONTRACT_DEFAULTS.assetStream.address,
+        || LEGACY_CONTRACT_DEFAULTS.assetStream.address,
       note:
         "This contract is where productive RWA logic becomes real. It tracks time-based yield and supports flash-advance behavior.",
     },
     {
-      ...DEPLOYED_CONTRACT_DEFAULTS.complianceGuard,
+      ...LEGACY_CONTRACT_DEFAULTS.complianceGuard,
       address:
         catalog?.rwa?.complianceGuardAddress
-        || DEPLOYED_CONTRACT_DEFAULTS.complianceGuard.address,
+        || LEGACY_CONTRACT_DEFAULTS.complianceGuard.address,
       note:
         "This guard blocks claims or funding when compliance rules or freeze controls say the action should not proceed.",
     },
@@ -148,31 +306,37 @@ function buildContractRows(catalog) {
   return getDeployedContractDescriptors(catalog).map((contract) => [
     contract.name,
     contract.address || "Not configured",
-    `${contract.role} Onchain deployment id: ${contract.onchainName}.`,
+    `${contract.role} Runtime id: ${contract.onchainName}.`,
   ]);
 }
 
 function buildContractLinks(catalog) {
-  const explorerBase = String(
-    ACTIVE_NETWORK.explorerUrl || "https://westmint.subscan.io",
-  ).replace(/\/$/, "");
   return getDeployedContractDescriptors(catalog)
-    .filter((contract) => Boolean(contract.address))
     .map((contract) => ({
       label: contract.name,
       value: contract.address,
-      href: `${explorerBase}/account/${contract.address}`,
-      note: `Onchain deployment id: ${contract.onchainName}`,
-    }));
+      href: buildExplorerHref(catalog, contract.address),
+      note: `Runtime id: ${contract.onchainName}`,
+    }))
+    .filter((contract) => Boolean(contract.href));
 }
 
 function buildSections(catalog) {
-  const networkName = catalog?.network?.name || "Westend Asset Hub";
-  const chainId = catalog?.network?.chainId || 420420421;
+  const stellar = isStellarRuntime(catalog);
+  const networkName = catalog?.network?.name || (stellar ? "Stellar Testnet" : "Westend Asset Hub");
+  const chainId = catalog?.network?.chainId ?? (stellar ? 0 : 420420421);
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
-  const paymentAssetId = catalog?.payments?.paymentAssetId || 31337;
+  const paymentAssetId = catalog?.payments?.paymentAssetId ?? (stellar ? 0 : 31337);
+  const paymentAssetCode = catalog?.payments?.assetCode || tokenSymbol;
+  const paymentAssetIssuer = catalog?.payments?.assetIssuer || "";
+  const settlement = catalog?.payments?.settlement || (stellar ? "soroban-sac" : "evm-precompile");
   const recipientAddress =
     catalog?.payments?.recipientAddress || "Not configured";
+  const paymentTokenLabel = stellar ? `Stellar ${tokenSymbol}` : `Circle ${tokenSymbol}`;
+  const gasToken = stellar ? "XLM" : "WND";
+  const paymentAssetLabel = stellar
+    ? `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"}`
+    : `Asset id ${paymentAssetId}`;
 
   return [
     {
@@ -192,27 +356,27 @@ function buildSections(catalog) {
       points: [
         {
           title: "What the project is",
-          body: `Stream Engine is a machine-payments and rental-RWA system running on ${networkName}. It combines payment negotiation, stream settlement, and asset verification in one product.`,
+          body: `Stream Engine is a machine-payments and rental-RWA system running on ${networkName}. It combines payment negotiation, reusable settlement, and asset verification in one product.`,
         },
         {
           title: "What problem it solves",
-          body: "Repeated onchain payments are too expensive and too slow for agents. Stream Engine replaces repeated checkout with one reusable payment stream.",
+          body: "Repeated onchain payments are too expensive and too slow for agents. Stream Engine replaces repeated checkout with one reusable payment session or stream.",
         },
         {
           title: "What the moving parts are",
-          body: "x402 handles payment negotiation, the stream contracts handle settlement, middleware checks payment state, and RWA Studio handles minting, verification, renting, and yield.",
+          body: "x402 handles payment negotiation, the settlement runtime handles reusable payment state, middleware checks payment status, and RWA Studio handles minting, verification, renting, and yield.",
         },
         {
           title: "What not to confuse",
-          body: "x402 is not the stream. x402 says payment is required. Stream Engine decides how to satisfy that payment requirement efficiently.",
+          body: "x402 is not the session or stream. x402 says payment is required. Stream Engine decides how to satisfy that payment requirement efficiently.",
         },
       ],
       stepsTitle: "The full product loop",
       steps: [
         "An agent or user hits a paid route or rental workflow.",
         "The service explains the payment terms in a machine-readable way.",
-        `The payer approves ${tokenSymbol} and opens a reusable stream or executes a direct payment when that is cheaper.`,
-        "Middleware checks the stream or payment proof before serving the resource.",
+        `The payer funds reusable ${stellar ? "session" : "stream"} state or executes a direct payment when that is cheaper.`,
+        `Middleware checks the ${stellar ? "session" : "stream"} or payment proof before serving the resource.`,
         "If the session ends early, unused balance is left with the payer instead of being burned through repeated checkout.",
       ],
       tables: [
@@ -221,10 +385,12 @@ function buildSections(catalog) {
           headers: ["Item", "Value"],
           rows: [
             ["Network", networkName],
+            ["Runtime", stellar ? "Stellar-backed session runtime" : "Polkadot contract runtime"],
             ["Chain ID", String(chainId)],
-            ["Gas token", "WND"],
-            ["Payment token", `Circle ${tokenSymbol}`],
-            ["Payment asset id", String(paymentAssetId)],
+            ["Gas token", gasToken],
+            ["Payment token", paymentTokenLabel],
+            ["Settlement", settlement],
+            ["Payment asset", paymentAssetLabel],
             ["Service recipient", recipientAddress],
           ],
         },
@@ -238,7 +404,7 @@ function buildSections(catalog) {
         {
           question: "Why keep x402 if streams already exist?",
           answer:
-            "Because streams solve settlement, not discovery. x402 tells the client what it must pay, who to pay, and which mode is allowed.",
+            "Because reusable payment state solves settlement, not discovery. x402 tells the client what it must pay, who to pay, and which mode is allowed.",
         },
       ],
     },
@@ -253,7 +419,7 @@ function buildSections(catalog) {
         "Do not cram the whole product into one sentence. Think in layers. One layer says payment is needed. One layer moves value. One layer enforces access. One layer handles assets and provenance.",
       takeaways: [
         "The protocol layer explains payment terms.",
-        "The settlement layer moves money through direct payments or streams.",
+        "The settlement layer moves money through direct payments or reusable payment state.",
         "The enforcement layer decides whether a request or asset action is allowed right now.",
       ],
       points: [
@@ -263,7 +429,7 @@ function buildSections(catalog) {
         },
         {
           title: "Settlement layer",
-          body: `This is where ${tokenSymbol} actually moves. It can happen through direct settlement or through reusable stream contracts.`,
+          body: `This is where ${tokenSymbol} actually moves. It can happen through direct settlement or through reusable ${stellar ? "payment sessions" : "stream contracts"}.`,
         },
         {
           title: "Enforcement layer",
@@ -271,7 +437,7 @@ function buildSections(catalog) {
         },
         {
           title: "Asset layer",
-          body: "This is where asset NFTs, metadata, provenance, tag verification, rental access, and yield coupling live.",
+          body: "This is where asset twins, metadata, provenance, tag verification, rental access, and yield coupling live.",
         },
       ],
       tables: [
@@ -316,9 +482,9 @@ function buildSections(catalog) {
       title: "Streaming 101",
       eyebrow: "Money Flow",
       summary:
-        "What a payment stream is and why it is better than repeated onchain payments for high-frequency usage.",
+        `What reusable payment ${stellar ? "session" : "stream"} state is and why it is better than repeated onchain payments for high-frequency usage.`,
       plainEnglish:
-        "A stream is a money meter. Think taxi meter, electricity meter, or prepaid running tab. Value unlocks gradually as time passes. If you stop early, the unused part stays yours.",
+        `A ${stellar ? "session" : "stream"} is a money meter. Think taxi meter, electricity meter, or prepaid running tab. Value unlocks gradually as time passes or usage is metered. If you stop early, the unused part stays yours.`,
       takeaways: [
         "A stream is closer to a metered tab than to a one-off transfer.",
         "The receiver only gets the accrued part, not the whole budget immediately.",
@@ -334,24 +500,24 @@ function buildSections(catalog) {
           body: "Pay one big amount up front for a long period. Easy for humans, but wasteful when usage is unpredictable.",
         },
         {
-          title: "Stream",
-          body: "Lock a budget, release value over time, and cancel when you are done. This is what makes autonomous usage practical.",
+          title: stellar ? "Session" : "Stream",
+          body: `Lock a budget, release value over time, and cancel when you are done. This is what makes autonomous usage practical on the current ${stellar ? "Stellar-backed" : "contract"} runtime.`,
         },
         {
           title: "Refund logic",
-          body: "When a stream ends early, the unconsumed portion does not belong to the service. It remains with the sender and stops accruing.",
+          body: `When a ${stellar ? "session" : "stream"} ends early, the unconsumed portion does not belong to the service. It remains with the sender and stops accruing.`,
         },
       ],
       code: `flowRate = totalAmount / durationSeconds
 elapsed = min(now, stopTime) - startTime
 claimable = (flowRate * elapsed) - amountWithdrawn`,
-      stepsTitle: "How a payment stream behaves",
+      stepsTitle: `How a payment ${stellar ? "session" : "stream"} behaves`,
       steps: [
-        `The payer approves ${tokenSymbol} to the stream contract.`,
-        "The stream starts with a sender, a recipient, a budget, and a duration.",
+        `The payer funds ${tokenSymbol} into the reusable ${stellar ? "session" : "stream"} rail.`,
+        `The ${stellar ? "session" : "stream"} starts with a sender, a recipient, a budget, and a duration.`,
         "Claimable balance grows over time instead of arriving in one lump sum.",
         "The recipient withdraws only what has actually accrued.",
-        "If the stream is cancelled early, the remaining budget stops flowing.",
+        `If the ${stellar ? "session" : "stream"} is cancelled early, the remaining budget stops flowing.`,
       ],
       tables: [
         {
@@ -371,7 +537,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Streaming",
               "High-frequency or session-based usage",
-              "Needs stream lifecycle logic, but has the best economics",
+              `Needs ${stellar ? "session" : "stream"} lifecycle logic, but has the best economics`,
             ],
           ],
         },
@@ -385,7 +551,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           question: "Is a stream the same as escrow?",
           answer:
-            "Close, but not identical. Escrow only holds funds. A stream also defines time-based release rules and cancellation behavior.",
+            `Close, but not identical. Escrow only holds funds. A ${stellar ? "session" : "stream"} also defines time-based release rules and cancellation behavior.`,
         },
       ],
     },
@@ -410,7 +576,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "What x402 does not do",
-          body: "It does not force one payment method. You can satisfy the requirement with direct settlement or a reusable stream.",
+          body: `It does not force one payment method. You can satisfy the requirement with direct settlement or a reusable ${stellar ? "session" : "stream"}.`,
         },
         {
           title: "Why agents need it",
@@ -425,9 +591,9 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       steps: [
         "Client sends a request to a paid route.",
         "Server replies with HTTP 402 and machine-readable payment terms.",
-        "The runtime reads mode, price, token, recipient, and contract details.",
-        "The runtime picks direct payment or streaming.",
-        "The client retries with a stream id or direct payment proof.",
+        `The runtime reads mode, price, token, recipient, and ${stellar ? "session" : "contract"} details.`,
+        `The runtime picks direct payment or ${stellar ? "reusable sessions" : "streaming"}.`,
+        `The client retries with a ${stellar ? "session id" : "stream id"} or direct payment proof.`,
         "Middleware verifies that proof before returning the resource.",
       ],
       tables: [
@@ -447,7 +613,9 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             ],
             [
               "X-FlowPay-Contract",
-              "Which stream contract the runtime should use",
+              stellar
+                ? "Which session rail or relay surface the runtime should use"
+                : "Which stream contract the runtime should use",
             ],
           ],
         },
@@ -913,7 +1081,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       steps: [
         "Read the QR or NFC payload, or accept a token id, URI, or property reference directly.",
         "Fetch sanitized public metadata from IPFS.",
-        "Load the onchain asset identity, evidence root, and verification state.",
+        "Load the anchored asset identity, evidence root, and verification state.",
         "Check private evidence coverage and required attestation roles.",
         "Return a structured trust verdict plus the history needed for audit.",
       ],
@@ -935,12 +1103,12 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           question: "Why use both IPFS and onchain hashes?",
           answer:
-            "IPFS stores the sanitized public content. Onchain hashes prove that the content, property reference, and private evidence roots being discussed are the same ones that were bound to the asset.",
+            "IPFS stores the sanitized public content. Runtime anchors prove that the content, property reference, and private evidence roots being discussed are the same ones that were bound to the asset.",
         },
         {
-          question: "What happens with a smart rented car if the stream ends?",
+          question: `What happens with a smart rented car if the ${stellar ? "session" : "stream"} ends?`,
           answer:
-            "That is one of the strongest real-world examples for this model. A smart vehicle can watch the stream state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.",
+            `That is one of the strongest real-world examples for this model. A smart vehicle can watch the ${stellar ? "session" : "stream"} state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.`,
         },
       ],
     },
@@ -950,30 +1118,42 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       title: "Architecture",
       eyebrow: "System Design",
       summary:
-        "How the frontend, backend, Solidity contracts, indexer, and verification stack fit together, plus the live deployed addresses so readers can inspect the contracts themselves.",
+        stellar
+          ? "How the frontend, backend, Stellar runtime services, indexer, and verification stack fit together, plus the runtime identifiers the catalog exposes."
+          : "How the frontend, backend, Solidity contracts, indexer, and verification stack fit together, plus the live deployed addresses so readers can inspect the contracts themselves.",
       plainEnglish:
-        "Think of the system like a small company. The frontend talks to users. The backend handles coordination, metadata pinning, and indexing. The Solidity contracts are the accountants and rule enforcers. The explorer links let anyone inspect the live deployed workers directly.",
+        stellar
+          ? "Think of the system like a small company. The frontend talks to users. The backend handles coordination, evidence storage, and relays. The Stellar-backed runtime services meter payments and enforce asset policy. The catalog tells you which pieces are wired."
+          : "Think of the system like a small company. The frontend talks to users. The backend handles coordination, metadata pinning, and indexing. The Solidity contracts are the accountants and rule enforcers. The explorer links let anyone inspect the live deployed workers directly.",
       takeaways: [
-        "Each contract should have a narrow, understandable job.",
-        "The backend makes the system usable, but contracts remain the source of truth.",
-        "If you do not know where a fact lives, look for which contract owns that responsibility.",
+        `Each ${stellar ? "runtime component" : "contract"} should have a narrow, understandable job.`,
+        stellar
+          ? "The backend relay makes the current hackathon runtime usable, but payment and verification state still have to line up with the identifiers exposed in the catalog."
+          : "The backend makes the system usable, but contracts remain the source of truth.",
+        `If you do not know where a fact lives, look for which ${stellar ? "component" : "contract"} owns that responsibility.`,
       ],
       points: [
         {
-          title: "Built with Solidity",
-          body: "The live stream rail and RWA contract suite are Solidity contracts deployed to the Polkadot environment. The point is not only to talk about architecture abstractly, but to let readers verify the deployed code and addresses themselves.",
+          title: stellar ? "Built for Stellar testnet" : "Built with Solidity",
+          body: stellar
+            ? "The active hackathon path uses a Stellar-backed runtime with backend relays, reusable payment sessions, and direct-chain fallbacks. The older Westend Solidity suite remains in the repo as legacy reference material."
+            : "The live stream rail and RWA contract suite are Solidity contracts deployed to the Polkadot environment. The point is not only to talk about architecture abstractly, but to let readers verify the deployed code and addresses themselves.",
         },
         {
-          title: "Payment contract",
-          body: `The stream contract manages sender budget, recipient claims, cancellation, and metadata for payment sessions in ${tokenSymbol}.`,
+          title: stellar ? "Payment session runtime" : "Payment contract",
+          body: stellar
+            ? `The payment runtime manages sender budget, session reuse, cancellation, refunds, and service settlement in ${tokenSymbol}.`
+            : `The stream contract manages sender budget, recipient claims, cancellation, and metadata for payment sessions in ${tokenSymbol}.`,
         },
         {
-          title: "RWA contracts",
-          body: "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores asset identity anchors, the attestation registry stores verifier claims, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
+          title: stellar ? "RWA runtime services" : "RWA contracts",
+          body: stellar
+            ? "The RWA side is deliberately split into multiple runtime services because productive assets need more than ownership. The twin records durable ownership, the registry stores asset identity anchors, the attestation registry stores verifier claims, the yield vault handles revenue flow, the policy orchestrator controls regulated actions, and the backend relay ties those pieces together."
+            : "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores asset identity anchors, the attestation registry stores verifier claims, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
         },
         {
           title: "How the RWA half really works",
-          body: "The RWA architecture is not just 'mint NFT, done.' First the issuer signs a mint authorization and anchors public metadata plus private evidence roots. The platform operator can auto-approve a first-time issuer during that mint, so the owner does not need a separate onboarding transaction. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the asset stream contract so future yield follows whoever owns the NFT. That is the difference between a productive asset system and a passive onchain collectible.",
+          body: `The RWA architecture is not just 'mint NFT, done.' First the issuer is onboarded explicitly by a platform admin. Then the issuer signs a mint authorization and anchors public metadata plus private evidence roots. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the ${stellar ? "yield vault" : "asset stream contract"} so future yield follows whoever owns the ${stellar ? "twin" : "NFT"}. That is the difference between a productive asset system and a passive onchain collectible.`,
         },
         {
           title: "Why we only care about productive assets here",
@@ -981,11 +1161,11 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "IoT and machine enforcement",
-          body: "The RWA side also expects physical access controls. A smart car, smart lock, or industrial controller can watch the payment stream, revoke access when funding ends, and let unused budget remain with the renter when the session ends early.",
+          body: `The RWA side also expects physical access controls. A smart car, smart lock, or industrial controller can watch the payment ${stellar ? "session" : "stream"}, revoke access when funding ends, and let unused budget remain with the renter when the session ends early.`,
         },
         {
           title: "Middleware and APIs",
-          body: "The backend exposes route catalogs, verification endpoints, metadata pinning, and asset activity views. Middleware is what turns onchain state into actual web access.",
+          body: "The backend exposes route catalogs, verification endpoints, metadata pinning, asset activity views, and relay/admin actions. Middleware is what turns runtime state into actual web access.",
         },
         {
           title: "Why productive RWAs need this architecture",
@@ -993,16 +1173,22 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "Trust boundary",
-          body: "The UI is a client. The backend helps with indexing and metadata. The contract layer is the final source of truth for streams, ownership, and verification hashes.",
+          body: stellar
+            ? "The UI is a client. The backend handles relays, indexing, and evidence storage. The runtime identifiers, payment state, and verification anchors are the final source of truth for what the app is allowed to do."
+            : "The UI is a client. The backend helps with indexing and metadata. The contract layer is the final source of truth for streams, ownership, and verification hashes.",
         },
       ],
       stepsTitle: "How one action moves through the system",
       steps: [
-        "The frontend collects user intent: start a stream, mint an asset, verify a payload, or claim yield.",
+        `The frontend collects user intent: start a ${stellar ? "payment session" : "stream"}, mint an asset, verify a payload, or claim yield.`,
         "The backend helps with metadata pinning, registry views, and indexed history when needed.",
-        "The Solidity contracts enforce the payment, ownership, compliance, and yield rules.",
+        stellar
+          ? "The Stellar-backed runtime services enforce the payment, ownership, compliance, and yield rules."
+          : "The Solidity contracts enforce the payment, ownership, compliance, and yield rules.",
         "The indexer rebuilds the public activity trail so the UI can show understandable history.",
-        "The explorer links let anyone verify the live deployment state independently of the app UI.",
+        stellar
+          ? "Where explorer-friendly identifiers exist, the catalog surfaces them. Legacy Westend contract references remain available in the repo for audit context."
+          : "The explorer links let anyone verify the live deployment state independently of the app UI.",
       ],
       tables: [
         {
@@ -1020,14 +1206,14 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "Catalog, public IPFS pinning, private evidence storage, verification API, indexed views, and middleware enforcement",
             ],
             [
-              "Stream contracts",
-              "Solidity",
-              "Payment streaming, withdrawal, and cancellation",
+              stellar ? "Payment runtime" : "Stream contracts",
+              stellar ? "Stellar session meter + backend relay" : "Solidity",
+              stellar ? "Session funding, cancellation, refunds, and paid-route settlement" : "Payment streaming, withdrawal, and cancellation",
             ],
             [
-              "RWA contracts",
-              "Solidity",
-              "NFT minting, asset identity storage, attestations, compliance, and asset-linked yield",
+              stellar ? "RWA runtime" : "RWA contracts",
+              stellar ? "Registry, attestation, yield, and policy services" : "Solidity",
+              stellar ? "Twin minting, asset identity storage, attestations, compliance, and asset-linked yield" : "NFT minting, asset identity storage, attestations, compliance, and asset-linked yield",
             ],
             [
               "Indexer / provenance",
@@ -1037,22 +1223,22 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           ],
         },
         {
-          title: "Live contract map",
-          headers: ["Solidity Contract", "Address", "What it does"],
+          title: stellar ? "Live runtime map" : "Live contract map",
+          headers: [stellar ? "Runtime Component" : "Solidity Contract", "Address", "What it does"],
           rows: buildContractRows(catalog),
         },
         {
-          title: "RWA contract choreography",
+          title: stellar ? "RWA runtime choreography" : "RWA contract choreography",
           headers: ["RWA piece", "What it stores or controls", "Why the system needs it"],
           rows: [
             [
-              "Stream Engine Asset NFT",
+              stellar ? "Stream Engine Asset Twin" : "Stream Engine Asset NFT",
               "The digital twin and current owner",
               "Without it there is no durable ownership anchor for the productive asset",
             ],
             [
               "Stream Engine Asset Registry",
-              "Rights model, property reference hash, public metadata hash, evidence roots, status, linked stream facts",
+              `Rights model, property reference hash, public metadata hash, evidence roots, status, linked ${stellar ? "yield" : "stream"} facts`,
               "Without it buyers and auditors cannot prove that the asset record is complete and current",
             ],
             [
@@ -1061,34 +1247,36 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "Without it the verifier cannot prove that lawyers, inspectors, valuers, or insurers actually signed off on the evidence set",
             ],
             [
-              "Stream Engine Asset Stream",
+              stellar ? "Stream Engine Yield Vault" : "Stream Engine Asset Stream",
               "Time-based yield logic, flash-advance behavior, future revenue state",
-              "Without it the asset becomes just another static NFT with no revenue engine",
+              `Without it the asset becomes just another static ${stellar ? "twin" : "NFT"} with no revenue engine`,
             ],
             [
-              "Stream Engine Compliance Guard",
-              "Freeze and compliance flags",
-              "Without it there is no contract-level stop switch for regulated or disputed actions",
+              stellar ? "Stream Engine Policy Orchestrator" : "Stream Engine Compliance Guard",
+              stellar ? "Issuer onboarding, compliance, and freeze flags" : "Freeze and compliance flags",
+              stellar
+                ? "Without it there is no clean runtime boundary for admin and regulated actions"
+                : "Without it there is no contract-level stop switch for regulated or disputed actions",
             ],
             [
-              "Stream Engine RWA Hub",
+              stellar ? "Backend relay + operator surface" : "Stream Engine RWA Hub",
               "High-level orchestration across minting, funding, claims, and admin actions",
               "Without it the app would need to coordinate too many raw calls manually",
             ],
           ],
         },
         {
-          title: "Primary contract responsibilities",
-          headers: ["Contract", "Why it exists", "What breaks without it"],
+          title: stellar ? "Primary runtime responsibilities" : "Primary contract responsibilities",
+          headers: [stellar ? "Component" : "Contract", "Why it exists", "What breaks without it"],
           rows: [
             [
-              "Stream Engine Stream",
-              "Create, cancel, and settle reusable payment streams",
+              stellar ? "Stream Engine Session Meter" : "Stream Engine Stream",
+              `Create, cancel, and settle reusable payment ${stellar ? "sessions" : "streams"}`,
               "Agents fall back to repeated checkout and high-fee per-request settlement",
             ],
             [
-              "Stream Engine Asset NFT",
-              "Mint the productive rental asset NFT",
+              stellar ? "Stream Engine Asset Twin" : "Stream Engine Asset NFT",
+              `Mint the productive rental asset ${stellar ? "twin" : "NFT"}`,
               "There is no durable digital twin for the real asset",
             ],
             [
@@ -1102,17 +1290,17 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "Verifiers cannot tell whether legal, inspection, insurance, or valuation review was actually completed",
             ],
             [
-              "Stream Engine Asset Stream",
+              stellar ? "Stream Engine Yield Vault" : "Stream Engine Asset Stream",
               "Handle asset-linked yield and flash advance behavior",
-              "Future rental revenue cannot be streamed or coupled cleanly to NFT ownership",
+              `Future rental revenue cannot be ${stellar ? "metered" : "streamed"} or coupled cleanly to ${stellar ? "twin" : "NFT"} ownership`,
             ],
             [
-              "Stream Engine Compliance Guard",
+              stellar ? "Stream Engine Policy Orchestrator" : "Stream Engine Compliance Guard",
               "Store compliance and freeze state",
               "Admins cannot block claims or withdrawals when policy or regulation requires intervention",
             ],
             [
-              "Stream Engine RWA Hub",
+              stellar ? "Backend relay + operator surface" : "Stream Engine RWA Hub",
               "Coordinate minting, funding, claims, and admin actions",
               "Frontend and backend would need to orchestrate too many raw contract calls directly",
             ],
@@ -1135,7 +1323,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "IoT-aware rental asset",
               "Ownership, verification, and machine-enforced access control",
-              "A car, lock, or machine can react to stream state and cut access when funding ends",
+              `A car, lock, or machine can react to ${stellar ? "session" : "stream"} state and cut access when funding ends`,
             ],
           ],
         },
@@ -1146,7 +1334,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Mint",
               "Issuer creates the digital twin, signs the mint request, and pins sanitized metadata",
-              "RWAHub + AssetNFT + backend IPFS service",
+              stellar ? "Policy Orchestrator + Asset Twin + backend IPFS service" : "RWAHub + AssetNFT + backend IPFS service",
             ],
             [
               "Bind truth",
@@ -1156,27 +1344,27 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Attest",
               "Required roles review the evidence and record attestations",
-              "AttestationRegistry + RWAHub",
+              stellar ? "AttestationRegistry + Policy Orchestrator" : "AttestationRegistry + RWAHub",
             ],
             [
               "Rent",
               "User funds access and pays only for actual usage time",
-              "Stream Engine Stream + app access controls",
+              stellar ? "Session Meter + app access controls" : "Stream Engine Stream + app access controls",
             ],
             [
               "Generate yield",
               "Rental revenue is routed into asset-linked yield logic",
-              "AssetStream",
+              stellar ? "YieldVault" : "AssetStream",
             ],
             [
               "Claim",
               "Current NFT owner claims the unclaimed revenue",
-              "AssetStream + AssetNFT ownership checks",
+              stellar ? "YieldVault + Asset Twin ownership checks" : "AssetStream + AssetNFT ownership checks",
             ],
             [
               "Transfer",
               "NFT moves to a new owner and future yield follows it",
-              "AssetNFT + AssetStream coupling rules",
+              stellar ? "Asset Twin + YieldVault coupling rules" : "AssetNFT + AssetStream coupling rules",
             ],
           ],
         },
@@ -1219,19 +1407,25 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           question:
             "Why does the frontend still need the backend if contracts exist?",
           answer:
-            "Because verification, indexing, metadata pinning, and route catalogs are easier to expose through a service layer. The contracts remain the final source of truth for settlement and ownership state.",
+            stellar
+              ? "Because verification, indexing, metadata pinning, route catalogs, and relays are easier to expose through a service layer. The runtime identifiers and anchored state remain the final source of truth for settlement and ownership state."
+              : "Because verification, indexing, metadata pinning, and route catalogs are easier to expose through a service layer. The contracts remain the final source of truth for settlement and ownership state.",
         },
         {
           question:
-            "Why include the contract addresses directly in the handbook?",
+            `Why include the ${stellar ? "runtime identifiers" : "contract addresses"} directly in the handbook?`,
           answer:
-            "Because readers should not have to trust screenshots or slide decks. They should be able to open the live deployed addresses themselves and verify that the system is actually implemented as Solidity contracts onchain.",
+            stellar
+              ? "Because readers should not have to trust screenshots or slide decks. They should be able to inspect the active runtime identifiers the app is using, and cross-check any explorer-friendly Stellar addresses when they exist."
+              : "Because readers should not have to trust screenshots or slide decks. They should be able to open the live deployed addresses themselves and verify that the system is actually implemented as Solidity contracts onchain.",
         },
         {
           question:
             "Why do the onchain deployment ids still say FlowPay?",
           answer:
-            "Those are the actual deployed Solidity contract identifiers. The product is now Stream Engine, but the deployed contract names were kept so the existing chain deployment, ABI references, and tooling did not have to be broken or redeployed just for naming.",
+            stellar
+              ? "Because the repo still carries legacy FlowPay identifiers for compatibility with older code, docs, and archived deployments. The product is now Stream Engine, but not every internal name was worth breaking for the hackathon pivot."
+              : "Those are the actual deployed Solidity contract identifiers. The product is now Stream Engine, but the deployed contract names were kept so the existing chain deployment, ABI references, and tooling did not have to be broken or redeployed just for naming.",
         },
         {
           question:
@@ -1761,13 +1955,17 @@ function FaqList({ items = [] }) {
 }
 
 function ArchitectureDiagram({ catalog }) {
+  const stellar = isStellarRuntime(catalog);
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
-  const paymentAssetId = catalog?.payments?.paymentAssetId || 31337;
+  const paymentAssetId = catalog?.payments?.paymentAssetId ?? (stellar ? 0 : 31337);
+  const paymentAssetCode = catalog?.payments?.assetCode || tokenSymbol;
+  const paymentAssetIssuer = catalog?.payments?.assetIssuer || "";
   const paymentRecipient =
     catalog?.payments?.recipientAddress || "Not configured";
   const paymentTokenAddress =
-    catalog?.payments?.paymentTokenAddress
-    || "0x00007a6900000000000000000000000001200000";
+    catalog?.payments?.tokenAddress
+    || ACTIVE_NETWORK.paymentTokenAddress
+    || (stellar ? "stellar:usdc-sac" : "0x00007a6900000000000000000000000001200000");
   const contracts = getDeployedContractDescriptors(catalog);
   const paymentContracts = contracts.filter((contract) => contract.group === "Payment Rail");
   const rwaContracts = contracts.filter((contract) => contract.group === "RWA Rail");
@@ -1787,7 +1985,7 @@ function ArchitectureDiagram({ catalog }) {
               {[
                 {
                   title: "AI agents + API clients",
-                  body: "Hit x402-protected routes, open streams, and reuse them for repeated paid requests.",
+                  body: `Hit x402-protected routes, open ${stellar ? "payment sessions" : "streams"}, and reuse them for repeated paid requests.`,
                 },
                 {
                   title: "Owners, renters, auditors",
@@ -1795,7 +1993,7 @@ function ArchitectureDiagram({ catalog }) {
                 },
                 {
                   title: "IoT and smart access",
-                  body: "Cars, locks, and machinery can react to stream state so access ends when funding ends and unused budget remains refundable.",
+                  body: `Cars, locks, and machinery can react to ${stellar ? "session" : "stream"} state so access ends when funding ends and unused budget remains refundable.`,
                 },
               ].map((item) => (
                 <div
@@ -1827,11 +2025,11 @@ function ArchitectureDiagram({ catalog }) {
               {[
                 {
                   title: "Frontend",
-                  body: "Handles wallet connection, stream creation, RWA Studio, verification UX, and the docs handbook.",
+                  body: `Handles wallet connection, ${stellar ? "session" : "stream"} creation, RWA Studio, verification UX, and the docs handbook.`,
                 },
                 {
                   title: "Backend + x402 middleware",
-                  body: "Serves route catalog, enforces paywalls, pins sanitized IPFS metadata, stores private evidence bundles, exposes verification endpoints, and turns onchain state into web access.",
+                  body: "Serves route catalog, enforces paywalls, pins sanitized IPFS metadata, stores private evidence bundles, exposes verification endpoints, and turns runtime state into web access.",
                 },
                 {
                   title: "Indexer + provenance service",
@@ -1878,13 +2076,15 @@ function ArchitectureDiagram({ catalog }) {
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <div className="text-sm font-semibold text-white">
-                    Circle {tokenSymbol} asset precompile
+                    {stellar ? `Stellar ${tokenSymbol} settlement asset` : `Circle ${tokenSymbol} asset precompile`}
                   </div>
                   <div className="mt-2 break-all font-mono text-xs text-cyan-200">
                     {paymentTokenAddress}
                   </div>
                   <p className="mt-3 text-sm leading-6 text-white/55">
-                    Native payment asset {paymentAssetId} used for approvals, direct settlement, rental funding, and yield operations.
+                    {stellar
+                      ? `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"} used for direct settlement, rental funding, and yield operations.`
+                      : `Native payment asset ${paymentAssetId} used for approvals, direct settlement, rental funding, and yield operations.`}
                   </p>
                 </div>
                 {paymentContracts.map((contract) => (
@@ -1929,7 +2129,7 @@ function ArchitectureDiagram({ catalog }) {
                 ))}
               </div>
               <div className="mt-4 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.06] p-4 text-sm leading-7 text-white/65">
-                This is the part many RWA projects skip. Stream Engine does not stop at proving that a house, fleet, or machine exists. It also tracks who owns the digital twin, what metadata and verification facts are bound to it, how rental revenue is generated, and why future yield must follow whoever owns the NFT now.
+                {`This is the part many RWA projects skip. Stream Engine does not stop at proving that a house, fleet, or machine exists. It also tracks who owns the digital twin, what metadata and verification facts are bound to it, how rental revenue is generated, and why future yield must follow whoever owns the ${stellar ? "twin" : "NFT"} now.`}
               </div>
             </div>
           </div>
@@ -1960,11 +2160,13 @@ function ArchitectureDiagram({ catalog }) {
                 },
                 {
                   title: "Physical asset + IoT",
-                  body: "Cars, locks, and machines can use stream status to grant or revoke access and stop usage when payment ends.",
+                  body: `Cars, locks, and machines can use ${stellar ? "session" : "stream"} status to grant or revoke access and stop usage when payment ends.`,
                 },
                 {
                   title: "Explorer / public chain history",
-                  body: "Lets anyone inspect every deployed Solidity contract address and verify the architecture independently.",
+                  body: stellar
+                    ? "Lets anyone inspect catalog runtime identifiers, Stellar explorer links when available, and the indexed history behind the current demo path."
+                    : "Lets anyone inspect every deployed Solidity contract address and verify the architecture independently.",
                 },
               ].map((item) => (
                 <div
@@ -1988,57 +2190,64 @@ function ArchitectureDiagram({ catalog }) {
 }
 
 function DeployedContractCards({ catalog }) {
-  const explorerBase = String(
-    ACTIVE_NETWORK.explorerUrl || "https://westmint.subscan.io",
-  ).replace(/\/$/, "");
+  const stellar = isStellarRuntime(catalog);
   const contracts = getDeployedContractDescriptors(catalog);
 
   return (
     <div className="space-y-4">
       <div className="text-xs uppercase tracking-[0.24em] text-cyan-300">
-        Live Deployed Solidity Contracts
+        {stellar ? "Live Runtime Components" : "Live Deployed Solidity Contracts"}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        {contracts.map((contract) => (
-          <div
-            key={contract.name}
-            className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  {contract.name}
+        {contracts.map((contract) => {
+          const href = buildExplorerHref(catalog, contract.address);
+          return (
+            <div
+              key={contract.name}
+              className="rounded-[26px] border border-white/10 bg-white/[0.03] p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-white">
+                    {contract.name}
+                  </div>
+                  <div className="mt-1 text-xs uppercase tracking-[0.18em] text-cyan-300">
+                    {contract.group} · {stellar ? "runtime component" : "Solidity contract"}
+                  </div>
+                  <div className="mt-2 text-[11px] uppercase tracking-[0.16em] text-white/35">
+                    Runtime id: {contract.onchainName}
+                  </div>
                 </div>
-                <div className="mt-1 text-xs uppercase tracking-[0.18em] text-cyan-300">
-                  {contract.group} · Solidity contract
-                </div>
-                <div className="mt-2 text-[11px] uppercase tracking-[0.16em] text-white/35">
-                  Onchain deployment id: {contract.onchainName}
-                </div>
+                {href ? (
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-xs text-white/55 transition-colors hover:text-white"
+                  >
+                    Explorer
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-white/10 px-3 py-1 text-xs text-white/45">
+                    Catalog
+                  </span>
+                )}
               </div>
-              <a
-                href={`${explorerBase}/account/${contract.address}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1 rounded-full border border-white/10 px-3 py-1 text-xs text-white/55 transition-colors hover:text-white"
-              >
-                Explorer
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            </div>
 
-            <div className="mt-4 rounded-2xl bg-black/25 p-3 font-mono text-xs text-cyan-200 break-all">
-              {contract.address}
-            </div>
+              <div className="mt-4 rounded-2xl bg-black/25 p-3 font-mono text-xs text-cyan-200 break-all">
+                {contract.address}
+              </div>
 
-            <p className="mt-4 text-sm leading-6 text-white/60">
-              {contract.role}
-            </p>
-            <p className="mt-3 text-sm leading-6 text-white/45">
-              {contract.note}
-            </p>
-          </div>
-        ))}
+              <p className="mt-4 text-sm leading-6 text-white/60">
+                {contract.role}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-white/45">
+                {contract.note}
+              </p>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -2085,6 +2294,7 @@ export default function Docs() {
   const { catalog, isLoading, error } = useProtocolCatalog();
   const { section } = useParams();
   const navigate = useNavigate();
+  const stellar = isStellarRuntime(catalog);
   const sections = useMemo(() => buildSections(catalog), [catalog]);
   const resolvedSection = section === "contracts" ? "architecture" : section;
   const activeSection =
@@ -2127,8 +2337,8 @@ export default function Docs() {
               </div>
               <p className="mt-3 text-sm leading-7 text-white/55">
                 This page explains the full product model in plain language:
-                payment negotiation, stream settlement, agent flows, RWAs,
-                verification, and contracts.
+                payment negotiation, reusable settlement, agent flows, RWAs,
+                verification, and runtime components.
               </p>
             </div>
             <div className="space-y-2">
@@ -2175,19 +2385,21 @@ export default function Docs() {
               <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <StatCard
                   label="Network"
-                  value={catalog?.network?.name || "Westend Asset Hub"}
+                  value={catalog?.network?.name || (stellar ? "Stellar Testnet" : "Westend Asset Hub")}
                 />
                 <StatCard
                   label="Payment Token"
-                  value={`Circle ${catalog?.payments?.tokenSymbol || "USDC"}`}
+                  value={`${stellar ? "Stellar" : "Circle"} ${catalog?.payments?.tokenSymbol || "USDC"}`}
                 />
                 <StatCard
-                  label="Asset Id"
-                  value={String(catalog?.payments?.paymentAssetId || 31337)}
+                  label={stellar ? "Settlement" : "Asset Id"}
+                  value={stellar
+                    ? (catalog?.payments?.settlement || "soroban-sac")
+                    : String(catalog?.payments?.paymentAssetId || 31337)}
                 />
                 <StatCard label="Paid Routes" value={String(routeCount)} />
                 <StatCard
-                  label="Contracts Wired"
+                  label={stellar ? "Components Wired" : "Contracts Wired"}
                   value={String(configuredContractCount)}
                 />
               </div>

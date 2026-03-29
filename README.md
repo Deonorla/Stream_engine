@@ -1,110 +1,94 @@
-# Stream Engine on Polkadot Westend Asset Hub
-<img width="1920" height="1080" alt="Screenshot 2026-03-20 at 12 29 00" src="https://github.com/user-attachments/assets/413fc0d8-5de6-4e0b-bb0b-efa2acb274a4" />
+# Stream Engine on Stellar
 
+**Stream Engine** is an `x402`-compatible payment and settlement stack for AI agents plus a rental-RWA backend for verified productive assets.
 
-**Stream Engine** is an `x402`-compatible payment and settlement stack for AI agents.
+The current hackathon path is now **Stellar-first**:
 
-It combines two product lanes on one runtime:
+- agent/API payments use reusable **payment sessions** instead of Polkadot streams
+- the RWA backend uses a **Stellar runtime** with private evidence storage, attestation-backed verification, and explicit issuer onboarding
+- the existing web UI/UX stays the same; only the backend and integration layer changed
 
-- agent-to-API payments using `x402` discovery plus reusable payment streams
-- rental RWA issuance with IPFS metadata, verification, compliance, and yield streaming
+## What changed
 
-The current deployment target is `Westend Asset Hub`, using Circle test `USDC` as the payment and yield asset for both lanes.
+The previous Polkadot/Westend demo path caused repeated demo failures:
 
-## x402 + Stream Engine
+- owner-only issuer approval surprises during mint
+- opaque contract/runtime revert errors
+- broken cancel/refund behavior
+- CLI drift from the web app
+- frontend integrations depending on chain-specific event reads
 
-The clean mental model is:
+The active runtime now fixes those issues by moving the hackathon path to a Stellar-backed integration model.
 
-- `x402` is the paywall handshake
-- `Stream Engine` is the settlement engine behind that handshake
-
-In practice:
-
-- `x402` tells an agent that payment is required
-- `x402` describes the terms: token, route mode, recipient, and proof format
-- `Stream Engine` decides whether to satisfy that requirement with direct settlement or a reusable payment stream
-- the middleware verifies the chosen payment state and turns it into API access
-
-So Stream Engine does **not** replace `x402`. It makes `x402` economically usable for high-frequency agent traffic.
-
-## Current target
-
-- Network: `Westend Asset Hub`
-- ETH RPC: `https://westend-asset-hub-eth-rpc.polkadot.io`
-- Substrate RPC: `wss://westend-asset-hub-rpc.polkadot.io`
-- Chain ID: `420420421`
-- Native gas token: `WND`
-- Payment asset: `Circle USDC`
-- Asset ID: `31337`
-- Decimals: `6`
-- Asset precompile: `0x00007a6900000000000000000000000001200000`
-
-## What Stream Engine does now
+## Active Architecture
 
 ### Agent payments
 
-- middleware emits standardized `HTTP 402 Payment Required` responses
-- agents discover payment terms through an `x402`-style flow instead of custom provider logic
-- the SDK or dashboard approves Circle USDC once
-- `FlowPayStream` creates a reusable stream instead of signing every request
-- subsequent requests reference the active stream, and the middleware validates that stream onchain
+- middleware still emits `HTTP 402 Payment Required`
+- the backend now exposes a reusable **session meter** model through `/api/sessions`
+- clients open or reuse a session, then send `X-FlowPay-Stream-ID` for compatibility
+- middleware validates the session and unlocks paid routes
 
-### Rental RWAs
+### RWA verification
 
-- `FlowPayAssetNFT` mints the digital twin
-- `FlowPayRWAHub` binds asset identity, compliance, evidence roots, verification state, and yield streams
-- `FlowPayAssetAttestationRegistry` records which roles attested to which evidence, when, and for how long
-- sanitized public metadata is pinned to IPFS and exposed as `ipfs://...`
-- raw deeds, tax files, and inspections remain private by default while their roots are anchored onchain
-- QR or NFC payloads now resolve into a structured trust verdict, not only a CID/tag consistency check
-- new twins can start as `pending_attestation` or `verified` depending on the attestation policy configured for that asset type
-- first-time issuers can be auto-onboarded during minting when the backend signer is configured as an RWA hub operator
+- the NFT represents a **verified productive rental twin**, not direct deed transfer
+- raw documents stay private on the server
+- only public metadata plus evidence roots are anchored
+- verification is structured and returns:
+  - `status`
+  - `checks`
+  - `warnings`
+  - `failures`
+  - `requiredActions`
+  - `evidenceCoverage`
+  - `attestationCoverage`
+  - `documentFreshness`
+  - `asset`
+  - `activity`
 
-## Stack
+### Runtime stance
 
-- Solidity contracts deployed through Polkadot's smart-contract stack
-- native Substrate `revive` reads and writes for Westend compatibility
-- React/Vite frontend with Polkadot wallet extension support
-- Express backend for `x402` middleware, IPFS uploads, verification, and indexing
-- TypeScript SDK with both EVM and Substrate transaction adapters
+- **Primary runtime:** Stellar testnet
+- **Settlement asset:** Stellar testnet USDC via SAC
+- **Legacy path:** Polkadot/Westend remains in the repo for reference and fallback only; it is no longer the primary demo target
 
-## Why this matters for agents
+## Preserved public surfaces
 
-Human payment flows tolerate:
+These stay stable across the migration:
 
-- checkout pages
-- manual confirmations
-- subscriptions
-- custom billing integrations
+- `/api/engine/catalog`
+- `/api/rwa/*`
+- x402 `402` headers
+- `FlowPaySDK`
+- `FlowPayRWAClient`
+- the current frontend pages and user journeys
 
-Agents do not.
+## Key backend endpoints
 
-Agents need:
+### Catalog and payments
 
-- machine-readable payment discovery
-- automatic authorization
-- low-friction repeated usage
-- clear spending controls
-- predictable failure modes
+- `GET /api/engine/catalog`
+- `GET /api/free`
+- `GET /api/weather`
+- `GET /api/premium`
+- `GET /api/sessions`
+- `POST /api/sessions`
+- `GET /api/sessions/:sessionId`
+- `POST /api/sessions/:sessionId/cancel`
+- `POST /api/sessions/:sessionId/claim`
 
-`x402` provides the payment negotiation layer.
-Stream Engine provides the low-friction settlement layer.
+### RWA
 
-That is why the combination works.
-
-## Request lifecycle
-
-```text
-Agent request
-  -> API returns HTTP 402
-  -> x402-style response describes payment terms
-  -> SDK/runtime decides direct payment vs streaming
-  -> Stream Engine opens or reuses a stream
-  -> middleware verifies stream state
-  -> API serves the resource
-```
-
-For repeated usage, the important optimization is that many API requests can reuse one stream lifecycle instead of requiring a fresh onchain payment each time.
+- `POST /api/rwa/ipfs/metadata`
+- `POST /api/rwa/evidence`
+- `POST /api/rwa/assets`
+- `GET /api/rwa/assets`
+- `GET /api/rwa/assets/:tokenId`
+- `GET /api/rwa/assets/:tokenId/activity`
+- `POST /api/rwa/attestations`
+- `POST /api/rwa/verify`
+- `POST /api/rwa/relay`
+- `POST /api/rwa/admin`
 
 ## Quick start
 
@@ -114,74 +98,51 @@ For repeated usage, the important optimization is that many API requests can reu
 npm run install:all
 ```
 
-### 2. Prepare env
+### 2. Copy env
 
 ```bash
 cp .env.example .env
 ```
 
-At minimum, set:
+### 3. Minimum Stellar env
 
 ```bash
-POLKADOT_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
-POLKADOT_SUBSTRATE_RPC_URL=wss://westend-asset-hub-rpc.polkadot.io
-POLKADOT_CHAIN_ID=420420421
-FLOWPAY_NETWORK_NAME="Westend Asset Hub"
-FLOWPAY_PAYMENT_ASSET_ID=31337
-FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
-FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
-FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
-FLOWPAY_USE_SUBSTRATE_READS=true
-FLOWPAY_USE_SUBSTRATE_WRITES=true
-FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xYOUR_ATTESTATION_REGISTRY
-FLOWPAY_RWA_OPERATOR_ADDRESSES=0xYOUR_BACKEND_OPERATOR
-SUBSTRATE_JSON_PATH=./substrate.json
-SUBSTRATE_PASSWORD=your_account_password
-FLOWPAY_RECIPIENT_ADDRESS=0xYOUR_SERVICE_WALLET
+FLOWPAY_RUNTIME_KIND=stellar
+FLOWPAY_NETWORK_NAME="Stellar Testnet"
+STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+STELLAR_ASSET_CODE=USDC
+STELLAR_ASSET_ISSUER=your_testnet_usdc_issuer
+STELLAR_USDC_SAC_ADDRESS=stellar:usdc-sac
+
+FLOWPAY_RECIPIENT_ADDRESS=G...
+FLOWPAY_SESSION_API_URL=http://127.0.0.1:3001
+DEMO_STELLAR_SENDER=G...
+
+FLOWPAY_RWA_HUB_ADDRESS=stellar:rwa-registry
+FLOWPAY_RWA_ASSET_NFT_ADDRESS=stellar:rwa-nft
+FLOWPAY_RWA_ASSET_REGISTRY_ADDRESS=stellar:rwa-registry
+FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=stellar:rwa-attestation
+FLOWPAY_RWA_ASSET_STREAM_ADDRESS=stellar:yield-vault
+FLOWPAY_RWA_COMPLIANCE_GUARD_ADDRESS=stellar:policy
+
 PINATA_JWT=your_pinata_jwt
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/flowpay
 ```
 
-The same account needs:
+## Issuer onboarding
 
-- `WND` for gas on Westend Asset Hub
-- `USDC` asset `31337` for payment streams and RWA funding
+Issuer approval is now **explicit**.
 
-`FLOWPAY_RWA_OPERATOR_ADDRESSES` is the deploy-time list of platform operators. Include the backend signer there if you want the server to auto-approve new issuers during minting instead of relying on a separate owner-only onboarding step.
+- minting no longer auto-approves issuers
+- the platform admin/operator onboards an issuer once
+- later mints for that issuer succeed without owner-only surprises
+- if onboarding is missing, mint fails with `issuer_not_onboarded`
 
-### 3. Deploy
+This is intentional and matches the current backend implementation.
 
-Deploy the payment rail:
-
-```bash
-npm run deploy:westmint:substrate
-```
-
-Deploy the RWA suite:
-
-```bash
-npm run deploy:rwa:westmint:substrate
-```
-
-Copy the emitted contract addresses back into `.env`.
-
-### 4. Run a live smoke test
-
-```bash
-npm run smoke:westmint:substrate
-```
-
-This validates:
-
-- Circle USDC approval
-- payment stream creation
-- RWA mint
-- compliance setup
-- asset yield stream funding
-- flash advance
-- yield claim
-- verification and activity lookup
-
-### 5. Start the app
+## Run the app
 
 ```bash
 npm run start:all
@@ -189,41 +150,50 @@ npm run start:all
 
 Open [http://localhost:5173](http://localhost:5173).
 
-## Frontend wallet model
+## Demo flow
 
-The current UI uses a Polkadot wallet extension path instead of MetaMask assumptions.
+### Backend/web
 
-Supported flow:
+1. Start the stack with `npm run start:all`
+2. Confirm `GET /api/health`
+3. Confirm `GET /api/engine/catalog`
+4. Connect Freighter in the web app
+5. Mint an asset after the issuer has been onboarded
+6. Verify the asset
+7. Start a rental session
+8. End or cancel the session and confirm refund/remaining state
+9. Fund an asset yield stream and claim yield
 
-- connect a Substrate account from Talisman, SubWallet, or polkadot.js extension
-- map it to an EVM alias through `revive`
-- use that mapped identity for Solidity contract calls and ownership checks
+### CLI/provider smoke
 
-## Useful commands
+Provider:
 
-- `npm run test` — contracts + SDK tests
-- `npm run build:web` — build the frontend
-- `npm run deploy:westmint:substrate` — deploy `FlowPayStream`
-- `npm run deploy:rwa:westmint:substrate` — deploy RWA contracts
-- `npm run smoke:westmint:substrate` — live Westend smoke test
-- `npm --prefix server test` — backend tests
-- `npm --prefix sdk run test:all` — SDK tests
+```bash
+npx ts-node --project demo/tsconfig.json demo/provider.ts
+```
 
-## Verified Westend deployment
+Consumer:
 
-These are the latest live contract addresses from the native Westend deployment path:
+```bash
+npx ts-node --project demo/tsconfig.json demo/consumer.ts
+```
 
-- `FlowPayStream`: `0x75edbf3d9857521f5fb2f581c896779f5110a8a0`
-- `FlowPayAssetNFT`: `0x0340b3f493bae901f740c494b2f7744f5fffe348`
-- `FlowPayAssetRegistry`: `0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f`
-- `FlowPayComplianceGuard`: `0x72a979756061c5993a4c9c95e87519e9492dd721`
-- `FlowPayAssetStream`: `0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396`
-- `FlowPayRWAHub`: `0x1286a0fe3413dd70083df2d654677a7c39096753`
+Setup check:
 
-The v2 evidence and attestation flow also expects `FlowPayAssetAttestationRegistry`. Its live address is read from `FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS` and surfaced in `GET /api/engine/catalog`.
+```bash
+npx ts-node --project demo/tsconfig.json demo/check-setup.ts
+```
 
-## Notes
+## Verification
 
-- Circle's public test faucet currently exposes Polkadot test USDC on Westend Asset Hub, which is why the verified path uses Westend rather than Polkadot Hub TestNet.
-- The backend and smoke scripts already use native Substrate `revive` calls for Westend compatibility.
-- The active runtime is **Stream Engine** on Westend Asset Hub with Circle USDC. Legacy package and contract names such as `FlowPaySDK` and `FlowPayStream` remain as code identifiers only.
+These commands currently pass:
+
+- `npm --prefix vite-project run build`
+- `npm --prefix vite-project run test`
+- `npm --prefix server test -- --exit`
+- `npm --prefix sdk run build`
+- `npm --prefix sdk run test:all`
+
+## Legacy note
+
+The repo still contains Polkadot/Westend code paths, scripts, and docs because they were the previous demo path. Treat them as **legacy/deprecated for the hackathon** unless a document explicitly says otherwise.

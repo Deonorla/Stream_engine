@@ -1,5 +1,7 @@
 # Events & Errors
 
+> Legacy note: this page documents the archived Westend payment stream contract event surface. The active Stellar-backed runtime uses backend-managed payment sessions for the demo path.
+
 Reference for the payment stream contract event surface.
 
 ## Core Events

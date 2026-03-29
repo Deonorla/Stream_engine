@@ -8,7 +8,7 @@ The backend exposes two main surfaces:
 ## Core Ideas
 
 - HTTP 402 is the payment negotiation layer
-- stream contracts are the settlement layer
+- reusable payment sessions are the active settlement layer for the hackathon runtime
 - RWA v2 verification is evidence + attestation + status driven
 
 ## Important Note

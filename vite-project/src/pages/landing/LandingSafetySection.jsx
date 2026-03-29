@@ -27,7 +27,7 @@ export default function LandingSafetySection() {
           <div className="space-y-6">
             <p className="text-flowpay-400 text-sm font-semibold uppercase tracking-widest font-mono">Safety & Compliance</p>
             <h2 className="text-4xl lg:text-5xl font-bold text-white">Humans stay in control.</h2>
-            <p className="text-surface-300 leading-relaxed">AI agents operate autonomously on Westend Asset Hub, but you always have the final word. Kill switches, rate limiters, and budget caps keep your system safe.</p>
+            <p className="text-surface-300 leading-relaxed">AI agents operate autonomously on the Stellar-backed runtime, but you always have the final word. Kill switches, rate limiters, and budget caps keep your system safe.</p>
             <ul className="space-y-3">
               {['Emergency pause — stop all agents instantly','Daily and per-stream USDC spending caps','Suspicious activity detection via Gemini AI','KYC/AML gate for all RWA transactions'].map(item => (
                 <li key={item} className="flex items-center gap-3 text-sm text-surface-300">
@@ -39,7 +39,7 @@ export default function LandingSafetySection() {
           <div className="bg-surface-800 rounded-2xl border border-surface-700 p-6 shadow-card font-mono">
             <div className="flex items-center gap-2 mb-5 pb-4 border-b border-surface-700">
               <span className="w-2 h-2 rounded-full bg-success-500 animate-pulse" aria-hidden="true" />
-              <span className="text-sm text-surface-300">stream-engine · polkadot control panel</span>
+              <span className="text-sm text-surface-300">stream-engine · stellar control panel</span>
             </div>
             <div className="space-y-0">
               <Toggle label="Agent Rate Limit" defaultOn={true} />

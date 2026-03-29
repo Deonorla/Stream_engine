@@ -6,7 +6,7 @@ The backend middleware is the bridge between HTTP and onchain state.
 
 - emit x402-compatible `402 Payment Required` responses
 - describe accepted token, recipient, and settlement mode
-- validate direct-payment proof or stream proof
+- validate direct-payment proof or session proof
 - allow free routes to bypass payment checks
 
 ## RWA Responsibilities
@@ -20,4 +20,4 @@ The RWA endpoints are separate from the payment middleware, but they follow the 
 
 ## Why This Matters
 
-Without middleware, the contracts are only contracts. Middleware turns them into usable web payment and verification primitives.
+Without middleware, the runtime surfaces are only raw settlement primitives. Middleware turns them into usable web payment and verification flows.

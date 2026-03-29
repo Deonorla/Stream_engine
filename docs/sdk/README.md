@@ -8,8 +8,8 @@ Its core job is not just "send tokens." Its job is to turn `x402` payment requir
 
 - `x402` provides payment negotiation
 - the SDK parses those requirements
-- the SDK chooses direct settlement or streaming
-- Stream Engine contracts execute the chosen payment path
+- the SDK chooses direct settlement or reusable session flow
+- Stream Engine runtime adapters execute the chosen payment path
 
 That means the SDK is the decision and execution bridge between HTTP paywalls and onchain settlement.
 
@@ -27,10 +27,10 @@ import { FlowPaySDK } from './FlowPaySDK';
 
 const sdk = new FlowPaySDK({
   privateKey: process.env.PRIVATE_KEY,
-  rpcUrl: 'https://westend-asset-hub-eth-rpc.polkadot.io',
+  rpcUrl: 'https://soroban-testnet.stellar.org',
   token: {
     symbol: 'USDC',
-    decimals: 6,
+    decimals: 7,
   }
 });
 
@@ -63,9 +63,9 @@ Agent Request
 
 - automatic `x402` negotiation
 - route-aware direct vs streaming decisions
-- stream creation and cancellation
+- reusable payment session creation and cancellation
 - budget and spending guardrails
-- compatibility with both EVM and Substrate-oriented transaction flows
+- runtime-driven compatibility across Stellar-backed and legacy adapters
 
 ## Why This Matters
 

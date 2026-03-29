@@ -1,5 +1,7 @@
 # FlowPayStream Contract
 
+> Legacy note: this page documents the archived Westend stream contract. The active hackathon path uses backend-managed Stellar payment sessions for the demo.
+
 `FlowPayStream` is the stream settlement contract used behind Stream Engine’s x402 flow.
 
 ## Deployment

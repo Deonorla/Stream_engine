@@ -8,12 +8,12 @@ const TESTIMONIALS = [
   {
     user: '@rwa_builder',
     role: 'DeFi Protocol Lead',
-    quote: 'The RWA module is insane. We tokenized a real estate portfolio on Polkadot and yields started streaming on-chain within an hour.',
+    quote: 'The RWA module is insane. We minted a real estate portfolio into verified rental twins and yields started flowing through the runtime within an hour.',
   },
   {
     user: '@ai_agent_dev',
     role: 'AI Systems Architect',
-    quote: 'x402 + Gemini AI mode selection is the missing piece for autonomous agent payments on Polkadot. This is the infrastructure we needed.',
+    quote: 'x402 + Gemini AI mode selection is the missing piece for autonomous agent payments on Stellar. This is the infrastructure we needed.',
   },
 ]
 

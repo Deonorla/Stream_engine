@@ -1,4 +1,4 @@
-export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'Westend Asset Hub' }) {
+export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'Stellar Testnet' }) {
   const features = [
     {
       title: 'x402 Service Discovery',
@@ -16,7 +16,7 @@ export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'W
     },
     {
       title: `Autonomous ${tokenSymbol} Payments`,
-      desc: `Agents pay for API access with Circle ${tokenSymbol} on ${networkName} without repeated approvals or manual settlement loops.`,
+      desc: `Agents pay for API access with Stellar ${tokenSymbol} on ${networkName} without repeated approvals or manual settlement loops.`,
       color: 'text-flowpay-400', span: '',
     },
     {

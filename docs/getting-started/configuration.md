@@ -1,70 +1,81 @@
 # Configuration
 
-The repo defaults to **Westend Asset Hub** plus **Circle USDC**.
+The active hackathon configuration is now **Stellar-first**.
 
-## Core Runtime
+## Core runtime
 
 ```bash
-POLKADOT_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
-POLKADOT_SUBSTRATE_RPC_URL=wss://westend-asset-hub-rpc.polkadot.io
-POLKADOT_CHAIN_ID=420420421
-FLOWPAY_NETWORK_NAME="Westend Asset Hub"
-FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
-FLOWPAY_PAYMENT_ASSET_ID=31337
+FLOWPAY_RUNTIME_KIND=stellar
+FLOWPAY_NETWORK_NAME="Stellar Testnet"
+STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+FLOWPAY_BLOCK_EXPLORER_URL=https://stellar.expert/explorer/testnet
+```
+
+## Settlement asset
+
+```bash
+STELLAR_ASSET_CODE=USDC
+STELLAR_ASSET_ISSUER=your_testnet_usdc_issuer
+STELLAR_ASSET_DECIMALS=7
+STELLAR_USDC_SAC_ADDRESS=stellar:usdc-sac
 FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
-FLOWPAY_PAYMENT_TOKEN_DECIMALS=6
-FLOWPAY_USE_SUBSTRATE_READS=true
-FLOWPAY_USE_SUBSTRATE_WRITES=true
+FLOWPAY_PAYMENT_TOKEN_DECIMALS=7
 ```
 
-## Contracts
+## Backend addresses and services
 
 ```bash
-FLOWPAY_CONTRACT_ADDRESS=0x75edbf3d9857521f5fb2f581c896779f5110a8a0
-FLOWPAY_RECIPIENT_ADDRESS=0x506e724d7FDdbF91B6607d5Af0700d385D952f8a
-FLOWPAY_RWA_ASSET_NFT_ADDRESS=0x0340b3f493bae901f740c494b2f7744f5fffe348
-FLOWPAY_RWA_ASSET_REGISTRY_ADDRESS=0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f
-FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=0xyour_attestation_registry_here
-FLOWPAY_RWA_COMPLIANCE_GUARD_ADDRESS=0x72a979756061c5993a4c9c95e87519e9492dd721
-FLOWPAY_RWA_ASSET_STREAM_ADDRESS=0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396
-FLOWPAY_RWA_HUB_ADDRESS=0x1286a0fe3413dd70083df2d654677a7c39096753
-FLOWPAY_RWA_OPERATOR_ADDRESSES=0xyour_backend_operator_here
-```
-
-The attestation registry is part of the v2 productive-RWA flow. If it is missing, the backend can still start, but the full evidence-backed verification and attestation workflow will be incomplete.
-
-`FLOWPAY_RWA_OPERATOR_ADDRESSES` is the deploy-time list of hub operators. Include the backend mint signer there if you want first-time issuers to be auto-approved during minting instead of going through a separate owner-only onboarding step.
-
-## Demo Signer
-
-```bash
-SUBSTRATE_JSON_PATH=./substrate.json
-SUBSTRATE_PASSWORD=your_account_password
-```
-
-## Frontend Env
-
-```bash
-VITE_FLOWPAY_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
-VITE_FLOWPAY_SUBSTRATE_RPC_URL=wss://westend-asset-hub-rpc.polkadot.io
-VITE_FLOWPAY_CHAIN_ID=420420421
-VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
-VITE_FLOWPAY_PAYMENT_ASSET_ID=31337
-VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
-```
-
-## RWA v2 Backend Features
-
-```bash
+FLOWPAY_RECIPIENT_ADDRESS=G...
+FLOWPAY_SESSION_API_URL=http://127.0.0.1:3001
 FLOWPAY_APP_BASE_URL=http://localhost:5173
-IPFS_GATEWAY_URL=https://gateway.pinata.cloud/ipfs
+
+FLOWPAY_RWA_ASSET_NFT_ADDRESS=stellar:rwa-nft
+FLOWPAY_RWA_ASSET_REGISTRY_ADDRESS=stellar:rwa-registry
+FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS=stellar:rwa-attestation
+FLOWPAY_RWA_COMPLIANCE_GUARD_ADDRESS=stellar:policy
+FLOWPAY_RWA_ASSET_STREAM_ADDRESS=stellar:yield-vault
+FLOWPAY_RWA_HUB_ADDRESS=stellar:rwa-registry
+
 PINATA_JWT=your_pinata_jwt_here
+IPFS_GATEWAY_URL=https://gateway.pinata.cloud/ipfs
 POSTGRES_URL=postgres://postgres:postgres@localhost:5432/flowpay
-RWA_INDEXER_START_BLOCK=0
 ```
 
-These values support:
+## Demo and CLI
 
-- public metadata pinning
-- private evidence-backed verification responses
-- indexed activity hydration
+```bash
+DEMO_STELLAR_SENDER=G...
+FLOWPAY_SESSION_API_URL=http://127.0.0.1:3001
+```
+
+The CLI/provider demo now reuses the backend session API instead of opening chain-specific streams directly.
+
+## Frontend env
+
+```bash
+VITE_FLOWPAY_RUNTIME_KIND=stellar
+VITE_FLOWPAY_NETWORK_NAME="Stellar Testnet"
+VITE_FLOWPAY_RPC_URL=https://soroban-testnet.stellar.org
+VITE_STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+VITE_STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+VITE_STELLAR_PAYMENT_ASSET_CODE=USDC
+VITE_STELLAR_PAYMENT_ASSET_ISSUER=your_testnet_usdc_issuer
+VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS=stellar:usdc-sac
+VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
+VITE_FLOWPAY_PAYMENT_TOKEN_DECIMALS=7
+VITE_RWA_API_URL=http://localhost:3001
+```
+
+## Issuer onboarding
+
+Issuer approval is now a separate admin action.
+
+- onboarding happens once
+- mint checks onboarding but does not auto-fix it
+- mint failures now return `issuer_not_onboarded` instead of opaque contract reverts
+
+## Legacy note
+
+Polkadot/Westend env vars still exist in the repo for the old demo path, but they are legacy and no longer the primary documented flow.

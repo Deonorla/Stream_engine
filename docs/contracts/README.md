@@ -1,6 +1,8 @@
 # Smart Contracts
 
-Stream Engine uses Solidity contracts deployed on **Westend Asset Hub**.
+> Legacy note: this contract section documents the archived Westend deployment. The active hackathon integration path is Stellar-backed and relay/session-driven.
+
+This section is a **legacy reference** for the older Solidity contracts deployed on **Westend Asset Hub**.
 
 ## Payment Rail
 
@@ -19,9 +21,9 @@ Stream Engine uses Solidity contracts deployed on **Westend Asset Hub**.
 | `FlowPayAssetStream` | asset-bound yield streams |
 | `FlowPayRWAHub` | orchestration layer and operator-driven issuer onboarding |
 
-## Payment Asset
+## Legacy Payment Asset
 
-The contracts use **Circle USDC** on Westend Asset Hub:
+The archived contracts use **Circle USDC** on Westend Asset Hub:
 
 - asset id: `31337`
 - decimals: `6`

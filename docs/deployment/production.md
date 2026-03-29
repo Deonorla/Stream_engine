@@ -1,18 +1,18 @@
 # Production Checklist
 
-This repo currently targets **Westend Asset Hub** for active testing. Before any production-like deployment, confirm:
+This repo currently targets **Stellar testnet** for active testing. Before any production-like deployment, confirm:
 
 ## Payment
 
 - x402 middleware routes are configured
-- Circle USDC asset and decimals are correct
-- stream contract and recipient addresses are set
+- Stellar USDC SAC address, asset code, issuer, and decimals are correct
+- session rail identifier and recipient addresses are set
 
 ## RWA v2
 
-- attestation registry is deployed and configured
-- backend mint signer is configured as the RWA hub owner or an approved hub operator
-- issuer approval policy is active and can be auto-applied during minting
+- attestation registry/runtime surface is configured
+- backend operator key is configured for relay/admin actions
+- issuer onboarding policy is active and explicit before minting
 - attestation policy is defined per asset type
 - private evidence vault storage is configured
 - public metadata pinning is configured

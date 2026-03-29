@@ -173,7 +173,7 @@ const StatisticsBanner = ({ stats }) => {
   );
 };
 
-export default function Hero({ networkName = 'Westend Asset Hub', stats }) {
+export default function Hero({ networkName = 'Stellar Testnet', stats }) {
   // Default mock stats if not provided
   const defaultStats = {
     totalStreams: 1247,
@@ -212,7 +212,7 @@ export default function Hero({ networkName = 'Westend Asset Hub', stats }) {
             </h1>
 
             <p className="mt-6 max-w-2xl text-lg md:text-xl text-white/70 leading-relaxed">
-              AI agents pay for services with continuous Circle USDC streams.
+              AI agents pay for services with reusable Stellar USDC payment sessions.
               <span className="text-flowpay-400 font-semibold"> One signature, unlimited requests.</span>
             </p>
 

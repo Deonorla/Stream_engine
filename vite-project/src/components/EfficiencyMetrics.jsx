@@ -120,7 +120,7 @@ const NPlusOneVisualizer = () => {
                     </div>
                     <div className="w-full h-8 bg-surface-700 rounded-lg relative overflow-hidden flex items-center justify-center">
                         <div className="absolute inset-0 bg-stream-flow opacity-20" />
-                        <div className="text-[10px] font-mono text-flowpay-300 z-10">DOT STREAM ACTIVE</div>
+                        <div className="text-[10px] font-mono text-flowpay-300 z-10">USDC SESSION ACTIVE</div>
                     </div>
                     <div className="flex gap-1 justify-center">
                         <div className="w-8 h-8 rounded-lg bg-success-500/50 flex items-center justify-center text-xs font-bold">1</div>
@@ -209,7 +209,7 @@ export function EfficiencyMetrics({ metrics }) {
                             colors={['bg-error-500 shadow-glow-error', 'bg-success-500 shadow-glow-success']}
                         />
                         <p className="mt-4 text-[10px] text-white/40 italic">
-                            Estimated from current Westend Asset Hub transaction costs and Stream Engine route overhead.
+                            Estimated from the current Stellar-backed runtime and Stream Engine route overhead.
                         </p>
                     </div>
 

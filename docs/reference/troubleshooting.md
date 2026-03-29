@@ -1,5 +1,7 @@
 # Troubleshooting
 
+> Legacy note: Westend/Substrate troubleshooting below applies to the archived Polkadot demo path. Use the Stellar runbook first for the active hackathon flow.
+
 ## `ERR_CONNECTION_REFUSED` on `localhost:3001`
 
 The backend is not running. Use:

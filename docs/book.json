@@ -1,6 +1,6 @@
 {
   "title": "Stream Engine Documentation",
-  "description": "x402-compatible agent payments plus productive RWA verification on Westend Asset Hub",
+  "description": "x402-compatible agent payments plus productive RWA verification on Stellar",
   "author": "Stream Engine Team",
   "language": "en",
   "gitbook": ">=3.0.0",

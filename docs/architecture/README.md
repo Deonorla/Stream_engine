@@ -1,5 +1,7 @@
 # Architecture Overview
 
+> Legacy note: the older Westend deployment remains in the repo for reference only. The current demo path is Stellar-backed.
+
 Stream Engine has two linked rails:
 
 1. an **x402-compatible payment rail** for agents and paid APIs
@@ -19,7 +21,7 @@ The important design choice in v2 is that RWA NFTs are **not presented as direct
 agent / user / renter
   -> frontend or sdk
   -> x402 middleware + RWA API
-  -> Stream Engine contracts on Westend Asset Hub
+  -> Stream Engine runtime services on Stellar testnet
   -> private evidence vault + IPFS + indexer
   -> productive real-world asset
 ```
@@ -29,9 +31,9 @@ agent / user / renter
 | Component | Role |
 |----------|------|
 | Provider middleware | emits HTTP 402 responses and verifies payment proof |
-| SDK/runtime | parses x402 payment terms and chooses direct payment vs streaming |
-| `FlowPayStream` | reusable payment stream contract for repeated paid requests |
-| Circle USDC (`31337`) | settlement asset on Westend Asset Hub |
+| SDK/runtime | parses x402 payment terms and chooses direct payment vs reusable sessions |
+| Session meter runtime | reusable paid-session rail for repeated paid requests |
+| Stellar USDC SAC | settlement asset on Stellar testnet |
 
 ## Productive RWA Rail
 
@@ -95,4 +97,4 @@ The result is a structured trust state such as:
 
 ## Deployed Runtime
 
-The active Westend Asset Hub deployment is documented in [deployment/README.md](../deployment/README.md), including the attestation registry address used by the v2 flow.
+The active Stellar-backed runtime is documented in [deployment/README.md](../deployment/README.md). The older Westend contract suite remains archived in the repo for reference only.

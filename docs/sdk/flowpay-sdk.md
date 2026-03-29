@@ -17,12 +17,12 @@ The SDK:
 
 ```typescript
 const sdk = new FlowPaySDK({
-  rpcUrl: 'https://westend-asset-hub-eth-rpc.polkadot.io',
+  rpcUrl: 'https://soroban-testnet.stellar.org',
   privateKey: process.env.PRIVATE_KEY,
-  adapter, // optional Substrate adapter
+  adapter, // optional runtime adapter such as FlowPayStellarAdapter
   token: {
     symbol: 'USDC',
-    decimals: 6,
+    decimals: 7,
   },
   agentId: 'stream-engine-agent',
 });
@@ -31,5 +31,5 @@ const sdk = new FlowPaySDK({
 ## Important Notes
 
 - the current runtime token is Circle `USDC`
-- the SDK can operate with an EVM signer or the `FlowPaySubstrateAdapter`
-- the SDK expects `paymentToken()` on the stream contract when it needs to resolve the token address on-chain
+- the SDK can operate with a direct signer or a runtime adapter such as `FlowPayStellarAdapter`
+- on the active hackathon path, the SDK consumes the catalog and session endpoints instead of talking directly to a Westend stream contract

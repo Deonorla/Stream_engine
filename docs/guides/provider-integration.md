@@ -20,6 +20,6 @@ If the provider issues productive RWAs, it can also:
 ## Minimum Inputs
 
 - recipient address
-- stream contract address
+- session rail or relay identifier
 - payment token address
 - route pricing / mode

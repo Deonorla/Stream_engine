@@ -6,7 +6,7 @@ This section is the quickest way to understand how the system fits together:
 
 1. `x402` tells the agent that payment is required
 2. the Stream Engine runtime decides how to satisfy that payment
-3. the settlement layer uses direct payment or reusable streaming
+3. the settlement layer uses direct payment or reusable sessions/stream compatibility
 4. middleware verifies payment state and unlocks the API response
 
 ## What You'll Learn
@@ -19,9 +19,9 @@ This section is the quickest way to understand how the system fits together:
 
 - Node.js v18 or higher
 - npm or yarn
-- a Westend-compatible wallet
-- WND for gas
-- Circle test USDC on asset id `31337`
+- a Stellar-compatible wallet such as Freighter
+- XLM for testnet fees
+- Stellar testnet USDC
 
 ## Architecture Overview
 
@@ -29,13 +29,14 @@ This section is the quickest way to understand how the system fits together:
 AI Agent
   -> x402-aware API
   -> Stream Engine runtime
-  -> Westend Asset Hub settlement
+  -> Stellar session-backed settlement
 ```
 
 ## Notes
 
 - the product name is **Stream Engine**
 - some code-level identifiers still keep earlier `FlowPay*` names for compatibility
+- legacy Westend docs remain in the repo for reference, but the active hackathon path is Stellar
 
 ## Next Steps
 

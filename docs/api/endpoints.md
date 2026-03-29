@@ -8,6 +8,11 @@
 | `GET` | `/api/free` | free sample route |
 | `GET` | `/api/weather` | paid route used in x402 demos |
 | `GET` | `/api/premium` | premium paid route |
+| `GET` | `/api/sessions` | list payment sessions for an owner |
+| `POST` | `/api/sessions` | open a new payment session |
+| `GET` | `/api/sessions/:sessionId` | inspect one payment session |
+| `POST` | `/api/sessions/:sessionId/cancel` | cancel a session and surface refund state |
+| `POST` | `/api/sessions/:sessionId/claim` | claim accrued session balance |
 
 ## RWA v2
 
@@ -15,12 +20,14 @@
 |--------|------|---------|
 | `POST` | `/api/rwa/ipfs/metadata` | pin sanitized public metadata |
 | `POST` | `/api/rwa/evidence` | store private evidence bundle and return roots |
-| `POST` | `/api/rwa/assets` | mint a rental twin, auto-onboard the signed issuer when needed, and return its current v2 verification state |
+| `POST` | `/api/rwa/assets` | mint a rental twin after issuer onboarding and return its current v2 verification state |
 | `GET` | `/api/rwa/assets` | list hydrated assets |
 | `GET` | `/api/rwa/assets/:tokenId` | fetch one hydrated asset |
 | `GET` | `/api/rwa/assets/:tokenId/activity` | fetch indexed activity |
 | `POST` | `/api/rwa/attestations` | register or revoke attestation |
 | `POST` | `/api/rwa/verify` | return structured verification result |
+| `POST` | `/api/rwa/relay` | relay user-initiated Stellar actions without changing UI workflows |
+| `POST` | `/api/rwa/admin` | backend/operator actions such as issuer approval and policy updates |
 
 ## Verification Response Shape
 
@@ -57,4 +64,4 @@ Fresh v2 mints return:
 
 If the asset type has required attestation roles, new mints typically start as `pending_attestation`. If no required role policy exists, the asset can start as `verified`. New v2 mints do not emit a new legacy verification payload.
 
-`issuerOnboarding` reports whether the issuer was already approved or was auto-approved during minting by a configured hub owner/operator backend signer.
+`issuerOnboarding` reports whether the issuer was already approved before minting. The current Stellar migration keeps issuer onboarding explicit; mint no longer auto-approves issuers.

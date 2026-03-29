@@ -1,5 +1,5 @@
 export default function LandingHowItWorks({
-  networkName = 'Westend Asset Hub',
+  networkName = 'Stellar Testnet',
   tokenSymbol = 'USDC',
 }) {
   const steps = [
@@ -36,7 +36,7 @@ export default function LandingHowItWorks({
     {
       num: '03',
       title: 'Stream Executes',
-      desc: `${tokenSymbol} is locked in the stream contract on ${networkName} and released per-second to the service wallet or asset owner. Cancellation always returns the unused balance.`,
+      desc: `${tokenSymbol} is funded into the payment session rail on ${networkName} and metered to the service wallet or asset owner. Cancellation always returns the unused balance.`,
       color: 'text-success-400',
       border: 'hover:border-success-500/40',
       badge: null,

@@ -2,9 +2,9 @@
 
 There are two different withdrawal ideas in Stream Engine:
 
-## Payment Streams
+## Payment Sessions
 
-For API payment streams, the recipient withdraws claimable value from the stream contract according to the stream rules.
+For API payment sessions, the recipient claims or settles value from the active payment runtime according to the session rules.
 
 ## RWA Yield Streams
 

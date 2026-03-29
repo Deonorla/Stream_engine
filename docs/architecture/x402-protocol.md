@@ -7,7 +7,7 @@ In Stream Engine, `x402` is the **payment negotiation layer**, not the settlemen
 | Layer | Responsibility |
 |------|-----------------|
 | x402 | “payment is required, here are the terms” |
-| Stream Engine | satisfy those terms through direct settlement or reusable streams |
+| Stream Engine | satisfy those terms through direct settlement or reusable payment state |
 | Middleware | verify the proof and unlock the resource |
 
 ## Typical Flow
@@ -16,8 +16,8 @@ In Stream Engine, `x402` is the **payment negotiation layer**, not the settlemen
 1. Agent requests a protected route
 2. Provider returns HTTP 402
 3. Response headers describe token, price, recipient, and contract
-4. SDK chooses direct payment or streaming
-5. Agent retries with stream id or tx hash
+4. SDK chooses direct payment or reusable sessions
+5. Agent retries with session id or tx hash
 6. Provider verifies proof and returns the resource
 ```
 
@@ -31,9 +31,9 @@ In Stream Engine, `x402` is the **payment negotiation layer**, not the settlemen
 | `X-FlowPay-Token` | payment token/precompile address |
 | `X-FlowPay-Token-Decimals` | token decimals |
 | `X-Payment-Currency` | display symbol, currently `USDC` |
-| `X-FlowPay-Contract` | stream contract address |
+| `X-FlowPay-Contract` | session rail or relay identifier |
 | `X-FlowPay-Recipient` | recipient for the paid route |
-| `X-FlowPay-Stream-ID` | stream proof on retry |
+| `X-FlowPay-Stream-ID` | session proof on retry |
 | `X-FlowPay-Tx-Hash` | direct-payment proof on retry |
 
 ## Why It Matters

@@ -1,22 +1,22 @@
-# Payment Streams
+# Payment Sessions And Streams
 
-Payment streams are the settlement primitive behind Stream Engine.
+Reusable payment state is the settlement primitive behind Stream Engine.
 
 ## What They Solve
 
 Without streaming, a naive x402 integration can still require a fresh onchain payment for every request.
 
-With streaming:
+With reusable sessions or streams:
 
-- one open-stream transaction can cover many requests
-- repeated requests reference an existing stream
+- one funding action can cover many requests
+- repeated requests reference existing payment state
 - unused balance is refunded on cancel
 
 ## Lifecycle
 
-1. sender approves Circle USDC to `FlowPayStream`
-2. sender creates a stream with recipient, amount, duration, and metadata
-3. recipient withdraws accrued funds over time
+1. sender funds a reusable payment session or stream rail
+2. sender creates payment state with recipient, amount, duration, and metadata
+3. recipient claims or settles accrued funds over time
 4. either party can cancel and settle remaining balances
 
 ## Formula

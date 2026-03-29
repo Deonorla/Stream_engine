@@ -6,7 +6,7 @@ const CODE = {
   'Node.js': [
     ['keyword','import'],['plain',' { '],['class','StreamEngine'],['plain',' } '],['keyword','from'],['string'," '@stream-engine/sdk'"],['plain',';'],['nl'],
     ['keyword','const'],['plain',' agent = '],['keyword','new'],['plain',' '],['class','StreamEngine'],['plain','({'],['nl'],
-    ['plain','  chain: '],['string',"'westend'"],['plain',', wallet: process.env.'],['class','USDC_KEY'],['nl'],
+    ['plain','  chain: '],['string',"'stellar'"],['plain',', wallet: process.env.'],['class','STELLAR_SECRET'],['nl'],
     ['plain','});'],['nl'],
     ['comment','// Discover service and auto-pay via x402'],['nl'],
     ['keyword','const'],['plain',' res = '],['keyword','await'],['plain',' agent.'],['fn','fetch'],['plain','('],['string',"'https://api.weatherdata.io/forecast'"],['plain',', {'],['nl'],
@@ -17,8 +17,8 @@ const CODE = {
   ],
   'Python': [
     ['keyword','from'],['plain',' stream_engine '],['keyword','import'],['plain',' '],['class','StreamEngine'],['nl'],
-    ['plain','agent = '],['class','StreamEngine'],['plain','(chain='],['string','"polkadot"'],['plain',')'],['nl'],
-    ['comment','# x402 auto-pay on Polkadot'],['nl'],
+    ['plain','agent = '],['class','StreamEngine'],['plain','(chain='],['string','"stellar"'],['plain',')'],['nl'],
+    ['comment','# x402 auto-pay on Stellar'],['nl'],
     ['plain','res = agent.'],['fn','fetch'],['plain','('],['nl'],
     ['plain','    '],['string','"https://api.weatherdata.io/forecast"'],['plain',','],['nl'],
     ['plain','    payment_mode='],['string','"auto"'],['plain',','],['nl'],
@@ -28,7 +28,7 @@ const CODE = {
   'Rust': [
     ['keyword','use'],['plain',' stream_engine::'],['class','StreamEngine'],['plain',';'],['nl'],
     ['keyword','let'],['plain',' agent = '],['class','StreamEngine'],['plain','::'],['fn','new'],['plain','()'],['nl'],
-    ['plain','    .'],['fn','chain'],['plain','('],['string','"polkadot"'],['plain',')'],['nl'],
+    ['plain','    .'],['fn','chain'],['plain','('],['string','"stellar"'],['plain',')'],['nl'],
     ['plain','    .'],['fn','build'],['plain','();'],['nl'],
     ['comment','// x402 auto-pay'],['nl'],
     ['keyword','let'],['plain',' res = agent.'],['fn','fetch'],['plain','('],['string','"https://api.weatherdata.io/forecast"'],['plain',')'],['nl'],
@@ -74,7 +74,7 @@ export default function LandingDevSection() {
             <div className="space-y-4">
               {[
                 { title: 'TypeScript SDK', desc: 'Full type safety, autocomplete, and x402 handling built-in.' },
-                { title: 'Auto 402 Handling', desc: 'SDK parses USDC payment requirements and pays automatically.' },
+                { title: 'Auto 402 Handling', desc: 'SDK parses USDC payment requirements and funds reusable payment sessions automatically.' },
                 { title: 'Gemini AI Integration', desc: 'Pass your Gemini key and let AI optimize payment mode per request.' },
               ].map((item, i) => (
                 <div key={i} className="flex gap-4">
@@ -89,7 +89,7 @@ export default function LandingDevSection() {
               ))}
             </div>
             <div className="space-y-2">
-              {['npm install @stream-engine/sdk','npx stream-engine init --chain polkadot','npx stream-engine deploy --network polkadot'].map(cmd => (
+              {['npm install @stream-engine/sdk','npx stream-engine init --chain stellar','npx stream-engine deploy --network stellar'].map(cmd => (
                 <div key={cmd} className="font-mono text-sm bg-surface-900 border border-surface-700 px-4 py-2 rounded-lg text-success-400 select-all hover:border-surface-600 transition-colors duration-200">
                   <span className="text-surface-500 mr-2">$</span>{cmd}
                 </div>

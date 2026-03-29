@@ -34,9 +34,9 @@ function CityProjector({ cityIndex, onProject }) {
 }
 
 export default function LandingHero({
-  networkName = "Westend Asset Hub",
+  networkName = "Stellar Testnet",
   tokenSymbol = "USDC",
-  paymentAssetId = 31337,
+  paymentAssetId = 0,
   routeCount = 0,
   assetCount = 0,
 }) {
@@ -123,7 +123,7 @@ export default function LandingHero({
       <div className="relative z-10 text-center px-4 pt-3 md:pt-12 pb-0 animate-slide-up">
         {/* <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-flowpay-500/30 bg-flowpay-500/10 text-flowpay-300 text-xs font-mono mb-5">
           <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" aria-hidden="true" />
-          Live · Polkadot · x402 · AI-Powered
+          Live · Stellar · x402 · AI-Powered
         </div> */}
         <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.05] mb-3">
           Money moves{" "}

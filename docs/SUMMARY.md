@@ -41,7 +41,7 @@
 ## Deployment
 
 * [Overview](deployment/README.md)
-* [Westend Asset Hub](deployment/westend.md)
+* [Westend Asset Hub (Legacy)](deployment/westend.md)
 * [Production Checklist](deployment/production.md)
 
 ## Guides

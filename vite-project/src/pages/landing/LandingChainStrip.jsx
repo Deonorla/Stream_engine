@@ -1,27 +1,27 @@
-// Polkadot-only chain strip
+// Active runtime strip
 const ITEMS = [
-  { icon: '🔴', label: 'Polkadot'        },
+  { icon: '⭐', label: 'Stellar'         },
   { icon: '⚡', label: 'x402 Protocol'   },
-  { icon: '🌊', label: 'Stream Contract' },
-  { icon: '⬡',  label: 'Circle USDC'     },
+  { icon: '🌊', label: 'Session Meter'   },
+  { icon: '⬡',  label: 'Stellar USDC'    },
   { icon: '✨', label: 'Gemini AI'       },
   { icon: '🔐', label: 'KYC/AML'         },
   { icon: '⚡', label: 'Flash Advance'   },
-  { icon: '🏗️', label: 'Substrate'       },
+  { icon: '🛰️', label: 'Soroban Relay'  },
   // duplicate for seamless loop
-  { icon: '🔴', label: 'Polkadot'        },
+  { icon: '⭐', label: 'Stellar'         },
   { icon: '⚡', label: 'x402 Protocol'   },
-  { icon: '🌊', label: 'Stream Contract' },
-  { icon: '⬡',  label: 'Circle USDC'     },
+  { icon: '🌊', label: 'Session Meter'   },
+  { icon: '⬡',  label: 'Stellar USDC'    },
   { icon: '✨', label: 'Gemini AI'       },
   { icon: '🔐', label: 'KYC/AML'         },
   { icon: '⚡', label: 'Flash Advance'   },
-  { icon: '🏗️', label: 'Substrate'       },
+  { icon: '🛰️', label: 'Soroban Relay'  },
 ]
 
 export default function LandingChainStrip() {
   return (
-    <section className="w-full bg-surface-900 border-y border-surface-700 py-5 overflow-hidden" aria-label="Polkadot ecosystem">
+    <section className="w-full bg-surface-900 border-y border-surface-700 py-5 overflow-hidden" aria-label="Stellar ecosystem">
       <div className="relative flex items-center">
         <div className="flex animate-[marquee_24s_linear_infinite] whitespace-nowrap">
           {ITEMS.map((item, i) => (

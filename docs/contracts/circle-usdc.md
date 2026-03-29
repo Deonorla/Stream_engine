@@ -1,5 +1,7 @@
 # Circle USDC Integration
 
+> Legacy note: this page describes the older Westend test asset path. The active hackathon path uses Stellar testnet USDC via SAC.
+
 The project uses **Circle test USDC** on **Westend Asset Hub**.
 
 ## Asset Details
