@@ -141,6 +141,19 @@ function createFreighterSigner(address) {
   };
 }
 
+async function fetchStellarXlmBalance(address) {
+  if (!address || !ACTIVE_NETWORK.horizonUrl) return "0.0";
+  const response = await fetch(
+    `${String(ACTIVE_NETWORK.horizonUrl).replace(/\/$/, '')}/accounts/${encodeURIComponent(address)}`,
+  );
+  if (!response.ok) return "0.0";
+  const account = await response.json();
+  const native = Array.isArray(account?.balances)
+    ? account.balances.find((e) => e?.asset_type === 'native')
+    : null;
+  return native?.balance || "0.0";
+}
+
 async function fetchStellarPaymentBalance(address) {
   if (!address || !ACTIVE_NETWORK.horizonUrl) {
     return "0.0";
@@ -230,6 +243,7 @@ export function WalletProvider({ children }) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const [paymentBalance, setPaymentBalance] = useState("0.0");
+  const [xlmBalance, setXlmBalance] = useState("0.0");
   const [availableWallets, setAvailableWallets] = useState([]);
   const [activeWallet, setActiveWallet] = useState(null);
   const [isWalletPickerOpen, setIsWalletPickerOpen] = useState(false);
@@ -578,6 +592,8 @@ export function WalletProvider({ children }) {
       if (IS_STELLAR_RUNTIME) {
         const balance = await fetchStellarPaymentBalance(balanceAddress);
         setPaymentBalance(balance);
+        const xlm = await fetchStellarXlmBalance(balanceAddress);
+        setXlmBalance(xlm);
         return;
       }
 
@@ -1345,6 +1361,7 @@ export function WalletProvider({ children }) {
     setIsProcessing,
     isConnectingWallet,
     paymentBalance,
+    xlmBalance,
     incomingStreams,
     setIncomingStreams,
     outgoingStreams,

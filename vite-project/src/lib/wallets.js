@@ -84,7 +84,7 @@ async function detectFreighterWallet() {
       id: 'stellar:freighter',
       type: 'stellar',
       name: 'Freighter',
-      icon: '',
+      icon: '/images/freighter-icon.png',
       rdns: 'org.stellar.freighter',
       source: 'freighter',
       provider: {
@@ -104,7 +104,7 @@ async function detectFreighterWallet() {
       id: 'stellar:freighter',
       type: 'stellar',
       name: 'Freighter',
-      icon: '',
+      icon: '/images/freighter-icon.png',
       rdns: 'org.stellar.freighter',
       source: 'freighter',
       provider: null,

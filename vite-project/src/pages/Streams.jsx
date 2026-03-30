@@ -51,21 +51,23 @@ export default function Streams() {
     <div className="p-4 sm:p-8 max-w-[1600px] mx-auto space-y-12">
       {/* Stats Bar */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex justify-between items-center relative overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-blue-50 blur-[80px] rounded-full"></div>
-          <div className="relative z-10">
-            <p className="text-[10px] font-label font-bold uppercase tracking-[0.2em] text-slate-400 mb-2">USDC Balance</p>
-            <div className="flex items-baseline gap-2">
-              <h3 className="text-4xl font-headline font-black text-slate-900 tracking-tighter">{paymentBalance}</h3>
-              <span className="text-lg font-headline font-bold text-primary">USDC</span>
+       <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
+          <div className="absolute top-4 right-4">
+            <span className="flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">
+              <Shield size={16} />
             </div>
-            <button onClick={fetchPaymentBalance} className="mt-4 flex items-center gap-2 text-[10px] font-label font-bold uppercase tracking-widest text-primary hover:opacity-70 transition-opacity">
-              <RefreshCw size={12} /> Refresh
-            </button>
+            <p className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400">Incoming</p>
           </div>
-          <div className="relative z-10 w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-primary">
-            <Wallet size={28} />
-          </div>
+          <h4 className="text-xl font-headline font-bold text-slate-900">{incomingStreams.length} Active</h4>
+          <p className="text-xs text-slate-400 mt-1">
+            {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Not connected'}
+          </p>
         </div>
 
         <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm flex justify-between items-center relative overflow-hidden">
@@ -93,24 +95,7 @@ export default function Streams() {
           <p className="text-xs text-slate-400 mt-1">Soroban Node v2.0.4</p>
         </div>
 
-        <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-          <div className="absolute top-4 right-4">
-            <span className="flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"></span>
-            </span>
-          </div>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white">
-              <Shield size={16} />
-            </div>
-            <p className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400">Incoming</p>
-          </div>
-          <h4 className="text-xl font-headline font-bold text-slate-900">{incomingStreams.length} Active</h4>
-          <p className="text-xs text-slate-400 mt-1">
-            {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Not connected'}
-          </p>
-        </div>
+        
       </div>
 
       {/* Create Stream + Withdraw */}

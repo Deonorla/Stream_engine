@@ -53,7 +53,7 @@ export const ACTIVE_NETWORK = {
       ? 'stellar:usdc-sac'
       : '0x00007a6900000000000000000000000001200000'),
   paymentAssetCode: env.VITE_STELLAR_PAYMENT_ASSET_CODE || 'USDC',
-  paymentAssetIssuer: env.VITE_STELLAR_PAYMENT_ASSET_ISSUER || '',
+  paymentAssetIssuer: env.VITE_STELLAR_PAYMENT_ASSET_ISSUER || 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5',
 };
 
 export const IS_POLKADOT = runtimeKind === 'polkadot';

@@ -2,18 +2,22 @@ import { TrendingUp, ArrowUpRight, ArrowDownLeft, Building2, Plus, Activity, Cpu
 import { motion } from 'motion/react';
 import { cn } from '../lib/cn';
 import { Link } from 'react-router-dom';
-
-const stats = [
-  { icon: TrendingUp,    label: 'USDC Balance',      value: '0.00', sub: 'Primary token',   color: 'text-primary' },
-  { icon: TrendingUp,    label: 'XLM Balance',        value: '0.00', sub: 'Secondary token', color: 'text-secondary' },
-  { icon: ArrowUpRight,  label: 'Outgoing Streams',  value: '0',    sub: '0.00 USDC',        color: 'text-primary',    href: '/app/streams' },
-  { icon: ArrowDownLeft, label: 'Incoming Streams',  value: '0',    sub: 'claimable now',    color: 'text-secondary',  href: '/app/streams' },
-  { icon: Building2,     label: 'RWA Assets',        value: '0',    sub: '0.00 USDC',        color: 'text-purple-600', href: '/app/rwa' },
-];
+import { useWallet } from '../context/WalletContext';
 
 export default function Dashboard() {
-  return (
-    <div className="p-4 sm:p-8 max-w-[1600px] mx-auto space-y-8">
+  const { paymentBalance, xlmBalance, incomingStreams, outgoingStreams } = useWallet();
+
+  const fmt = (val) => parseFloat(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const stats = [
+    { icon: TrendingUp,    label: 'XLM Balance',        value: fmt(xlmBalance),     sub: ' token', color: 'text-secondary' },
+    { icon: TrendingUp,    label: 'USDC Balance',      value: fmt(paymentBalance), sub: ' token',   color: 'text-primary' },
+    { icon: ArrowUpRight,  label: 'Outgoing Streams',  value: String(outgoingStreams.length), sub: '0.00 USDC', color: 'text-primary',    href: '/app/streams' },
+    { icon: ArrowDownLeft, label: 'Incoming Streams',  value: String(incomingStreams.length), sub: 'claimable now', color: 'text-secondary', href: '/app/streams' },
+    { icon: Building2,     label: 'RWA Assets',        value: '0',    sub: '0.00 USDC',        color: 'text-purple-600', href: '/app/rwa' },
+  ];
+
+  return (    <div className="p-4 sm:p-8 max-w-[1600px] mx-auto space-y-8">
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {stats.map((stat, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.1 }}
