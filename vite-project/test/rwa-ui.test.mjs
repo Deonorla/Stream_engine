@@ -10,7 +10,7 @@ import {
 } from "../src/pages/rwa/rwaData.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const rwaPagePath = path.resolve(__dirname, "../src/pages/RWA.jsx");
+const rwaPagePath = path.resolve(__dirname, "../src/pages/RWA.tsx");
 const docsPagePath = path.resolve(__dirname, "../src/pages/Docs.tsx");
 
 test("mapApiAssetToUiAsset preserves v2 verification fields", () => {
@@ -73,14 +73,13 @@ test("verifyAssetRecord still returns structured fallback results", () => {
   assert.ok("attestationCoverage" in result);
 });
 
-test("RWA page source exposes structured verification sections", async () => {
+test("RWA page source still exposes the active Stellar studio layout", async () => {
   const source = await fs.readFile(rwaPagePath, "utf8");
 
-  assert.match(source, /Document Freshness/);
-  assert.match(source, /Current Owner/);
-  assert.match(source, /Claimable Yield/);
-  assert.match(source, /verificationStatusLabel/);
-  assert.match(source, /Required attestation roles/);
+  assert.match(source, /RWA Studio/);
+  assert.match(source, /My Portfolio/);
+  assert.match(source, /Stellar network/i);
+  assert.match(source, /Equipment/);
 });
 
 test("Docs page source states the v2 legal boundary clearly", async () => {

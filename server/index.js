@@ -33,10 +33,12 @@ const PAYMENT_TOKEN_ADDRESS = runtimeConfig.paymentTokenAddress;
 const CONTRACT_ADDRESS =
     process.env.STREAM_ENGINE_CONTRACT_ADDRESS
     || process.env.VITE_STREAM_ENGINE_CONTRACT_ADDRESS
+    || runtimeConfig.contracts?.sessionMeter?.contractId
     || "stellar:session-meter";
 const RPC_URL = runtimeConfig.rpcUrl;
 const RECIPIENT_ADDRESS =
-    process.env.STREAM_ENGINE_RECIPIENT_ADDRESS
+    process.env.STELLAR_OPERATOR_PUBLIC_KEY
+    || process.env.STREAM_ENGINE_RECIPIENT_ADDRESS
     || process.env.STELLAR_PLATFORM_ADDRESS
     || "";
 
@@ -76,11 +78,23 @@ const defaultConfig = {
         },
     },
     rwa: {
-        hubAddress: process.env.STREAM_ENGINE_RWA_HUB_ADDRESS || "",
+        hubAddress:
+            process.env.STREAM_ENGINE_RWA_HUB_ADDRESS
+            || runtimeConfig.contracts?.rwaRegistry?.contractId
+            || "",
         assetNFTAddress: process.env.STREAM_ENGINE_RWA_ASSET_NFT_ADDRESS || "",
-        assetRegistryAddress: process.env.STREAM_ENGINE_RWA_ASSET_REGISTRY_ADDRESS || "",
-        attestationRegistryAddress: process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "",
-        assetStreamAddress: process.env.STREAM_ENGINE_RWA_ASSET_STREAM_ADDRESS || "",
+        assetRegistryAddress:
+            process.env.STREAM_ENGINE_RWA_ASSET_REGISTRY_ADDRESS
+            || runtimeConfig.contracts?.rwaRegistry?.contractId
+            || "",
+        attestationRegistryAddress:
+            process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS
+            || runtimeConfig.contracts?.attestationRegistry?.contractId
+            || "",
+        assetStreamAddress:
+            process.env.STREAM_ENGINE_RWA_ASSET_STREAM_ADDRESS
+            || runtimeConfig.contracts?.yieldVault?.contractId
+            || "",
         complianceGuardAddress: process.env.STREAM_ENGINE_RWA_COMPLIANCE_GUARD_ADDRESS || "",
         startBlock: Number(process.env.RWA_INDEXER_START_BLOCK || 0),
     },
@@ -323,6 +337,18 @@ function createApp(config = defaultConfig) {
                 settlement: resolvedConfig.settlement || runtimeConfig.settlement || "",
                 recipientAddress: resolvedConfig.recipientAddress,
                 contractAddress: resolvedConfig.streamEngineContractAddress,
+                supportedAssets: [
+                    {
+                        code: resolvedConfig.paymentAssetCode || runtimeConfig.paymentAssetCode || "USDC",
+                        issuer: resolvedConfig.paymentAssetIssuer || runtimeConfig.paymentAssetIssuer || "",
+                        decimals: resolvedConfig.tokenDecimals,
+                    },
+                    {
+                        code: "XLM",
+                        issuer: "",
+                        decimals: 7,
+                    },
+                ],
             },
             rwa: {
                 hubAddress: resolvedConfig.rwa?.hubAddress || "",
@@ -699,6 +725,9 @@ function createApp(config = defaultConfig) {
             duration,
             amount,
             metadata = "{}",
+            assetCode = "",
+            assetIssuer = "",
+            fundingTxHash = "",
         } = req.body || {};
 
         if (!sender || !recipient || !duration || !amount) {
@@ -727,6 +756,9 @@ function createApp(config = defaultConfig) {
             duration: Number(duration),
             totalAmount: BigInt(String(amount)),
             metadata,
+            assetCode,
+            assetIssuer,
+            fundingTxHash,
         });
         const session = await services.chainService.getSessionSnapshot(result.streamId);
         res.status(201).json({

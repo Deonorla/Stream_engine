@@ -1,5 +1,20 @@
+const fs = require("fs");
+const path = require("path");
+
 const STELLAR_TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 const STELLAR_MAINNET_PASSPHRASE = "Public Global Stellar Network ; September 2015";
+
+function loadStellarDeploymentManifest() {
+    const manifestPath = path.resolve(__dirname, "..", "soroban", "deployments", "testnet.json");
+    if (!fs.existsSync(manifestPath)) {
+        return null;
+    }
+    try {
+        return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    } catch {
+        return null;
+    }
+}
 
 function normalizeNumber(value, fallback) {
     const parsed = Number(value);
@@ -7,9 +22,11 @@ function normalizeNumber(value, fallback) {
 }
 
 function createRuntimeConfig(overrides = {}) {
+    const deploymentManifest = loadStellarDeploymentManifest();
     const networkName =
         overrides.networkName
         || process.env.STELLAR_NETWORK_NAME
+        || deploymentManifest?.network?.name
         || process.env.STREAM_ENGINE_NETWORK_NAME
         || "Stellar Testnet";
     const networkPassphrase =
@@ -25,11 +42,13 @@ function createRuntimeConfig(overrides = {}) {
     const sorobanRpcUrl =
         overrides.sorobanRpcUrl
         || process.env.STELLAR_SOROBAN_RPC_URL
+        || deploymentManifest?.network?.rpcUrl
         || "https://soroban-testnet.stellar.org";
     const paymentTokenAddress =
         overrides.paymentTokenAddress
         || process.env.STELLAR_USDC_SAC_ADDRESS
         || process.env.STREAM_ENGINE_PAYMENT_TOKEN_ADDRESS
+        || deploymentManifest?.sac?.usdc
         || "stellar:usdc-sac";
 
     return {
@@ -75,12 +94,15 @@ function createRuntimeConfig(overrides = {}) {
             || process.env.STELLAR_ASSET_ISSUER
             || "",
         settlement: "soroban-sac",
+        contracts: deploymentManifest?.contracts || {},
+        sac: deploymentManifest?.sac || {},
     };
 }
 
 module.exports = {
     STELLAR_TESTNET_PASSPHRASE,
     STELLAR_MAINNET_PASSPHRASE,
+    loadStellarDeploymentManifest,
     createRuntimeConfig,
     createStellarRuntimeConfig: createRuntimeConfig,
 };

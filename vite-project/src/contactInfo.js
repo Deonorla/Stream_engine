@@ -1,29 +1,69 @@
 const env = typeof import.meta !== 'undefined' ? import.meta.env || {} : {};
-const runtimeKind = (env.VITE_FLOWPAY_RUNTIME_KIND || 'stellar').toLowerCase();
+const runtimeKind = (env.VITE_STREAM_ENGINE_RUNTIME_KIND || env.VITE_FLOWPAY_RUNTIME_KIND || 'stellar').toLowerCase();
 
 export const appName = "Stella's Stream Engine";
 export const streamContractName = runtimeKind === 'stellar' ? 'SessionMeter' : 'StreamEngineStream';
 
-export const contractAddress = env.VITE_CONTRACT_ADDRESS
+export const contractAddress = env.VITE_STREAM_ENGINE_CONTRACT_ADDRESS
+  || env.VITE_CONTRACT_ADDRESS
   || env.VITE_FLOWPAY_CONTRACT_ADDRESS
   || (runtimeKind === 'stellar'
     ? 'stellar:session-meter'
     : '0x75edbf3d9857521f5fb2f581c896779f5110a8a0');
 
-export const paymentTokenAddress = env.VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS
+export const paymentTokenAddress = env.VITE_STREAM_ENGINE_PAYMENT_TOKEN_ADDRESS
+  || env.VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS
   || (runtimeKind === 'stellar'
     ? 'stellar:usdc-sac'
     : '0x00007a6900000000000000000000000001200000');
 
-export const paymentTokenSymbol = env.VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL || 'USDC';
+export const paymentTokenSymbol = env.VITE_STREAM_ENGINE_PAYMENT_TOKEN_SYMBOL || env.VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL || 'USDC';
 export const paymentTokenDisplayName =
-  env.VITE_FLOWPAY_PAYMENT_TOKEN_NAME
+  env.VITE_STREAM_ENGINE_PAYMENT_TOKEN_NAME
+  || env.VITE_FLOWPAY_PAYMENT_TOKEN_NAME
   || (runtimeKind === 'stellar' ? 'USDC on Stellar' : 'Circle USDC');
 export const paymentTokenDecimals = Number(
-  env.VITE_FLOWPAY_PAYMENT_TOKEN_DECIMALS || (runtimeKind === 'stellar' ? 7 : 6),
+  env.VITE_STREAM_ENGINE_PAYMENT_TOKEN_DECIMALS
+  || env.VITE_FLOWPAY_PAYMENT_TOKEN_DECIMALS
+  || (runtimeKind === 'stellar' ? 7 : 6),
 );
-export const paymentAssetId = Number(env.VITE_FLOWPAY_PAYMENT_ASSET_ID || (runtimeKind === 'stellar' ? 0 : 31337));
+export const paymentAssetId = Number(env.VITE_STREAM_ENGINE_PAYMENT_ASSET_ID || env.VITE_FLOWPAY_PAYMENT_ASSET_ID || (runtimeKind === 'stellar' ? 0 : 31337));
+export const paymentAssetCode = env.VITE_STELLAR_PAYMENT_ASSET_CODE || paymentTokenSymbol;
+export const paymentAssetIssuer = env.VITE_STELLAR_PAYMENT_ASSET_ISSUER || '';
+export const settlementRecipientAddress =
+  env.VITE_STREAM_ENGINE_RECIPIENT_ADDRESS
+  || env.VITE_FLOWPAY_RECIPIENT_ADDRESS
+  || '';
 export const rwaApiBaseUrl = env.VITE_RWA_API_URL || 'http://localhost:3001';
+export const supportedPaymentAssets = runtimeKind === 'stellar'
+  ? [
+      {
+        symbol: paymentAssetCode || 'USDC',
+        name: paymentTokenDisplayName,
+        decimals: paymentTokenDecimals,
+        assetCode: paymentAssetCode || 'USDC',
+        assetIssuer: paymentAssetIssuer,
+        isNative: false,
+      },
+      {
+        symbol: 'XLM',
+        name: 'Stellar Lumens',
+        decimals: 7,
+        assetCode: 'XLM',
+        assetIssuer: '',
+        isNative: true,
+      },
+    ].filter((asset, index, all) => all.findIndex((entry) => entry.symbol === asset.symbol) === index)
+  : [
+      {
+        symbol: paymentTokenSymbol,
+        name: paymentTokenDisplayName,
+        decimals: paymentTokenDecimals,
+        assetCode: paymentAssetCode,
+        assetIssuer: paymentAssetIssuer,
+        isNative: false,
+      },
+    ];
 
 // 2. Uses the Vercel Environment Variable for the ABI if it exists, otherwise falls back to the hardcoded ABI.
 const hardcodedABI = [

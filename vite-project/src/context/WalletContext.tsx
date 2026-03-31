@@ -10,9 +10,17 @@ import {
 import { ethers } from "ethers";
 import {
   getNetworkDetails as getFreighterNetworkDetails,
+  signTransaction as signFreighterTransaction,
   signMessage as signFreighterMessage,
 } from '@stellar/freighter-api';
-import { StrKey } from '@stellar/stellar-sdk';
+import {
+  Asset,
+  BASE_FEE,
+  Horizon,
+  Operation,
+  StrKey,
+  TransactionBuilder,
+} from '@stellar/stellar-sdk';
 import {
   contractAddress,
   contractABI,
@@ -21,6 +29,10 @@ import {
   paymentTokenDecimals,
   paymentTokenSymbol,
   paymentAssetId,
+  paymentAssetCode,
+  paymentAssetIssuer,
+  settlementRecipientAddress,
+  supportedPaymentAssets,
 } from '../contactInfo.js';
 import { useToast } from '../components/ui';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
@@ -93,7 +105,61 @@ function computeSessionClaimable(session) {
   return streamed > withdrawn ? streamed - withdrawn : 0n;
 }
 
+async function buildAndSubmitStellarFundingTransaction({
+  sender,
+  destination,
+  amountUnits,
+  assetCode,
+  assetIssuer,
+}) {
+  if (!ACTIVE_NETWORK.horizonUrl) {
+    throw new Error('Stellar Horizon URL is not configured.');
+  }
+
+  const server = new Horizon.Server(String(ACTIVE_NETWORK.horizonUrl).replace(/\/$/, ''));
+  const account = await server.loadAccount(sender);
+  const asset = String(assetCode || 'XLM').toUpperCase() === 'XLM' || !assetIssuer
+    ? Asset.native()
+    : new Asset(String(assetCode).toUpperCase(), assetIssuer);
+
+  const transaction = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: ACTIVE_NETWORK.passphrase,
+  })
+    .addOperation(
+      Operation.payment({
+        destination,
+        asset,
+        amount: ethers.formatUnits(amountUnits, 7),
+      }),
+    )
+    .setTimeout(30)
+    .build();
+
+  const signed = await signFreighterTransaction(transaction.toXDR(), {
+    address: sender,
+    networkPassphrase: ACTIVE_NETWORK.passphrase,
+  });
+
+  if (signed?.error) {
+    throw new Error(signed.error.message || 'Freighter could not sign the Stellar transaction.');
+  }
+  if (!signed?.signedTxXdr) {
+    throw new Error('Freighter returned an empty signed transaction.');
+  }
+
+  const signedTransaction = TransactionBuilder.fromXDR(
+    signed.signedTxXdr,
+    ACTIVE_NETWORK.passphrase,
+  );
+  const submitted = await server.submitTransaction(signedTransaction);
+  return {
+    txHash: submitted.hash,
+  };
+}
+
 function mapSessionToStreamCard(session) {
+  const metadata = parseSessionMetadata(session.metadata);
   return {
     id: Number(session.id),
     sender: session.sender,
@@ -108,6 +174,9 @@ function mapSessionToStreamCard(session) {
     metadata: typeof session.metadata === 'string'
       ? session.metadata
       : JSON.stringify(session.metadata || {}),
+    paymentTokenSymbol: session.paymentTokenSymbol || metadata.paymentTokenSymbol || session.assetCode || paymentTokenSymbol,
+    paymentAssetCode: session.assetCode || metadata.paymentAssetCode || paymentAssetCode,
+    paymentAssetIssuer: session.assetIssuer || metadata.paymentAssetIssuer || paymentAssetIssuer,
     claimableInitial: BigInt(String(session.claimableInitial || computeSessionClaimable(session))),
     refundableAmount: BigInt(String(session.refundableAmount || 0)),
     sessionKind: 'stellar',

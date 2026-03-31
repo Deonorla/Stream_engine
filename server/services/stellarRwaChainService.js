@@ -10,7 +10,7 @@ const {
     normalizeRightsModel,
     normalizeVerificationStatus,
 } = require("./rwaModel");
-const { StellarAnchorService } = require("./stellarAnchorService");
+const { StellarAnchorService, formatStellarAmount } = require("./stellarAnchorService");
 
 const DEFAULT_ATTESTATION_POLICIES = {
     1: [
@@ -132,6 +132,12 @@ class StellarRWAChainService {
         this.attestationRegistryAddress = config.attestationRegistryAddress || process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "stellar:rwa-attestation";
         this.assetStreamAddress = config.assetStreamAddress || process.env.STREAM_ENGINE_RWA_ASSET_STREAM_ADDRESS || "stellar:yield-vault";
         this.complianceGuardAddress = config.complianceGuardAddress || process.env.STREAM_ENGINE_RWA_COMPLIANCE_GUARD_ADDRESS || "stellar:policy";
+        this.sessionEscrowAddress =
+            config.sessionEscrowAddress
+            || this.signer.address
+            || process.env.STELLAR_OPERATOR_PUBLIC_KEY
+            || process.env.STREAM_ENGINE_RECIPIENT_ADDRESS
+            || "";
     }
 
     isConfigured() {
@@ -697,20 +703,59 @@ class StellarRWAChainService {
         return { txHash: anchor.txHash };
     }
 
-    async openSession({ sender, recipient, duration, totalAmount, metadata = "{}" }) {
+    async openSession({
+        sender,
+        recipient,
+        duration,
+        totalAmount,
+        metadata = "{}",
+        assetCode = "",
+        assetIssuer = "",
+        fundingTxHash = "",
+    }) {
         const sessionId = await this.store.nextCounter("sessionId");
         const parsedDuration = Math.max(1, Number(duration || 1));
         const startTime = nowSeconds();
         const stopTime = startTime + parsedDuration;
         const flowRate = BigInt(totalAmount) / BigInt(parsedDuration);
-        const anchor = await this.anchorService.submitAnchor("open_session", {
-            sessionId,
-            sender,
-            recipient,
-            totalAmount: String(totalAmount),
-            duration: parsedDuration,
-            metadata,
-        });
+        const paymentAssetCode = String(assetCode || this.runtime.paymentAssetCode || "USDC").toUpperCase();
+        const paymentAssetIssuer = paymentAssetCode === "XLM"
+            ? ""
+            : String(assetIssuer || this.runtime.paymentAssetIssuer || "");
+
+        let txHash = "";
+        let fundedOnchain = false;
+        if (fundingTxHash) {
+            if (!this.sessionEscrowAddress) {
+                throw createError(
+                    "missing_session_escrow",
+                    "No Stellar session escrow address is configured for real payment settlement."
+                );
+            }
+
+            const verifiedFunding = await this.anchorService.verifyPayment({
+                txHash: fundingTxHash,
+                source: sender,
+                destination: this.sessionEscrowAddress,
+                amount: formatStellarAmount(totalAmount),
+                assetCode: paymentAssetCode,
+                assetIssuer: paymentAssetIssuer,
+            });
+            txHash = verifiedFunding.txHash;
+            fundedOnchain = true;
+        } else {
+            const anchor = await this.anchorService.submitAnchor("open_session", {
+                sessionId,
+                sender,
+                recipient,
+                totalAmount: String(totalAmount),
+                duration: parsedDuration,
+                metadata,
+                assetCode: paymentAssetCode,
+                assetIssuer: paymentAssetIssuer,
+            });
+            txHash = anchor.txHash;
+        }
         const session = {
             id: sessionId,
             sender,
@@ -724,7 +769,12 @@ class StellarRWAChainService {
             isActive: true,
             isFrozen: false,
             metadata,
-            txHash: anchor.txHash,
+            txHash,
+            fundingTxHash: fundingTxHash || txHash,
+            fundedOnchain,
+            assetCode: paymentAssetCode,
+            assetIssuer: paymentAssetIssuer,
+            escrowAddress: this.sessionEscrowAddress,
         };
         await this.store.upsertSession(session);
         const metadataObject = parseMetadata(metadata);
@@ -736,13 +786,16 @@ class StellarRWAChainService {
             }
         }
         await this.store.recordActivity(
-            toActivity("session", "SessionOpened", anchor.txHash, metadataObject.assetTokenId || null, {
+            toActivity("session", "SessionOpened", txHash, metadataObject.assetTokenId || null, {
                 sessionId,
                 sender,
                 recipient,
+                assetCode: paymentAssetCode,
+                assetIssuer: paymentAssetIssuer,
+                fundedOnchain,
             })
         );
-        return { streamId: String(sessionId), startTime, txHash: anchor.txHash };
+        return { streamId: String(sessionId), startTime, txHash };
     }
 
     async cancelSession({ sessionId, cancelledBy }) {
@@ -754,16 +807,29 @@ class StellarRWAChainService {
         const cancelledAt = nowSeconds();
         const claimable = computeSessionClaimable(session, cancelledAt);
         const refundableAmount = computeSessionRefundable(session, cancelledAt);
-        const anchor = await this.anchorService.submitAnchor("cancel_session", {
-            sessionId: Number(sessionId),
-            cancelledBy,
-        });
+        let txHash = "";
+        if (session.fundedOnchain && refundableAmount > 0n) {
+            const payout = await this.anchorService.submitPayment({
+                destination: session.sender,
+                amount: formatStellarAmount(refundableAmount),
+                assetCode: session.assetCode || this.runtime.paymentAssetCode || "USDC",
+                assetIssuer: session.assetIssuer || this.runtime.paymentAssetIssuer || "",
+                memoText: `refund:${sessionId}`,
+            });
+            txHash = payout.txHash;
+        } else {
+            const anchor = await this.anchorService.submitAnchor("cancel_session", {
+                sessionId: Number(sessionId),
+                cancelledBy,
+            });
+            txHash = anchor.txHash;
+        }
         session.isActive = false;
         session.cancelledAt = cancelledAt;
         session.cancelledBy = cancelledBy || "";
         session.refundableAmount = refundableAmount.toString();
         session.claimableAtCancel = claimable.toString();
-        session.txHash = anchor.txHash;
+        session.txHash = txHash;
         await this.store.upsertSession(session);
         if (metadataObject.assetTokenId) {
             const asset = await this.getAssetSnapshot(metadataObject.assetTokenId);
@@ -773,7 +839,7 @@ class StellarRWAChainService {
             }
         }
         await this.store.recordActivity(
-            toActivity("session", "SessionCancelled", anchor.txHash, null, {
+            toActivity("session", "SessionCancelled", txHash, null, {
                 sessionId: Number(sessionId),
                 cancelledBy,
                 refundableAmount: refundableAmount.toString(),
@@ -781,7 +847,7 @@ class StellarRWAChainService {
             })
         );
         return {
-            txHash: anchor.txHash,
+            txHash,
             refundableAmount: refundableAmount.toString(),
             claimableAmount: claimable.toString(),
         };
@@ -799,25 +865,38 @@ class StellarRWAChainService {
         if (claimable <= 0n) {
             throw createError("nothing_to_claim", `Session ${sessionId} has no accrued balance to claim.`);
         }
-        const anchor = await this.anchorService.submitAnchor("claim_session", {
-            sessionId: Number(sessionId),
-            claimer,
-            amount: claimable.toString(),
-        });
+        let txHash = "";
+        if (session.fundedOnchain) {
+            const payout = await this.anchorService.submitPayment({
+                destination: session.recipient,
+                amount: formatStellarAmount(claimable),
+                assetCode: session.assetCode || this.runtime.paymentAssetCode || "USDC",
+                assetIssuer: session.assetIssuer || this.runtime.paymentAssetIssuer || "",
+                memoText: `claim:${sessionId}`,
+            });
+            txHash = payout.txHash;
+        } else {
+            const anchor = await this.anchorService.submitAnchor("claim_session", {
+                sessionId: Number(sessionId),
+                claimer,
+                amount: claimable.toString(),
+            });
+            txHash = anchor.txHash;
+        }
         session.amountWithdrawn = String(
             normalizeSessionAmount(session.amountWithdrawn) + claimable
         );
-        session.txHash = anchor.txHash;
+        session.txHash = txHash;
         await this.store.upsertSession(session);
         await this.store.recordActivity(
-            toActivity("session", "SessionClaimed", anchor.txHash, null, {
+            toActivity("session", "SessionClaimed", txHash, null, {
                 sessionId: Number(sessionId),
                 claimer,
                 amount: claimable.toString(),
             })
         );
         return {
-            txHash: anchor.txHash,
+            txHash,
             amount: claimable.toString(),
         };
     }
