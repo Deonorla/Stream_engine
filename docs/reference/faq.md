@@ -147,6 +147,6 @@ Verification checks:
 
 ## Naming
 
-### Why do some classes use short "Stella" names?
+### Why do some classes use short "StreamEngine" names?
 
-The product name is **Stella's Stream Engine**. Some runtime classes use concise names such as `StellaSDK` and `StellaRWAClient` because they are the active SDK surfaces exposed to developers.
+The product name is **Stella's Stream Engine**. Some runtime classes use concise names such as `StreamEngineSDK` and `StreamEngineRWAClient` because they are the active SDK surfaces exposed to developers.

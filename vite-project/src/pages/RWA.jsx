@@ -553,7 +553,7 @@ function StudioSidebar({
                 onClick={() => setActiveTab(key)}
                 className={`w-full rounded-2xl border px-4 py-3 text-left transition-all duration-200 ${
                   isActive
-                    ? "border-stella-500/50 bg-stella-500/15"
+                    ? "border-stream-500/50 bg-stream-500/15"
                     : "border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/7"
                 }`}
               >
@@ -561,7 +561,7 @@ function StudioSidebar({
                   <div
                     className={`rounded-xl p-2 ${
                       isActive
-                        ? "bg-stella-500/20 text-cyan-200"
+                        ? "bg-stream-500/20 text-cyan-200"
                         : "bg-white/8 text-white/50"
                     }`}
                   >
@@ -1303,7 +1303,7 @@ function MintPanel({
                 onClick={() => setRegistryFilter(option.key)}
                 className={`rounded-full px-4 py-2 text-sm transition-colors ${
                   registryFilter === option.key
-                    ? "bg-stella-500 text-white"
+                    ? "bg-stream-500 text-white"
                     : "text-white/58 hover:text-white"
                 }`}
               >
@@ -1579,7 +1579,7 @@ function RentPanel({ assets, onOpenRental }) {
             onClick={() => setFilter(option.key)}
             className={`rounded-full border px-4 py-2 text-sm transition-colors ${
               filter === option.key
-                ? "border-stella-500 bg-stella-500 text-white"
+                ? "border-stream-500 bg-stream-500 text-white"
                 : "border-white/10 bg-white/5 text-white/60 hover:text-white"
             }`}
           >

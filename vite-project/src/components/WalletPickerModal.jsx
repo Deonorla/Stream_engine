@@ -75,7 +75,7 @@ export default function WalletPickerModal({
                 type="button"
                 className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition-all ${
                   isActive
-                    ? 'border-stella-500/40 bg-stella-500/10'
+                    ? 'border-stream-500/40 bg-stream-500/10'
                     : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.05]'
                 } ${!wallet.isAvailable ? 'cursor-not-allowed opacity-60' : ''}`}
                 onClick={() => wallet.isAvailable && onSelect(wallet)}

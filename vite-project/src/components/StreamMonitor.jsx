@@ -11,7 +11,7 @@ const ParticleFlow = ({ isActive }) => {
             {[...Array(5)].map((_, i) => (
                 <div
                     key={i}
-                    className="absolute w-1.5 h-1.5 bg-stella-400/60 rounded-full"
+                    className="absolute w-1.5 h-1.5 bg-stream-400/60 rounded-full"
                     style={{
                         left: `${10 + i * 20}%`,
                         animation: `stream-flow ${1.5 + i * 0.2}s ease-in-out infinite`,
@@ -160,7 +160,7 @@ const ConnectionStatus = ({ isConnected, onRetry }) => (
             {isConnected ? 'Connected' : 'Disconnected'}
         </span>
         {!isConnected && (
-            <button onClick={onRetry} className="text-xs text-stella-400 hover:text-stella-300">
+            <button onClick={onRetry} className="text-xs text-stream-400 hover:text-stream-300">
                 Retry
             </button>
         )}
@@ -210,7 +210,7 @@ const StreamCard = ({ stream, now }) => {
       relative p-5 rounded-xl border transition-all duration-300
       ${healthStatus === 'critical' ? 'glass border-error-500/50 shadow-glow-error' :
                 healthStatus === 'low' ? 'glass border-warning-500/30' :
-                    'glass-primary border-stella-500/30'}
+                    'glass-primary border-stream-500/30'}
     `}>
             {/* Particle Flow Animation */}
             <ParticleFlow isActive={healthStatus !== 'critical'} />
@@ -219,7 +219,7 @@ const StreamCard = ({ stream, now }) => {
             <div className="relative flex items-start justify-between mb-4">
                 <div>
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm text-stella-400">#{stream.streamId}</span>
+                        <span className="font-mono text-sm text-stream-400">#{stream.streamId}</span>
                         <HealthBadge status={healthStatus} />
                     </div>
                     <div className="text-lg font-bold text-white">{stream.agentId || 'Agent Stream'}</div>

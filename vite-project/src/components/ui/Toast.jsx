@@ -28,9 +28,9 @@ const toastConfig = {
   },
   info: {
     Icon: Info,
-    bgClass: 'bg-stella-500/10 border-stella-500/30',
-    iconClass: 'text-stella-500',
-    textClass: 'text-stella-400',
+    bgClass: 'bg-stream-500/10 border-stream-500/30',
+    iconClass: 'text-stream-500',
+    textClass: 'text-stream-400',
   },
   loading: {
     Icon: Loader2,
@@ -90,7 +90,7 @@ function Toast({ id, type = 'info', title, message, duration = 5000, onDismiss, 
               action.onClick();
               handleDismiss();
             }}
-            className="mt-2 text-sm font-medium text-stella-400 hover:text-stella-300 transition-colors"
+            className="mt-2 text-sm font-medium text-stream-400 hover:text-stream-300 transition-colors"
           >
             {action.label}
           </button>

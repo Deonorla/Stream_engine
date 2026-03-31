@@ -32,16 +32,16 @@ function send402Response(res, routeConfig, config, requiredAmount, tokenDecimals
         : "";
 
     res.set("X-Payment-Required", "true");
-    res.set("X-Stella-Mode", routeConfig.mode || "streaming");
-    res.set("X-Stella-Rate", ethers.formatUnits(requiredAmount, tokenDecimals));
-    res.set("X-Stella-Token", paymentTokenAddress);
-    res.set("X-Stella-Token-Decimals", String(tokenDecimals));
+    res.set("X-Stream-Mode", routeConfig.mode || "streaming");
+    res.set("X-Stream-Rate", ethers.formatUnits(requiredAmount, tokenDecimals));
+    res.set("X-Stream-Token", paymentTokenAddress);
+    res.set("X-Stream-Token-Decimals", String(tokenDecimals));
     res.set("X-Payment-Currency", tokenSymbol);
-    res.set("X-Stella-Settlement", String(config.settlement || "soroban-sac"));
-    res.set("X-Stella-Contract", config.stellaContractAddress || "");
-    res.set("X-Stella-Recipient", config.recipientAddress || "");
+    res.set("X-Stream-Settlement", String(config.settlement || "soroban-sac"));
+    res.set("X-Stream-Contract", config.streamEngineContractAddress || "");
+    res.set("X-Stream-Recipient", config.recipientAddress || "");
     if (sessionEndpoint) {
-        res.set("X-Stella-Session-Endpoint", sessionEndpoint);
+        res.set("X-Stream-Session-Endpoint", sessionEndpoint);
     }
 
     res.status(402).json({
@@ -50,7 +50,7 @@ function send402Response(res, routeConfig, config, requiredAmount, tokenDecimals
             mode: routeConfig.mode || "streaming",
             price: ethers.formatUnits(requiredAmount, tokenDecimals),
             currency: tokenSymbol,
-            contract: config.stellaContractAddress || "",
+            contract: config.streamEngineContractAddress || "",
             recipient: config.recipientAddress || "",
             token: paymentTokenAddress,
             decimals: tokenDecimals,
@@ -60,7 +60,7 @@ function send402Response(res, routeConfig, config, requiredAmount, tokenDecimals
     });
 }
 
-const stellaMiddleware = (config) => {
+const streamEngineMiddleware = (config) => {
     const tokenDecimals = Number.isFinite(Number(config.tokenDecimals))
         ? Number(config.tokenDecimals)
         : 7;
@@ -92,16 +92,16 @@ const stellaMiddleware = (config) => {
             || Number(routeConfig.price || "0") <= 0;
 
         if (isFreeRoute) {
-            req.stella = { mode: "free" };
+            req.streamEngine = { mode: "free" };
             return next();
         }
 
         const requiredAmount = ethers.parseUnits(routeConfig.price || "0", tokenDecimals);
-        const txHashHeader = req.headers["x-stella-tx-hash"];
-        const streamIdHeader = req.headers["x-stella-stream-id"];
+        const txHashHeader = req.headers["x-stream-tx-hash"];
+        const streamIdHeader = req.headers["x-stream-stream-id"];
 
         if (txHashHeader) {
-            req.stella = {
+            req.streamEngine = {
                 txHash: String(txHashHeader),
                 mode: "direct",
             };
@@ -142,17 +142,17 @@ const stellaMiddleware = (config) => {
                 });
             }
 
-            req.stella = {
+            req.streamEngine = {
                 streamId: String(streamIdHeader),
                 mode: "streaming",
                 session,
             };
             return next();
         } catch (error) {
-            console.error("[Stella] Session verification failed:", error);
+            console.error("[Stream Engine] Session verification failed:", error);
             return send402Response(res, routeConfig, config, requiredAmount, tokenDecimals);
         }
     };
 };
 
-module.exports = stellaMiddleware;
+module.exports = streamEngineMiddleware;

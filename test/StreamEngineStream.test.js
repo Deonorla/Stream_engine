@@ -1,8 +1,8 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("StellaStream", function () {
-    let StellaStream;
+describe("StreamEngineStream", function () {
+    let StreamEngineStream;
     let stellaStream;
     let MockUSDC;
     let mockUSDC;
@@ -18,8 +18,8 @@ describe("StellaStream", function () {
         mockUSDC = await MockUSDC.deploy();
         await mockUSDC.waitForDeployment();
 
-        StellaStream = await ethers.getContractFactory("StellaStream");
-        stellaStream = await StellaStream.deploy(await mockUSDC.getAddress());
+        StreamEngineStream = await ethers.getContractFactory("StreamEngineStream");
+        stellaStream = await StreamEngineStream.deploy(await mockUSDC.getAddress());
         await stellaStream.waitForDeployment();
 
         await mockUSDC.mint(owner.address, parseUsdc("1000"));

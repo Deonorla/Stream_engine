@@ -126,12 +126,12 @@ class StellarRWAChainService {
             }),
         };
         this.kind = "stellar";
-        this.hubAddress = config.hubAddress || process.env.STELLA_RWA_HUB_ADDRESS || "stellar:rwa-registry";
-        this.assetNFTAddress = config.assetNFTAddress || process.env.STELLA_RWA_ASSET_NFT_ADDRESS || "stellar:rwa-nft";
-        this.assetRegistryAddress = config.assetRegistryAddress || process.env.STELLA_RWA_ASSET_REGISTRY_ADDRESS || "stellar:rwa-registry";
-        this.attestationRegistryAddress = config.attestationRegistryAddress || process.env.STELLA_RWA_ATTESTATION_REGISTRY_ADDRESS || "stellar:rwa-attestation";
-        this.assetStreamAddress = config.assetStreamAddress || process.env.STELLA_RWA_ASSET_STREAM_ADDRESS || "stellar:yield-vault";
-        this.complianceGuardAddress = config.complianceGuardAddress || process.env.STELLA_RWA_COMPLIANCE_GUARD_ADDRESS || "stellar:policy";
+        this.hubAddress = config.hubAddress || process.env.STREAM_ENGINE_RWA_HUB_ADDRESS || "stellar:rwa-registry";
+        this.assetNFTAddress = config.assetNFTAddress || process.env.STREAM_ENGINE_RWA_ASSET_NFT_ADDRESS || "stellar:rwa-nft";
+        this.assetRegistryAddress = config.assetRegistryAddress || process.env.STREAM_ENGINE_RWA_ASSET_REGISTRY_ADDRESS || "stellar:rwa-registry";
+        this.attestationRegistryAddress = config.attestationRegistryAddress || process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "stellar:rwa-attestation";
+        this.assetStreamAddress = config.assetStreamAddress || process.env.STREAM_ENGINE_RWA_ASSET_STREAM_ADDRESS || "stellar:yield-vault";
+        this.complianceGuardAddress = config.complianceGuardAddress || process.env.STREAM_ENGINE_RWA_COMPLIANCE_GUARD_ADDRESS || "stellar:policy";
     }
 
     isConfigured() {

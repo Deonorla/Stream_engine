@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { GeminiPaymentBrain } from '../src/GeminiPaymentBrain';
-import { StellaSDK } from '../src/StellaSDK';
+import { StreamEngineSDK } from '../src/StreamEngineSDK';
 import { Wallet } from 'ethers';
 
 // Mock GoogleGenerativeAI
@@ -85,11 +85,11 @@ describe('Gemini AI Integration', () => {
     });
 });
 
-describe('StellaSDK with AI', () => {
-    let sdk: StellaSDK;
+describe('StreamEngineSDK with AI', () => {
+    let sdk: StreamEngineSDK;
 
     beforeEach(() => {
-        sdk = new StellaSDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             apiKey: 'test-key'

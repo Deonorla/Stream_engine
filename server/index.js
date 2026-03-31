@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { StrKey } = require("@stellar/stellar-sdk");
-const stellaMiddleware = require("./middleware/stellaMiddleware");
+const streamEngineMiddleware = require("./middleware/streamEngineMiddleware");
 const { IPFSService, normalizeCid } = require("./services/ipfsService");
 const {
     buildVerificationPayload,
@@ -31,18 +31,18 @@ const PORT = Number(process.env.PORT || 3001);
 const runtimeConfig = createRuntimeConfig();
 const PAYMENT_TOKEN_ADDRESS = runtimeConfig.paymentTokenAddress;
 const CONTRACT_ADDRESS =
-    process.env.STELLA_CONTRACT_ADDRESS
-    || process.env.VITE_STELLA_CONTRACT_ADDRESS
+    process.env.STREAM_ENGINE_CONTRACT_ADDRESS
+    || process.env.VITE_STREAM_ENGINE_CONTRACT_ADDRESS
     || "stellar:session-meter";
 const RPC_URL = runtimeConfig.rpcUrl;
 const RECIPIENT_ADDRESS =
-    process.env.STELLA_RECIPIENT_ADDRESS
+    process.env.STREAM_ENGINE_RECIPIENT_ADDRESS
     || process.env.STELLAR_PLATFORM_ADDRESS
     || "";
 
 const defaultConfig = {
     rpcUrl: RPC_URL,
-    stellaContractAddress: CONTRACT_ADDRESS,
+    streamEngineContractAddress: CONTRACT_ADDRESS,
     paymentTokenAddress: PAYMENT_TOKEN_ADDRESS,
     tokenSymbol: runtimeConfig.paymentTokenSymbol,
     tokenDecimals: runtimeConfig.paymentTokenDecimals,
@@ -56,7 +56,7 @@ const defaultConfig = {
     paymentAssetIssuer: runtimeConfig.paymentAssetIssuer || "",
     settlement: runtimeConfig.settlement || "",
     recipientAddress: RECIPIENT_ADDRESS,
-    appBaseUrl: process.env.STELLA_APP_BASE_URL || "http://localhost:5173",
+    appBaseUrl: process.env.STREAM_ENGINE_APP_BASE_URL || "http://localhost:5173",
     postgresUrl: process.env.POSTGRES_URL || "",
     routes: {
         "/api/free": {
@@ -76,12 +76,12 @@ const defaultConfig = {
         },
     },
     rwa: {
-        hubAddress: process.env.STELLA_RWA_HUB_ADDRESS || "",
-        assetNFTAddress: process.env.STELLA_RWA_ASSET_NFT_ADDRESS || "",
-        assetRegistryAddress: process.env.STELLA_RWA_ASSET_REGISTRY_ADDRESS || "",
-        attestationRegistryAddress: process.env.STELLA_RWA_ATTESTATION_REGISTRY_ADDRESS || "",
-        assetStreamAddress: process.env.STELLA_RWA_ASSET_STREAM_ADDRESS || "",
-        complianceGuardAddress: process.env.STELLA_RWA_COMPLIANCE_GUARD_ADDRESS || "",
+        hubAddress: process.env.STREAM_ENGINE_RWA_HUB_ADDRESS || "",
+        assetNFTAddress: process.env.STREAM_ENGINE_RWA_ASSET_NFT_ADDRESS || "",
+        assetRegistryAddress: process.env.STREAM_ENGINE_RWA_ASSET_REGISTRY_ADDRESS || "",
+        attestationRegistryAddress: process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "",
+        assetStreamAddress: process.env.STREAM_ENGINE_RWA_ASSET_STREAM_ADDRESS || "",
+        complianceGuardAddress: process.env.STREAM_ENGINE_RWA_COMPLIANCE_GUARD_ADDRESS || "",
         startBlock: Number(process.env.RWA_INDEXER_START_BLOCK || 0),
     },
 };
@@ -259,7 +259,7 @@ function createApp(config = defaultConfig) {
         return services;
     });
 
-    app.use(stellaMiddleware({
+    app.use(streamEngineMiddleware({
         ...resolvedConfig,
         runtimeKind: runtimeConfig.kind,
         sessionResolver: async (streamId) => {
@@ -276,7 +276,7 @@ function createApp(config = defaultConfig) {
             temperature: 22,
             city: "London",
             condition: "Cloudy",
-            paidWithStream: req.stella?.streamId || null,
+            paidWithStream: req.streamEngine?.streamId || null,
             paidWithRecipient: resolvedConfig.recipientAddress,
         });
     });
@@ -284,7 +284,7 @@ function createApp(config = defaultConfig) {
     app.get("/api/premium", (req, res) => {
         res.json({
             content: "This is premium content.",
-            paidWithStream: req.stella?.streamId || null,
+            paidWithStream: req.streamEngine?.streamId || null,
             paidWithRecipient: resolvedConfig.recipientAddress,
         });
     });
@@ -322,7 +322,7 @@ function createApp(config = defaultConfig) {
                 assetIssuer: resolvedConfig.paymentAssetIssuer || runtimeConfig.paymentAssetIssuer || "",
                 settlement: resolvedConfig.settlement || runtimeConfig.settlement || "",
                 recipientAddress: resolvedConfig.recipientAddress,
-                contractAddress: resolvedConfig.stellaContractAddress,
+                contractAddress: resolvedConfig.streamEngineContractAddress,
             },
             rwa: {
                 hubAddress: resolvedConfig.rwa?.hubAddress || "",
@@ -1118,8 +1118,8 @@ if (require.main === module) {
         console.log(`Payment recipient: ${RECIPIENT_ADDRESS}`);
         console.log(`Stream contract: ${CONTRACT_ADDRESS}`);
         console.log(`Payment token (${runtimeConfig.paymentTokenSymbol}): ${PAYMENT_TOKEN_ADDRESS}`);
-        console.log(`RWA hub: ${process.env.STELLA_RWA_HUB_ADDRESS || "not configured"}`);
-        console.log(`RWA attestation registry: ${process.env.STELLA_RWA_ATTESTATION_REGISTRY_ADDRESS || "not configured"}`);
+        console.log(`RWA hub: ${process.env.STREAM_ENGINE_RWA_HUB_ADDRESS || "not configured"}`);
+        console.log(`RWA attestation registry: ${process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "not configured"}`);
     });
 }
 

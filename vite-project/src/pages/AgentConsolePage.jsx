@@ -169,7 +169,7 @@ export default function AgentConsolePage() {
   }, [outgoingStreams, serviceEndpoints.length]);
 
   const stats = useMemo(() => ([
-    { icon: Bot, label: 'Agent ID', value: agentConfig.agentId || 'Unassigned', color: 'stella' },
+    { icon: Bot, label: 'Agent ID', value: agentConfig.agentId || 'Unassigned', color: 'stream' },
     { icon: RefreshCw, label: 'Protected Routes', value: serviceEndpoints.length, color: 'accent' },
     { icon: Play, label: 'Active Streams', value: outgoingStreams.filter((stream) => stream.isActive).length, color: 'success' },
     { icon: StopCircle, label: 'Wallet Balance', value: `${Number(paymentBalance).toFixed(2)} ${paymentTokenSymbol}`, color: 'warning' },

@@ -24,7 +24,7 @@ export default function AssetFactory() {
       toast?.warning('Fill in all required fields');
       return;
     }
-    // In production: call StellaStream.createStream() to lock yield pool
+    // In production: call StreamEngineStream.createStream() to lock yield pool
     setDone(true);
     setTimeout(() => { setDone(false); setForm(EMPTY); }, 3000);
   };
@@ -62,7 +62,7 @@ export default function AssetFactory() {
                 onClick={() => set('type', key)}
                 className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border text-xs transition-all ${
                   form.type === key
-                    ? 'bg-stella-500/20 border-stella-500/60 text-white'
+                    ? 'bg-stream-500/20 border-stream-500/60 text-white'
                     : 'bg-white/5 border-white/10 text-white/50 hover:border-white/20 hover:text-white'
                 }`}
               >

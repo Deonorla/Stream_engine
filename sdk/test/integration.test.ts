@@ -1,19 +1,19 @@
 import { expect } from 'chai';
-import { StellaSDK } from '../src/StellaSDK';
+import { StreamEngineSDK } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 import express, { Express } from 'express';
 import { Server } from 'http';
 import { parsePaymentAmount } from '../src/tokenConfig';
 
 /**
- * End-to-End Integration Tests for Stella System
+ * End-to-End Integration Tests for Stream Engine
  * 
  * These tests validate the complete x402 handshake flow:
  * 1. Blind request → 402 Payment Required
  * 2. SDK parses x402 headers
  * 3. AI decides payment mode (streaming vs direct)
  * 4. Stream creation (1 signature)
- * 5. Retry with X-Stella-Stream-ID
+ * 5. Retry with X-Stream-Stream-ID
  * 6. Multiple requests (0 signatures)
  * 7. Efficiency metrics validation
  * 
@@ -41,20 +41,20 @@ const createMockServer = () => {
     // x402 Protected Route - Weather API (Streaming)
     app.get('/api/weather', (req, res) => {
         requestCount++;
-        const streamId = req.headers['x-stella-stream-id'];
+        const streamId = req.headers['x-stream-stream-id'];
 
         if (!streamId) {
             // Return 402 Payment Required with x402 headers
             return res.status(402)
                 .set({
                     'X-Payment-Required': 'true',
-                    'X-Stella-Mode': 'streaming',
-                    'X-Stella-Rate': '0.0001',
-                    'X-Stella-Token': '0xMockUsdc',
+                    'X-Stream-Mode': 'streaming',
+                    'X-Stream-Rate': '0.0001',
+                    'X-Stream-Token': 'stellar:mock-usdc',
                     'X-Payment-Currency': 'USDC',
-                    'X-Stella-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
-                    'X-Stella-Contract': '0xMockContract',
-                    'X-Stella-Token-Decimals': '6'
+                    'X-Stream-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
+                    'X-Stream-Contract': 'stellar:session-meter',
+                    'X-Stream-Token-Decimals': '6'
                 })
                 .json({
                     message: 'Payment Required',
@@ -84,20 +84,20 @@ const createMockServer = () => {
     // x402 Protected Route - Premium Content (Hybrid)
     app.get('/api/premium', (req, res) => {
         requestCount++;
-        const streamId = req.headers['x-stella-stream-id'];
-        const txHash = req.headers['x-stella-tx-hash'];
+        const streamId = req.headers['x-stream-stream-id'];
+        const txHash = req.headers['x-stream-tx-hash'];
 
         if (!streamId && !txHash) {
             return res.status(402)
                 .set({
                     'X-Payment-Required': 'true',
-                    'X-Stella-Mode': 'hybrid',
-                    'X-Stella-Rate': '0.001',
-                    'X-Stella-Token': '0xMockUsdc',
+                    'X-Stream-Mode': 'hybrid',
+                    'X-Stream-Rate': '0.001',
+                    'X-Stream-Token': 'stellar:mock-usdc',
                     'X-Payment-Currency': 'USDC',
-                    'X-Stella-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
-                    'X-Stella-Contract': '0xMockContract',
-                    'X-Stella-Token-Decimals': '6'
+                    'X-Stream-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
+                    'X-Stream-Contract': 'stellar:session-meter',
+                    'X-Stream-Token-Decimals': '6'
                 })
                 .json({
                     message: 'Payment Required',
@@ -144,11 +144,11 @@ const createMockServer = () => {
     return app;
 };
 
-describe('Stella End-to-End Integration Tests', function () {
+describe('Stream Engine End-to-End Integration Tests', function () {
     this.timeout(10000);
 
     let server: Server;
-    let sdk: StellaSDK;
+    let sdk: StreamEngineSDK;
     const PORT = 3010;
     const BASE_URL = `http://localhost:${PORT}`;
 
@@ -166,7 +166,7 @@ describe('Stella End-to-End Integration Tests', function () {
         await fetch(`${BASE_URL}/reset`, { method: 'POST' });
 
         // Initialize SDK with mock stream creation
-        sdk = new StellaSDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             agentId: 'Integration-Test-Agent'
@@ -187,7 +187,7 @@ describe('Stella End-to-End Integration Tests', function () {
             const axios = require('axios');
             return axios(url, {
                 ...options,
-                headers: { ...options?.headers, 'X-Stella-Tx-Hash': '0xMockTxHash' }
+                headers: { ...options?.headers, 'X-Stream-Tx-Hash': 'stellar-tx-mock-1' }
             });
         };
     });
@@ -292,13 +292,13 @@ describe('Stella End-to-End Integration Tests', function () {
         it('should include agent ID in stream details', () => {
             const details = sdk.getStreamDetails('test-stream');
             expect(details.agentId).to.equal('Integration-Test-Agent');
-            expect(details.client).to.equal('StellaSDK/1.0');
+            expect(details.client).to.equal('StreamEngineSDK/1.0');
         });
     });
 
     describe('Safety Mechanisms', () => {
         it('should enforce spending limits', () => {
-            const limitedSdk = new StellaSDK({
+            const limitedSdk = new StreamEngineSDK({
                 privateKey: Wallet.createRandom().privateKey,
                 rpcUrl: 'http://localhost:8545',
                 spendingLimits: {
@@ -367,10 +367,10 @@ describe('x402 Protocol Compliance', () => {
 
         expect(response.status).to.equal(402);
         expect(response.headers.get('x-payment-required')).to.equal('true');
-        expect(response.headers.get('x-stella-mode')).to.equal('streaming');
-        expect(response.headers.get('x-stella-rate')).to.equal('0.0001');
-        expect(response.headers.get('x-stella-token')).to.exist;
-        expect(response.headers.get('x-stella-contract')).to.exist;
+        expect(response.headers.get('x-stream-mode')).to.equal('streaming');
+        expect(response.headers.get('x-stream-rate')).to.equal('0.0001');
+        expect(response.headers.get('x-stream-token')).to.exist;
+        expect(response.headers.get('x-stream-contract')).to.exist;
     });
 
     it('should include payment requirements in 402 body', async () => {

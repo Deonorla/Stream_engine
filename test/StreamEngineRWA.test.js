@@ -1,7 +1,7 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
-describe("Stella RWA Module", function () {
+describe("Stream Engine RWA Module", function () {
     let owner;
     let operator;
     let issuer;
@@ -83,28 +83,28 @@ describe("Stella RWA Module", function () {
         mockUSDC = await MockUSDC.deploy();
         await mockUSDC.waitForDeployment();
 
-        const StellaAssetNFT = await ethers.getContractFactory("StellaAssetNFT");
-        assetNFT = await StellaAssetNFT.deploy("Stream Engine Rental Asset", "SERA");
+        const StreamEngineAssetNFT = await ethers.getContractFactory("StreamEngineAssetNFT");
+        assetNFT = await StreamEngineAssetNFT.deploy("Stream Engine Rental Asset", "SERA");
         await assetNFT.waitForDeployment();
 
-        const StellaAssetRegistry = await ethers.getContractFactory("StellaAssetRegistry");
-        registry = await StellaAssetRegistry.deploy();
+        const StreamEngineAssetRegistry = await ethers.getContractFactory("StreamEngineAssetRegistry");
+        registry = await StreamEngineAssetRegistry.deploy();
         await registry.waitForDeployment();
 
-        const StellaComplianceGuard = await ethers.getContractFactory("StellaComplianceGuard");
-        guard = await StellaComplianceGuard.deploy();
+        const StreamEngineComplianceGuard = await ethers.getContractFactory("StreamEngineComplianceGuard");
+        guard = await StreamEngineComplianceGuard.deploy();
         await guard.waitForDeployment();
 
-        const StellaAssetStream = await ethers.getContractFactory("StellaAssetStream");
-        assetStream = await StellaAssetStream.deploy(await mockUSDC.getAddress(), await assetNFT.getAddress());
+        const StreamEngineAssetStream = await ethers.getContractFactory("StreamEngineAssetStream");
+        assetStream = await StreamEngineAssetStream.deploy(await mockUSDC.getAddress(), await assetNFT.getAddress());
         await assetStream.waitForDeployment();
 
-        const StellaAssetAttestationRegistry = await ethers.getContractFactory("StellaAssetAttestationRegistry");
-        attestationRegistry = await StellaAssetAttestationRegistry.deploy();
+        const StreamEngineAssetAttestationRegistry = await ethers.getContractFactory("StreamEngineAssetAttestationRegistry");
+        attestationRegistry = await StreamEngineAssetAttestationRegistry.deploy();
         await attestationRegistry.waitForDeployment();
 
-        const StellaRWAHub = await ethers.getContractFactory("StellaRWAHub");
-        hub = await StellaRWAHub.deploy(
+        const StreamEngineRWAHub = await ethers.getContractFactory("StreamEngineRWAHub");
+        hub = await StreamEngineRWAHub.deploy(
             await assetNFT.getAddress(),
             await registry.getAddress(),
             await guard.getAddress(),
@@ -148,7 +148,7 @@ describe("Stella RWA Module", function () {
     it("rejects minting when the issuer is not approved", async function () {
         await hub.connect(operator).setIssuerApproval(issuer.address, false, "offboarded issuer");
 
-        await expect(mintAsset()).to.be.revertedWith("StellaRWAHub: issuer not approved");
+        await expect(mintAsset()).to.be.revertedWith("StreamEngineRWAHub: issuer not approved");
     });
 
     it("mints a verified rental twin with evidence and property identity fields", async function () {
@@ -230,17 +230,17 @@ describe("Stella RWA Module", function () {
 
         await hub.setAssetPolicy(minted.tokenId, true, false, false, "rent dispute hold");
         await expect(hub.connect(issuer).claimYield(minted.tokenId)).to.be.revertedWith(
-            "StellaAssetStream: asset frozen"
+            "StreamEngineAssetStream: asset frozen"
         );
 
         await hub.setAssetPolicy(minted.tokenId, false, true, false, "tenant dispute");
         await expect(hub.connect(issuer).flashAdvance(minted.tokenId, parseUsdc("10"))).to.be.revertedWith(
-            "StellaAssetStream: asset disputed"
+            "StreamEngineAssetStream: asset disputed"
         );
 
         await hub.setAssetPolicy(minted.tokenId, false, false, true, "asset revoked");
         await expect(hub.connect(issuer).flashAdvance(minted.tokenId, parseUsdc("10"))).to.be.revertedWith(
-            "StellaAssetStream: asset revoked"
+            "StreamEngineAssetStream: asset revoked"
         );
     });
 

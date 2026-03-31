@@ -46,7 +46,7 @@ export default function LandingDevSection() {
     <section id="developers" className="w-full bg-surface-950 py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="space-y-3 mb-12">
-          <p className="text-stella-400 text-sm font-semibold uppercase tracking-widest font-mono">Developer Experience</p>
+          <p className="text-stream-400 text-sm font-semibold uppercase tracking-widest font-mono">Developer Experience</p>
           <h2 className="text-4xl lg:text-5xl font-bold text-white">Ship in an afternoon.</h2>
         </div>
         <div className="grid md:grid-cols-2 gap-10 items-start">
@@ -58,7 +58,7 @@ export default function LandingDevSection() {
               <div className="ml-4 flex gap-1">
                 {TABS.map(t => (
                   <button key={t} onClick={() => setTab(t)}
-                    className={`px-3 py-1 text-xs rounded font-mono transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-stella-500/50 ${tab === t ? 'bg-surface-700 text-white' : 'text-surface-400 hover:text-surface-200'}`}
+                    className={`px-3 py-1 text-xs rounded font-mono transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-stream-500/50 ${tab === t ? 'bg-surface-700 text-white' : 'text-surface-400 hover:text-surface-200'}`}
                     aria-pressed={tab === t}
                   >{t}</button>
                 ))}
@@ -78,8 +78,8 @@ export default function LandingDevSection() {
                 { title: 'Gemini AI Integration', desc: 'Pass your Gemini key and let AI optimize payment mode per request.' },
               ].map((item, i) => (
                 <div key={i} className="flex gap-4">
-                  <div className="w-7 h-7 rounded-full bg-stella-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-stella-400 text-sm" aria-hidden="true">✓</span>
+                  <div className="w-7 h-7 rounded-full bg-stream-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-stream-400 text-sm" aria-hidden="true">✓</span>
                   </div>
                   <div>
                     <h3 className="font-semibold text-white text-sm">{item.title}</h3>

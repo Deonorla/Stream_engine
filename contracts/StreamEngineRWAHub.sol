@@ -2,13 +2,13 @@
 pragma solidity ^0.8.20;
 
 import "./utils/Owned.sol";
-import "./StellaAssetNFT.sol";
-import "./StellaAssetRegistry.sol";
-import "./StellaComplianceGuard.sol";
-import "./StellaAssetStream.sol";
-import "./StellaAssetAttestationRegistry.sol";
+import "./StreamEngineAssetNFT.sol";
+import "./StreamEngineAssetRegistry.sol";
+import "./StreamEngineComplianceGuard.sol";
+import "./StreamEngineAssetStream.sol";
+import "./StreamEngineAssetAttestationRegistry.sol";
 
-contract StellaRWAHub is Owned {
+contract StreamEngineRWAHub is Owned {
     uint8 private constant MIN_ATTESTATION_ROLE = 1;
     uint8 private constant MAX_ATTESTATION_ROLE = 7;
     uint8 public constant STATUS_PENDING_ATTESTATION = 1;
@@ -39,11 +39,11 @@ contract StellaRWAHub is Owned {
         address currentOwner;
     }
 
-    StellaAssetNFT public immutable assetNFT;
-    StellaAssetRegistry public immutable assetRegistry;
-    StellaComplianceGuard public immutable complianceGuard;
-    StellaAssetStream public immutable assetStream;
-    StellaAssetAttestationRegistry public immutable attestationRegistry;
+    StreamEngineAssetNFT public immutable assetNFT;
+    StreamEngineAssetRegistry public immutable assetRegistry;
+    StreamEngineComplianceGuard public immutable complianceGuard;
+    StreamEngineAssetStream public immutable assetStream;
+    StreamEngineAssetAttestationRegistry public immutable attestationRegistry;
 
     event AssetMinted(
         uint256 indexed tokenId,
@@ -75,17 +75,17 @@ contract StellaRWAHub is Owned {
         address assetStream_,
         address attestationRegistry_
     ) {
-        require(assetNFT_ != address(0), "StellaRWAHub: nft is zero");
-        require(assetRegistry_ != address(0), "StellaRWAHub: registry is zero");
-        require(complianceGuard_ != address(0), "StellaRWAHub: guard is zero");
-        require(assetStream_ != address(0), "StellaRWAHub: stream is zero");
-        require(attestationRegistry_ != address(0), "StellaRWAHub: attestation registry is zero");
+        require(assetNFT_ != address(0), "StreamEngineRWAHub: nft is zero");
+        require(assetRegistry_ != address(0), "StreamEngineRWAHub: registry is zero");
+        require(complianceGuard_ != address(0), "StreamEngineRWAHub: guard is zero");
+        require(assetStream_ != address(0), "StreamEngineRWAHub: stream is zero");
+        require(attestationRegistry_ != address(0), "StreamEngineRWAHub: attestation registry is zero");
 
-        assetNFT = StellaAssetNFT(assetNFT_);
-        assetRegistry = StellaAssetRegistry(assetRegistry_);
-        complianceGuard = StellaComplianceGuard(complianceGuard_);
-        assetStream = StellaAssetStream(assetStream_);
-        attestationRegistry = StellaAssetAttestationRegistry(attestationRegistry_);
+        assetNFT = StreamEngineAssetNFT(assetNFT_);
+        assetRegistry = StreamEngineAssetRegistry(assetRegistry_);
+        complianceGuard = StreamEngineComplianceGuard(complianceGuard_);
+        assetStream = StreamEngineAssetStream(assetStream_);
+        attestationRegistry = StreamEngineAssetAttestationRegistry(attestationRegistry_);
     }
 
     function mintAsset(
@@ -102,11 +102,11 @@ contract StellaRWAHub is Owned {
         address issuer,
         string calldata statusReason
     ) external onlyOperator returns (uint256 tokenId) {
-        require(issuer != address(0), "StellaRWAHub: issuer is zero");
-        require(bytes(publicMetadataURI).length > 0, "StellaRWAHub: metadata URI is required");
-        require(publicMetadataHash != bytes32(0), "StellaRWAHub: metadata hash is required");
-        require(evidenceRoot != bytes32(0), "StellaRWAHub: evidence root is required");
-        require(complianceGuard.isIssuerApproved(issuer), "StellaRWAHub: issuer not approved");
+        require(issuer != address(0), "StreamEngineRWAHub: issuer is zero");
+        require(bytes(publicMetadataURI).length > 0, "StreamEngineRWAHub: metadata URI is required");
+        require(publicMetadataHash != bytes32(0), "StreamEngineRWAHub: metadata hash is required");
+        require(evidenceRoot != bytes32(0), "StreamEngineRWAHub: evidence root is required");
+        require(complianceGuard.isIssuerApproved(issuer), "StreamEngineRWAHub: issuer not approved");
 
         uint8 initialStatus = _requiresAttestation(assetType)
             ? STATUS_PENDING_ATTESTATION
@@ -147,14 +147,14 @@ contract StellaRWAHub is Owned {
         external
         returns (uint256 streamId)
     {
-        StellaAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
+        StreamEngineAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
 
-        require(asset.exists, "StellaRWAHub: asset not found");
-        require(!complianceGuard.isAssetActionBlocked(tokenId), "StellaRWAHub: asset blocked");
+        require(asset.exists, "StreamEngineRWAHub: asset not found");
+        require(!complianceGuard.isAssetActionBlocked(tokenId), "StreamEngineRWAHub: asset blocked");
         address currentOwner = assetNFT.ownerOf(tokenId);
         require(
             msg.sender == currentOwner || msg.sender == asset.issuer,
-            "StellaRWAHub: caller is not asset manager"
+            "StreamEngineRWAHub: caller is not asset manager"
         );
 
         streamId = assetStream.createAssetYieldStreamFor(msg.sender, tokenId, totalAmount, duration, asset.assetType);
@@ -238,7 +238,7 @@ contract StellaRWAHub is Owned {
 
     function revokeAttestation(uint256 attestationId, string calldata reason) external onlyOperator {
         (uint256 tokenId,,,,,,,,) = attestationRegistry.getAttestation(attestationId);
-        require(tokenId != 0, "StellaRWAHub: attestation not found");
+        require(tokenId != 0, "StreamEngineRWAHub: attestation not found");
         attestationRegistry.revokeAttestation(attestationId, reason);
         emit AttestationRevoked(tokenId, attestationId, reason);
     }
@@ -277,7 +277,7 @@ contract StellaRWAHub is Owned {
     }
 
     function getAsset(uint256 tokenId) external view returns (AssetView memory assetView) {
-        StellaAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
+        StreamEngineAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
         assetView = AssetView({
             assetType: asset.assetType,
             rightsModel: asset.rightsModel,
@@ -355,19 +355,19 @@ contract StellaRWAHub is Owned {
     }
 
     function _requireAssetManager(uint256 tokenId) internal view {
-        StellaAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
-        require(asset.exists, "StellaRWAHub: asset not found");
+        StreamEngineAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
+        require(asset.exists, "StreamEngineRWAHub: asset not found");
 
         address currentOwner = assetNFT.ownerOf(tokenId);
         require(
             msg.sender == currentOwner || msg.sender == asset.issuer || msg.sender == owner() || operators[msg.sender],
-            "StellaRWAHub: caller is not asset manager"
+            "StreamEngineRWAHub: caller is not asset manager"
         );
     }
 
     function _requireAssetExists(uint256 tokenId) internal view {
-        StellaAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
-        require(asset.exists, "StellaRWAHub: asset not found");
+        StreamEngineAssetRegistry.AssetRecord memory asset = assetRegistry.getAsset(tokenId);
+        require(asset.exists, "StreamEngineRWAHub: asset not found");
     }
 
     function _requiresAttestation(uint8 assetType) internal view returns (bool) {

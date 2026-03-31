@@ -23,9 +23,9 @@ npm install
 ## Quick Start
 
 ```typescript
-import { StellaSDK } from './StellaSDK';
+import { StreamEngineSDK } from './StreamEngineSDK';
 
-const sdk = new StellaSDK({
+const sdk = new StreamEngineSDK({
   privateKey: process.env.PRIVATE_KEY,
   rpcUrl: 'https://soroban-testnet.stellar.org',
   token: {
@@ -43,10 +43,10 @@ const response = await sdk.request('https://api.provider.com/premium');
 
 | Component | Description |
 |-----------|-------------|
-| [StellaSDK](stella-sdk.md) | Main agent payment runtime |
+| [StreamEngineSDK](stream-engine-sdk.md) | Main agent payment runtime |
 | [GeminiPaymentBrain](gemini-payment-brain.md) | Payment strategy and optimization layer |
 | [SpendingMonitor](spending-monitor.md) | Safety controls and limits |
-| [StellaProxy](stella-proxy.md) | Multi-agent support |
+| [StreamEngineProxy](stream-engine-proxy.md) | Multi-agent support |
 
 ## Architecture
 
@@ -80,9 +80,9 @@ With this runtime:
 
 ## Compatibility Note
 
-The product is **Stella's Stream Engine**. The exported SDK classes use concise `Stella*` names so the developer surface stays readable.
+The product is **Stella's Stream Engine**. The exported SDK classes use `StreamEngine*` names so the developer surface matches the short product form used across the repo.
 
 ## Next Steps
 
-- [StellaSDK Reference](stella-sdk.md)
+- [StreamEngineSDK Reference](stream-engine-sdk.md)
 - [Building AI Agents](../guides/building-ai-agents.md)

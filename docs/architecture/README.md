@@ -37,12 +37,12 @@ agent / user / renter
 
 | Component | Role |
 |----------|------|
-| `StellaAssetNFT` | the onchain rental twin / digital twin NFT |
-| `StellaAssetRegistry` | stores identity, metadata hash, evidence root, and verification state |
-| `StellaAssetAttestationRegistry` | stores role-based attestations and revocations |
-| `StellaComplianceGuard` | issuer approval, compliance checks, asset policy, attestation policy |
-| `StellaAssetStream` | binds rental yield to NFT ownership |
-| `StellaRWAHub` | orchestration layer for minting, operator-driven issuer onboarding, attestation, policy, and yield actions |
+| `StreamEngineAssetNFT` | the onchain rental twin / digital twin NFT |
+| `StreamEngineAssetRegistry` | stores identity, metadata hash, evidence root, and verification state |
+| `StreamEngineAssetAttestationRegistry` | stores role-based attestations and revocations |
+| `StreamEngineComplianceGuard` | issuer approval, compliance checks, asset policy, attestation policy |
+| `StreamEngineAssetStream` | binds rental yield to NFT ownership |
+| `StreamEngineRWAHub` | orchestration layer for minting, operator-driven issuer onboarding, attestation, policy, and yield actions |
 | Private evidence vault | stores deed/tax/inspection/insurance evidence offchain |
 | IPFS | stores sanitized public metadata only |
 | Indexer | exposes activity history and hydrated asset snapshots |

@@ -111,16 +111,16 @@ const NPlusOneVisualizer = () => {
 
                 {/* Stella's Stream Engine */}
                 <div className="flex flex-col items-center justify-center space-y-6 border-l border-white/5 pl-8">
-                    <div className="text-xs font-bold text-stella-400 uppercase">Stella's Stream Engine Solution</div>
+                    <div className="text-xs font-bold text-stream-400 uppercase">Stella's Stream Engine Solution</div>
                     <div className="relative">
-                        <div className="w-12 h-12 rounded-xl bg-stella-500 flex items-center justify-center shadow-glow">
+                        <div className="w-12 h-12 rounded-xl bg-stream-500 flex items-center justify-center shadow-glow">
                             <Bot className="w-6 h-6 text-white" />
                         </div>
-                        <div className="absolute -inset-4 rounded-2xl border border-stella-500/30 animate-pulse-glow" />
+                        <div className="absolute -inset-4 rounded-2xl border border-stream-500/30 animate-pulse-glow" />
                     </div>
                     <div className="w-full h-8 bg-surface-700 rounded-lg relative overflow-hidden flex items-center justify-center">
                         <div className="absolute inset-0 bg-stream-flow opacity-20" />
-                        <div className="text-[10px] font-mono text-stella-300 z-10">USDC SESSION ACTIVE</div>
+                        <div className="text-[10px] font-mono text-stream-300 z-10">USDC SESSION ACTIVE</div>
                     </div>
                     <div className="flex gap-1 justify-center">
                         <div className="w-8 h-8 rounded-lg bg-success-500/50 flex items-center justify-center text-xs font-bold">1</div>
@@ -168,7 +168,7 @@ export function EfficiencyMetrics({ metrics }) {
                         <button
                             key={tf}
                             onClick={() => setTimeframe(tf)}
-                            className={`px-3 py-1 rounded-lg text-xs transition-all ${timeframe === tf ? 'bg-stella-500 text-white' : 'glass text-white/60 hover:text-white'
+                            className={`px-3 py-1 rounded-lg text-xs transition-all ${timeframe === tf ? 'bg-stream-500 text-white' : 'glass text-white/60 hover:text-white'
                                 }`}
                         >
                             {tf}
@@ -190,7 +190,7 @@ export function EfficiencyMetrics({ metrics }) {
                             <div className="text-[10px] text-white/50 uppercase">Transactions Saved</div>
                         </div>
                         <div className="card-glass p-4 text-center">
-                            <div className="text-2xl font-bold text-stella-400">
+                            <div className="text-2xl font-bold text-stream-400">
                                 <AnimatedCounter value={9234.50} prefix="$" decimals={2} />
                             </div>
                             <div className="text-[10px] text-white/50 uppercase">Gas Fees Saved</div>
@@ -235,7 +235,7 @@ export function EfficiencyMetrics({ metrics }) {
                                 {performanceData.latency.map((val, i) => (
                                     <div
                                         key={i}
-                                        className="flex-1 bg-stella-400/30 rounded-t"
+                                        className="flex-1 bg-stream-400/30 rounded-t"
                                         style={{ height: `${(val / 150) * 100}%` }}
                                     />
                                 ))}
@@ -252,7 +252,7 @@ export function EfficiencyMetrics({ metrics }) {
                             {performanceData.throughput.map((val, i) => (
                                 <div key={i} className="flex-1 relative group">
                                     <div
-                                        className="w-full bg-gradient-to-t from-stella-600 to-accent-500 rounded-t-lg transition-all duration-500 group-hover:opacity-100 opacity-70"
+                                        className="w-full bg-gradient-to-t from-stream-600 to-accent-500 rounded-t-lg transition-all duration-500 group-hover:opacity-100 opacity-70"
                                         style={{ height: `${(val / 30) * 100}%` }}
                                     />
                                     <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-white text-black text-[10px] px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">

@@ -305,7 +305,7 @@ function encodeVerificationPayload(payload) {
 }
 
 function pseudoHash(seed) {
-  const normalized = Array.from(String(seed || '').trim() || 'stella-stream-engine')
+  const normalized = Array.from(String(seed || '').trim() || 'stream-stream-engine')
     .map((char) => char.charCodeAt(0).toString(16).padStart(2, '0'))
     .join('')
     .slice(0, 64);

@@ -21,8 +21,8 @@
 - `/api/engine/catalog`
 - `/api/rwa/*`
 - x402 `402` headers
-- `StellaSDK`
-- `StellaRWAClient`
+- `StreamEngineSDK`
+- `StreamEngineRWAClient`
 - the current frontend pages and user journeys
 
 ## Key backend endpoints

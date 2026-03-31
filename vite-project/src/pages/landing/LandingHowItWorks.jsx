@@ -7,7 +7,7 @@ export default function LandingHowItWorks({
       num: '01',
       title: 'Service Discovery',
       desc: 'Agent hits any API → server returns HTTP 402 → x402 manifest describes payment options automatically.',
-      border: 'hover:border-stella-500/40',
+      border: 'hover:border-stream-500/40',
       badge: null,
       icon: (
         <svg width="26" height="26" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
@@ -53,7 +53,7 @@ export default function LandingHowItWorks({
     <section id="protocol" className="w-full bg-surface-950 py-24 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="space-y-3 mb-16">
-          <p className="text-stella-400 text-sm font-semibold uppercase tracking-widest font-mono">How it works</p>
+          <p className="text-stream-400 text-sm font-semibold uppercase tracking-widest font-mono">How it works</p>
           <h2 className="text-4xl lg:text-5xl font-bold text-white">One runtime. {networkName}. Infinite agents.</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-6 relative">
@@ -70,7 +70,7 @@ export default function LandingHowItWorks({
               </div>
               {i < steps.length - 1 && (
                 <div className="hidden md:flex absolute top-1/2 -right-3 z-10 items-center" aria-hidden="true">
-                  <div className="w-5 h-px bg-stella-500/40" />
+                  <div className="w-5 h-px bg-stream-500/40" />
                   <svg width="8" height="12" viewBox="0 0 8 12" fill="none">
                     <path d="M1 1l6 5-6 5" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
                   </svg>

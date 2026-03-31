@@ -143,8 +143,8 @@ export function LoadingState({ message = 'Loading...', className = '' }) {
   return (
     <div className={`flex flex-col items-center justify-center py-12 md:py-16 ${className}`}>
       <div className="relative">
-        <div className="w-12 h-12 rounded-full border-2 border-stella-500/20" />
-        <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-transparent border-t-stella-500 animate-spin" />
+        <div className="w-12 h-12 rounded-full border-2 border-stream-500/20" />
+        <div className="absolute inset-0 w-12 h-12 rounded-full border-2 border-transparent border-t-stream-500 animate-spin" />
       </div>
       <p className="text-sm text-white/60 mt-4">{message}</p>
     </div>

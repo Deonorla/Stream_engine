@@ -26,7 +26,7 @@ const ProgressStep = ({ step, currentStep, label }) => {
       <div className={`
         w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
         ${isCompleted ? 'bg-success-500 text-white' :
-          isActive ? 'bg-stella-500 text-white shadow-glow-sm' :
+          isActive ? 'bg-stream-500 text-white shadow-glow-sm' :
             'bg-white/10 text-white/40'}
       `}>
         {isCompleted ? '✓' : step}
@@ -96,7 +96,7 @@ const TokenSelector = ({ selected, onSelect, balance }) => (
             className={`
               p-4 rounded-xl border transition-all text-left
               ${selected?.symbol === token.symbol
-                ? 'border-stella-500 bg-stella-500/10 shadow-border-glow'
+                ? 'border-stream-500 bg-stream-500/10 shadow-border-glow'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'}
             `}
           >
@@ -132,7 +132,7 @@ const DurationSelector = ({ selected, onSelect, customValue, onCustomChange }) =
             className={`
               p-3 rounded-lg border text-center transition-all
               ${selected?.label === preset.label
-                ? 'border-stella-500 bg-stella-500/10'
+                ? 'border-stream-500 bg-stream-500/10'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'}
             `}
           >
@@ -176,7 +176,7 @@ const RateCalculator = ({ amount, duration, token }) => {
           <div className="text-white/50">
             Metering Rate
           </div>
-          <div className="font-mono font-semibold text-stella-300">
+          <div className="font-mono font-semibold text-stream-300">
             {rate.toFixed(8)} {token?.symbol || paymentTokenSymbol}/sec
           </div>
         </div>
@@ -317,7 +317,7 @@ export default function CreateStreamForm({
                 <span>Balance: {parseFloat(balance || 0).toFixed(4)} {selectedToken?.symbol}</span>
                 <button
                   type="button"
-                  className="text-stella-400 hover:text-stella-300"
+                  className="text-stream-400 hover:text-stream-300"
                   onClick={() => setAmountEth(parseFloat(balance || 0).toFixed(6))}
                 >
                   Max

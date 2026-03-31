@@ -5,7 +5,7 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const stellaMiddleware = require('../server/middleware/stellaMiddleware');
+const streamEngineMiddleware = require('../server/middleware/streamEngineMiddleware');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { createRuntimeConfig } = require('../utils/runtimeConfig');
 
@@ -19,16 +19,16 @@ function requireEnv(name: string): string {
 
 const runtime = createRuntimeConfig();
 const STELLASTREAM_ADDRESS =
-  process.env.STELLA_CONTRACT_ADDRESS
-  || process.env.STELLA_SESSION_METER_ADDRESS
+  process.env.STREAM_ENGINE_CONTRACT_ADDRESS
+  || process.env.STREAM_ENGINE_SESSION_METER_ADDRESS
   || runtime.contractAddress
   || 'stellar:session-meter';
 const PAYMENT_TOKEN_ADDRESS =
-  process.env.STELLA_PAYMENT_TOKEN_ADDRESS
+  process.env.STREAM_ENGINE_PAYMENT_TOKEN_ADDRESS
   || runtime.paymentTokenAddress
   || 'stellar:usdc-sac';
-const RECIPIENT_ADDRESS = requireEnv('STELLA_RECIPIENT_ADDRESS');
-const SESSION_API_URL = process.env.STELLA_SESSION_API_URL || 'http://127.0.0.1:3001';
+const RECIPIENT_ADDRESS = requireEnv('STREAM_ENGINE_RECIPIENT_ADDRESS');
+const SESSION_API_URL = process.env.STREAM_ENGINE_SESSION_API_URL || 'http://127.0.0.1:3001';
 const PORT = Number(process.env.DEMO_PROVIDER_PORT || 3005);
 const HOST = process.env.DEMO_PROVIDER_HOST || '127.0.0.1';
 
@@ -48,7 +48,7 @@ app.use(express.json());
 const config = {
   paymentTokenAddress: PAYMENT_TOKEN_ADDRESS,
   recipientAddress: RECIPIENT_ADDRESS,
-  stellaContractAddress: STELLASTREAM_ADDRESS,
+  streamEngineContractAddress: STELLASTREAM_ADDRESS,
   runtimeKind: runtime.kind,
   sessionApiUrl: SESSION_API_URL,
   rpcUrl: runtime.rpcUrl,
@@ -76,14 +76,14 @@ console.log(`   RPC URL: ${runtime.rpcUrl}`);
 console.log(`   Token symbol: ${runtime.paymentTokenSymbol}`);
 console.log(`   Session API: ${SESSION_API_URL}`);
 
-app.use(stellaMiddleware(config));
+app.use(streamEngineMiddleware(config));
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: Date.now(), network: runtime.networkName });
 });
 
 app.get('/api/premium', (req: any, res) => {
-  const streamId = req.stella?.streamId || 'unknown';
+  const streamId = req.streamEngine?.streamId || 'unknown';
 
   console.log(`Serving premium content for session #${streamId}`);
 
@@ -97,8 +97,8 @@ app.get('/api/premium', (req: any, res) => {
 });
 
 app.get('/api/ai-insight', (req: any, res) => {
-  const streamId = req.stella?.streamId || 'unknown';
-  const txHash = req.stella?.txHash;
+  const streamId = req.streamEngine?.streamId || 'unknown';
+  const txHash = req.streamEngine?.txHash;
 
   console.log(`Serving AI insight for session #${streamId}`);
 

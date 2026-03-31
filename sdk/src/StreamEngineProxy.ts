@@ -1,14 +1,14 @@
 import { Request, Response } from 'express';
-import { StellaSDK } from './StellaSDK';
+import { StreamEngineSDK } from './StreamEngineSDK';
 import axios from 'axios';
 import { formatPaymentAmount, parsePaymentAmount, resolvePaymentTokenConfig } from './tokenConfig';
 
-export class StellaProxy {
-    private sdk: StellaSDK;
+export class StreamEngineProxy {
+    private sdk: StreamEngineSDK;
     private marginPercent: number;
     private tokenDecimals: number;
 
-    constructor(sdk: StellaSDK, marginPercent: number = 10) {
+    constructor(sdk: StreamEngineSDK, marginPercent: number = 10) {
         this.sdk = sdk;
         this.marginPercent = marginPercent;
         this.tokenDecimals = resolvePaymentTokenConfig().decimals;
@@ -26,7 +26,7 @@ export class StellaProxy {
             return "0"; // Free?
         } catch (error: any) {
             if (axios.isAxiosError(error) && error.response && error.response.status === 402) {
-                const downstreamRate = error.response.headers['x-stella-rate'];
+                const downstreamRate = error.response.headers['x-stream-rate'];
                 if (!downstreamRate) return "0.0001"; // Fallback
 
                 const rateBn = parsePaymentAmount(downstreamRate, this.tokenDecimals);
@@ -51,7 +51,7 @@ export class StellaProxy {
         // We assume we are already paid (Middleware passed).
         // Now we use our SDK to pay the downstream.
 
-        console.log(`[StellaProxy] Forwarding to ${downstreamUrl}...`);
+        console.log(`[StreamEngineProxy] Forwarding to ${downstreamUrl}...`);
 
         return await this.sdk.makeRequest(downstreamUrl, {
             method,

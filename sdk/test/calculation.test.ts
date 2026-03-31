@@ -1,14 +1,14 @@
 import { expect } from 'chai';
-import { StellaSDK, StreamMetadata } from '../src/StellaSDK';
+import { StreamEngineSDK, StreamMetadata } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 import { parsePaymentAmount } from '../src/tokenConfig';
 
-describe('StellaSDK Real-time Calculations', () => {
-    let sdk: StellaSDK;
+describe('StreamEngineSDK Real-time Calculations', () => {
+    let sdk: StreamEngineSDK;
     let originalDateNow: any;
 
     beforeEach(() => {
-        sdk = new StellaSDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545'
         });

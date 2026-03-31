@@ -23,10 +23,10 @@
 ## SDK Reference
 
 * [Overview](sdk/README.md)
-* [StellaSDK](sdk/stella-sdk.md)
+* [StreamEngineSDK](sdk/stream-engine-sdk.md)
 * [GeminiPaymentBrain](sdk/gemini-payment-brain.md)
 * [SpendingMonitor](sdk/spending-monitor.md)
-* [StellaProxy](sdk/stella-proxy.md)
+* [StreamEngineProxy](sdk/stream-engine-proxy.md)
 
 ## API Reference
 

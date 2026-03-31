@@ -59,7 +59,7 @@ export default function Header({
                 <Icon className="w-3.5 h-3.5 shrink-0" />
                 {label}
                 {active && (
-                  <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-stella-400" aria-hidden="true" />
+                  <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full bg-stream-400" aria-hidden="true" />
                 )}
               </Link>
             );
@@ -84,9 +84,9 @@ export default function Header({
                 onClick={onManageWallets}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-800 border border-surface-700 hover:border-white/20 transition-colors group"
               >
-                <Wallet className="w-3.5 h-3.5 text-stella-400 shrink-0" />
+                <Wallet className="w-3.5 h-3.5 text-stream-400 shrink-0" />
                 {balance && (
-                  <span className="font-mono text-xs text-stella-300 tabular-nums">
+                  <span className="font-mono text-xs text-stream-300 tabular-nums">
                     {parseFloat(balance).toFixed(2)} {paymentTokenSymbol}
                   </span>
                 )}
@@ -99,7 +99,7 @@ export default function Header({
           ) : (
             <button
               onClick={onConnect}
-              className="px-4 py-2 bg-stella-500 hover:bg-stella-600 text-white text-sm font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-stella-500/50 whitespace-nowrap"
+              className="px-4 py-2 bg-stream-500 hover:bg-stream-600 text-white text-sm font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-stream-500/50 whitespace-nowrap"
             >
               Connect Wallet
             </button>
@@ -108,7 +108,7 @@ export default function Header({
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden ml-auto text-surface-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-stella-500/50 rounded p-1"
+          className="md:hidden ml-auto text-surface-300 hover:text-white focus:outline-none focus:ring-2 focus:ring-stream-500/50 rounded p-1"
           onClick={() => setMenuOpen(o => !o)}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={menuOpen}
@@ -153,13 +153,13 @@ export default function Header({
                 )}
                 <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-surface-800 border border-surface-700">
                   <div className="flex items-center gap-2">
-                    <Wallet className="w-3.5 h-3.5 text-stella-400" />
+                    <Wallet className="w-3.5 h-3.5 text-stream-400" />
                     <span className="font-mono text-xs text-surface-300">
                       {walletAddress.slice(0, 8)}…{walletAddress.slice(-6)}
                     </span>
                   </div>
                   {balance && (
-                    <span className="font-mono text-xs text-stella-300 tabular-nums">
+                    <span className="font-mono text-xs text-stream-300 tabular-nums">
                       {parseFloat(balance).toFixed(4)} {paymentTokenSymbol}
                     </span>
                   )}
@@ -175,7 +175,7 @@ export default function Header({
             ) : (
               <button
                 onClick={() => { onConnect(); setMenuOpen(false); }}
-                className="w-full py-3 bg-stella-500 hover:bg-stella-600 text-white font-semibold rounded-lg text-sm transition-all duration-200"
+                className="w-full py-3 bg-stream-500 hover:bg-stream-600 text-white font-semibold rounded-lg text-sm transition-all duration-200"
               >
                 Connect Wallet
               </button>

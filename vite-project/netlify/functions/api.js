@@ -2,8 +2,8 @@
 
 function resolveBackendBaseUrl() {
     return (
-        process.env.STELLA_NETLIFY_BACKEND_URL
-        || process.env.STELLA_SESSION_API_URL
+        process.env.STREAM_ENGINE_NETLIFY_BACKEND_URL
+        || process.env.STREAM_ENGINE_SESSION_API_URL
         || process.env.VITE_RWA_API_URL
         || ""
     ).replace(/\/$/, "");

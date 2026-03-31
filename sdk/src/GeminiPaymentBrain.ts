@@ -81,7 +81,7 @@ export class GeminiPaymentBrain {
         if (!this.model) return "I cannot answer questions without a Gemini API Key.";
 
         const prompt = `
-        System: You are Stella Agent, an AI payment assistant.
+        System: You are the Stream Engine agent, an AI payment assistant.
         Context: ${JSON.stringify(context)}
         User Query: ${query}
         

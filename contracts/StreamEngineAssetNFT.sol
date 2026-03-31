@@ -5,16 +5,16 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "./utils/Owned.sol";
 
 /**
- * @title StellaAssetNFT
+ * @title StreamEngineAssetNFT
  * @dev ERC721 digital twin for real-world rental assets.
  * Extends OpenZeppelin ERC721URIStorage for per-token metadata URIs
  * and Owned for owner + operator access control via OpenZeppelin
  * Ownable and AccessControl.
  *
  * Minting and metadata updates are restricted to the designated
- * controller (StellaRWAHub) enforcing a hub-and-spoke architecture.
+ * controller (StreamEngineRWAHub) enforcing a hub-and-spoke architecture.
  */
-contract StellaAssetNFT is ERC721URIStorage, Owned {
+contract StreamEngineAssetNFT is ERC721URIStorage, Owned {
     uint256 public nextTokenId = 1;
     address public controller;
 
@@ -22,7 +22,7 @@ contract StellaAssetNFT is ERC721URIStorage, Owned {
     event MetadataUpdated(uint256 indexed tokenId, string tokenURI);
 
     modifier onlyController() {
-        require(msg.sender == controller, "StellaAssetNFT: caller is not controller");
+        require(msg.sender == controller, "StreamEngineAssetNFT: caller is not controller");
         _;
     }
 
@@ -45,7 +45,7 @@ contract StellaAssetNFT is ERC721URIStorage, Owned {
         onlyController
         returns (uint256 tokenId)
     {
-        require(to != address(0), "StellaAssetNFT: mint to zero");
+        require(to != address(0), "StreamEngineAssetNFT: mint to zero");
         tokenId = nextTokenId++;
         _safeMint(to, tokenId);
         _setTokenURI(tokenId, tokenURI_);
@@ -60,7 +60,7 @@ contract StellaAssetNFT is ERC721URIStorage, Owned {
         external
         onlyController
     {
-        require(ownerOf(tokenId) != address(0), "StellaAssetNFT: token not minted");
+        require(ownerOf(tokenId) != address(0), "StreamEngineAssetNFT: token not minted");
         _setTokenURI(tokenId, tokenURI_);
         emit MetadataUpdated(tokenId, tokenURI_);
     }

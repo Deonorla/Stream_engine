@@ -40,9 +40,9 @@ That is the key architectural split:
 ## Step 4: Create a stream
 
 ```typescript
-import { StellaSDK } from './sdk/src/StellaSDK';
+import { StreamEngineSDK } from './sdk/src/StreamEngineSDK';
 
-const sdk = new StellaSDK({
+const sdk = new StreamEngineSDK({
   adapter: stellarAdapter,
   rpcUrl: 'https://soroban-testnet.stellar.org',
   token: {

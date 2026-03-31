@@ -113,7 +113,7 @@ Use the rental flow from the same UI.
 What changed under the hood:
 
 - the frontend now opens a **payment session** through `/api/sessions`
-- it uses the existing `createStream` UI flow and passes the live `X-Stella-Stream-ID` session header
+- it uses the existing `createStream` UI flow and passes the live `X-Stream-Stream-ID` session header
 - the backend tracks active, frozen, cancelled, claimable, and refundable session state
 
 ## Step 8 — Cancel or end early

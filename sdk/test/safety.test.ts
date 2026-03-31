@@ -1,16 +1,16 @@
 import { expect } from 'chai';
-import { StellaSDK } from '../src/StellaSDK';
+import { StreamEngineSDK } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 import axios from 'axios';
 import { parsePaymentAmount } from '../src/tokenConfig';
 
 describe('Safety & Auto-renewal Systems', () => {
-    let sdk: StellaSDK;
+    let sdk: StreamEngineSDK;
     let createStreamSpy: any;
 
     beforeEach(() => {
         // Init SDK with strict limits
-        sdk = new StellaSDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             spendingLimits: {

@@ -53,15 +53,15 @@ const Typewriter = ({ text, speed = 50, delay = 500 }) => {
   return (
     <span>
       {displayText}
-      {showCursor && <span className="animate-pulse text-stella-400">|</span>}
+      {showCursor && <span className="animate-pulse text-stream-400">|</span>}
     </span>
   );
 };
 
 // Floating Metric Card
-const FloatingCard = ({ icon: Icon, label, value, delay = 0, color = 'stella' }) => {
+const FloatingCard = ({ icon: Icon, label, value, delay = 0, color = 'stream' }) => {
   const colors = {
-    stella: 'from-stella-500/20 to-stella-600/10 border-stella-500/30',
+    stream: 'from-stream-500/20 to-stream-600/10 border-stream-500/30',
     accent: 'from-accent-500/20 to-accent-600/10 border-accent-500/30',
     success: 'from-success-500/20 to-success-600/10 border-success-500/30',
   };
@@ -94,17 +94,17 @@ const ParticleBackground = () => {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {/* Animated gradient orbs */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-stella-500/20 rounded-full blur-3xl animate-pulse"
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-stream-500/20 rounded-full blur-3xl animate-pulse"
         style={{ animationDuration: '4s' }} />
       <div className="absolute bottom-0 right-1/4 w-80 h-80 bg-accent-500/15 rounded-full blur-3xl animate-pulse"
         style={{ animationDuration: '5s', animationDelay: '1s' }} />
-      <div className="absolute top-1/4 right-0 w-64 h-64 bg-stella-400/10 rounded-full blur-2xl animate-float" />
+      <div className="absolute top-1/4 right-0 w-64 h-64 bg-stream-400/10 rounded-full blur-2xl animate-float" />
 
       {/* Floating particles */}
       {[...Array(6)].map((_, i) => (
         <div
           key={i}
-          className="absolute w-1 h-1 bg-stella-400/50 rounded-full animate-float"
+          className="absolute w-1 h-1 bg-stream-400/50 rounded-full animate-float"
           style={{
             left: `${15 + i * 15}%`,
             top: `${20 + (i % 3) * 20}%`,
@@ -196,7 +196,7 @@ export default function Hero({ networkName = 'Stellar Testnet', stats }) {
           {/* Status Badge */}
           <div className="mb-6 inline-flex items-center gap-2 rounded-full glass-primary px-4 py-2 text-sm">
             <span className="inline-block h-2 w-2 rounded-full bg-success-400 animate-pulse" />
-            <span className="text-stella-300 font-medium">x402 Protocol</span>
+            <span className="text-stream-300 font-medium">x402 Protocol</span>
             <span className="text-white/40">•</span>
             <span className="text-white/60">Live on {networkName}</span>
           </div>
@@ -213,7 +213,7 @@ export default function Hero({ networkName = 'Stellar Testnet', stats }) {
 
             <p className="mt-6 max-w-2xl text-lg md:text-xl text-white/70 leading-relaxed">
               AI agents pay for services with reusable Stellar USDC payment sessions.
-              <span className="text-stella-400 font-semibold"> One signature, unlimited requests.</span>
+              <span className="text-stream-400 font-semibold"> One signature, unlimited requests.</span>
             </p>
 
             <div className="mt-4 flex items-center gap-2 text-sm">
@@ -231,7 +231,7 @@ export default function Hero({ networkName = 'Stellar Testnet', stats }) {
               <BookOpen className="w-5 h-5" /> Read Docs
             </Link>
             <a 
-              href="https://github.com/ola-893/stella"
+              href="https://github.com/Deonorla/Polkadot_stream_engine"
               target="_blank" 
               rel="noopener noreferrer"
               className="btn-ghost text-lg px-6 py-4"
@@ -252,7 +252,7 @@ export default function Hero({ networkName = 'Stellar Testnet', stats }) {
               label="Streams/sec"
               value="2.4k"
               delay={0}
-              color="stella"
+              color="stream"
             />
             <FloatingCard
               icon={Bot}

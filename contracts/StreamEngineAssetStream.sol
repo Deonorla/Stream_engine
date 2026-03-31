@@ -4,16 +4,16 @@ pragma solidity ^0.8.20;
 import "./utils/Owned.sol";
 import "./utils/ReentrancyGuardLite.sol";
 
-interface IStellaPaymentToken {
+interface IStreamEnginePaymentToken {
     function transfer(address recipient, uint256 amount) external returns (bool);
     function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
 }
 
-interface IStellaAssetNFT {
+interface IStreamEngineAssetNFT {
     function ownerOf(uint256 tokenId) external view returns (address);
 }
 
-interface IStellaComplianceGuardView {
+interface IStreamEngineComplianceGuardView {
     function isCompliant(address user, uint8 assetType) external view returns (bool);
     function isStreamFrozen(uint256 streamId) external view returns (bool);
     function isAssetFrozen(uint256 tokenId) external view returns (bool);
@@ -21,7 +21,7 @@ interface IStellaComplianceGuardView {
     function isAssetDisputed(uint256 tokenId) external view returns (bool);
 }
 
-contract StellaAssetStream is Owned, ReentrancyGuardLite {
+contract StreamEngineAssetStream is Owned, ReentrancyGuardLite {
     struct AssetStream {
         address sender;
         uint256 tokenId;
@@ -34,9 +34,9 @@ contract StellaAssetStream is Owned, ReentrancyGuardLite {
         bool isActive;
     }
 
-    IStellaPaymentToken public immutable paymentToken;
-    IStellaAssetNFT public immutable assetNFT;
-    IStellaComplianceGuardView public complianceGuard;
+    IStreamEnginePaymentToken public immutable paymentToken;
+    IStreamEngineAssetNFT public immutable assetNFT;
+    IStreamEngineComplianceGuardView public complianceGuard;
     address public hub;
     uint256 public nextStreamId = 1;
 
@@ -61,15 +61,15 @@ contract StellaAssetStream is Owned, ReentrancyGuardLite {
     event StreamDepleted(uint256 indexed streamId, uint256 indexed tokenId);
 
     modifier onlyHub() {
-        require(msg.sender == hub, "StellaAssetStream: caller is not hub");
+        require(msg.sender == hub, "StreamEngineAssetStream: caller is not hub");
         _;
     }
 
     constructor(address paymentToken_, address assetNFT_) {
-        require(paymentToken_ != address(0), "StellaAssetStream: token is zero");
-        require(assetNFT_ != address(0), "StellaAssetStream: nft is zero");
-        paymentToken = IStellaPaymentToken(paymentToken_);
-        assetNFT = IStellaAssetNFT(assetNFT_);
+        require(paymentToken_ != address(0), "StreamEngineAssetStream: token is zero");
+        require(assetNFT_ != address(0), "StreamEngineAssetStream: nft is zero");
+        paymentToken = IStreamEnginePaymentToken(paymentToken_);
+        assetNFT = IStreamEngineAssetNFT(assetNFT_);
     }
 
     function setHub(address hub_) external onlyOwner {
@@ -78,7 +78,7 @@ contract StellaAssetStream is Owned, ReentrancyGuardLite {
     }
 
     function setComplianceGuard(address complianceGuard_) external onlyOwner {
-        complianceGuard = IStellaComplianceGuardView(complianceGuard_);
+        complianceGuard = IStreamEngineComplianceGuardView(complianceGuard_);
         emit ComplianceGuardUpdated(complianceGuard_);
     }
 
@@ -89,20 +89,20 @@ contract StellaAssetStream is Owned, ReentrancyGuardLite {
         uint256 duration,
         uint8 assetType
     ) external onlyHub nonReentrant returns (uint256 streamId) {
-        require(sender != address(0), "StellaAssetStream: sender is zero");
-        require(totalAmount > 0, "StellaAssetStream: amount is zero");
-        require(duration > 0, "StellaAssetStream: duration is zero");
+        require(sender != address(0), "StreamEngineAssetStream: sender is zero");
+        require(totalAmount > 0, "StreamEngineAssetStream: amount is zero");
+        require(duration > 0, "StreamEngineAssetStream: duration is zero");
 
         uint256 currentStreamId = streamByTokenId[tokenId];
         if (currentStreamId != 0) {
-            require(!streams[currentStreamId].isActive, "StellaAssetStream: active stream exists");
+            require(!streams[currentStreamId].isActive, "StreamEngineAssetStream: active stream exists");
         }
 
         uint256 flowRate = totalAmount / duration;
-        require(flowRate > 0, "StellaAssetStream: flowRate is zero");
+        require(flowRate > 0, "StreamEngineAssetStream: flowRate is zero");
 
         bool success = paymentToken.transferFrom(sender, address(this), totalAmount);
-        require(success, "StellaAssetStream: transfer failed");
+        require(success, "StreamEngineAssetStream: transfer failed");
 
         streamId = nextStreamId++;
         uint256 startTime = block.timestamp;
@@ -161,42 +161,42 @@ contract StellaAssetStream is Owned, ReentrancyGuardLite {
         returns (uint256 amountClaimed)
     {
         uint256 streamId = streamByTokenId[tokenId];
-        require(streamId != 0, "StellaAssetStream: stream not found");
+        require(streamId != 0, "StreamEngineAssetStream: stream not found");
         AssetStream storage stream = streams[streamId];
-        require(stream.isActive, "StellaAssetStream: stream inactive");
+        require(stream.isActive, "StreamEngineAssetStream: stream inactive");
 
         _validateClaimant(streamId, stream, tokenId, claimer);
 
         amountClaimed = claimableBalance(streamId);
-        require(amountClaimed > 0, "StellaAssetStream: nothing claimable");
+        require(amountClaimed > 0, "StreamEngineAssetStream: nothing claimable");
 
         stream.amountWithdrawn += amountClaimed;
         _syncStatus(streamId, stream);
 
         bool success = paymentToken.transfer(claimer, amountClaimed);
-        require(success, "StellaAssetStream: claim transfer failed");
+        require(success, "StreamEngineAssetStream: claim transfer failed");
 
         emit AssetOwnerResolved(streamId, tokenId, claimer, "claim");
         emit YieldClaimed(streamId, tokenId, claimer, amountClaimed);
     }
 
     function flashAdvanceFor(uint256 tokenId, address claimer, uint256 amount) external onlyHub nonReentrant {
-        require(amount > 0, "StellaAssetStream: flash amount is zero");
+        require(amount > 0, "StreamEngineAssetStream: flash amount is zero");
         uint256 streamId = streamByTokenId[tokenId];
-        require(streamId != 0, "StellaAssetStream: stream not found");
+        require(streamId != 0, "StreamEngineAssetStream: stream not found");
         AssetStream storage stream = streams[streamId];
-        require(stream.isActive, "StellaAssetStream: stream inactive");
+        require(stream.isActive, "StreamEngineAssetStream: stream inactive");
 
         _validateClaimant(streamId, stream, tokenId, claimer);
 
         uint256 remainingBalance = stream.totalAmount - stream.amountWithdrawn;
-        require(amount <= remainingBalance, "StellaAssetStream: amount exceeds remaining");
+        require(amount <= remainingBalance, "StreamEngineAssetStream: amount exceeds remaining");
 
         stream.amountWithdrawn += amount;
         _syncStatus(streamId, stream);
 
         bool success = paymentToken.transfer(claimer, amount);
-        require(success, "StellaAssetStream: flash transfer failed");
+        require(success, "StreamEngineAssetStream: flash transfer failed");
 
         emit AssetOwnerResolved(streamId, tokenId, claimer, "flash-advance");
         emit FlashAdvanceExecuted(streamId, tokenId, claimer, amount);
@@ -262,14 +262,14 @@ contract StellaAssetStream is Owned, ReentrancyGuardLite {
 
     function _validateClaimant(uint256 streamId, AssetStream storage stream, uint256 tokenId, address claimer) internal view {
         address assetOwner = assetNFT.ownerOf(tokenId);
-        require(assetOwner == claimer, "StellaAssetStream: caller is not current owner");
+        require(assetOwner == claimer, "StreamEngineAssetStream: caller is not current owner");
 
         if (address(complianceGuard) != address(0)) {
-            require(!complianceGuard.isStreamFrozen(streamId), "StellaAssetStream: stream frozen");
-            require(!complianceGuard.isAssetFrozen(tokenId), "StellaAssetStream: asset frozen");
-            require(!complianceGuard.isAssetRevoked(tokenId), "StellaAssetStream: asset revoked");
-            require(!complianceGuard.isAssetDisputed(tokenId), "StellaAssetStream: asset disputed");
-            require(complianceGuard.isCompliant(claimer, stream.assetType), "StellaAssetStream: claimant not compliant");
+            require(!complianceGuard.isStreamFrozen(streamId), "StreamEngineAssetStream: stream frozen");
+            require(!complianceGuard.isAssetFrozen(tokenId), "StreamEngineAssetStream: asset frozen");
+            require(!complianceGuard.isAssetRevoked(tokenId), "StreamEngineAssetStream: asset revoked");
+            require(!complianceGuard.isAssetDisputed(tokenId), "StreamEngineAssetStream: asset disputed");
+            require(complianceGuard.isCompliant(claimer, stream.assetType), "StreamEngineAssetStream: claimant not compliant");
         }
     }
 

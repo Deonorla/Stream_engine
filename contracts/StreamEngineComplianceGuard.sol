@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import "./utils/Owned.sol";
 
-contract StellaComplianceGuard is Owned {
+contract StreamEngineComplianceGuard is Owned {
     struct ComplianceRecord {
         bool approved;
         uint64 expiry;
@@ -68,7 +68,7 @@ contract StellaComplianceGuard is Owned {
     modifier onlyController() {
         require(
             msg.sender == controller || msg.sender == owner() || operators[msg.sender],
-            "StellaComplianceGuard: caller is not controller"
+            "StreamEngineComplianceGuard: caller is not controller"
         );
         _;
     }

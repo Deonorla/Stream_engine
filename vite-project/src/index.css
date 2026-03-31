@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Stella Design System - CSS Custom Properties */
+/* Stream Engine Design System - CSS Custom Properties */
 :root {
   /* Primary Colors */
   --color-primary: #3b82f6;
@@ -92,7 +92,7 @@
 
   /* Button Variants */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-stella-gradient px-5 py-2.5 font-semibold text-white shadow-glow transition-all duration-200 hover:opacity-90 hover:shadow-glow active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-stream-gradient px-5 py-2.5 font-semibold text-white shadow-glow transition-all duration-200 hover:opacity-90 hover:shadow-glow active:scale-[0.98];
   }
 
   .btn-secondary {
@@ -125,7 +125,7 @@
   }
 
   .chip-primary {
-    @apply rounded-full bg-stella-500/20 border border-stella-500/30 px-3 py-1 text-xs font-medium text-stella-300;
+    @apply rounded-full bg-stream-500/20 border border-stream-500/30 px-3 py-1 text-xs font-medium text-stream-300;
   }
 
   .chip-accent {
@@ -146,7 +146,7 @@
 
   /* Input Styles */
   .input-default {
-    @apply w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder:text-white/40 transition-all duration-200 focus:border-stella-500 focus:ring-2 focus:ring-stella-500/20 focus:outline-none;
+    @apply w-full rounded-lg border border-white/10 bg-white/5 px-4 py-2.5 text-white placeholder:text-white/40 transition-all duration-200 focus:border-stream-500 focus:ring-2 focus:ring-stream-500/20 focus:outline-none;
   }
 
   /* Status Indicators */
@@ -194,7 +194,7 @@
 
   /* Text Gradients */
   .text-gradient-primary {
-    @apply bg-gradient-to-r from-stella-400 via-accent-400 to-stella-400 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-stream-400 via-accent-400 to-stream-400 bg-clip-text text-transparent;
   }
 
   .text-gradient-accent {
@@ -223,7 +223,7 @@
   }
 
   .glass-primary {
-    @apply bg-stella-500/10 backdrop-blur-md border border-stella-500/20 shadow-glow-sm;
+    @apply bg-stream-500/10 backdrop-blur-md border border-stream-500/20 shadow-glow-sm;
   }
 
   .glass-accent {
@@ -264,7 +264,7 @@
   }
 
   .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-stella-500/50 focus:ring-offset-2 focus:ring-offset-surface-900;
+    @apply focus:outline-none focus:ring-2 focus:ring-stream-500/50 focus:ring-offset-2 focus:ring-offset-surface-900;
   }
 
   /* Glow Effects */

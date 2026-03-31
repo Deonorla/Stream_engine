@@ -34,7 +34,7 @@ export default function LandingNavbar() {
             <a
               key={link}
               href={`#${link.toLowerCase().replace(' ', '-')}`}
-              className="relative text-surface-200 hover:text-white transition-colors duration-200 text-sm after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-[1px] after:bg-stella-400 after:transition-all after:duration-300 hover:after:w-full"
+              className="relative text-surface-200 hover:text-white transition-colors duration-200 text-sm after:absolute after:bottom-[-2px] after:left-0 after:w-0 after:h-[1px] after:bg-stream-400 after:transition-all after:duration-300 hover:after:w-full"
             >
               {link}
             </a>
@@ -42,14 +42,14 @@ export default function LandingNavbar() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
-          <Link to="/app" className="px-5 py-2 bg-stella-500 hover:bg-stella-600 text-white text-sm font-semibold rounded-lg shadow-glow-sm animate-glow-pulse transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-stella-500/50" aria-label="Launch Stella's Stream Engine app">
+          <Link to="/app" className="px-5 py-2 bg-stream-500 hover:bg-stream-600 text-white text-sm font-semibold rounded-lg shadow-glow-sm animate-glow-pulse transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-stream-500/50" aria-label="Launch Stella's Stream Engine app">
             Launch App
           </Link>
         </div>
 
         {/* Mobile hamburger */}
         <button
-          className="md:hidden text-surface-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-stella-500/50 rounded"
+          className="md:hidden text-surface-200 hover:text-white focus:outline-none focus:ring-2 focus:ring-stream-500/50 rounded"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label={menuOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={menuOpen}
@@ -80,7 +80,7 @@ export default function LandingNavbar() {
           ))}
           <Link
             to="/app"
-            className="mt-2 px-5 py-3 bg-stella-500 hover:bg-stella-600 text-white font-semibold rounded-lg text-center transition-all duration-300"
+            className="mt-2 px-5 py-3 bg-stream-500 hover:bg-stream-600 text-white font-semibold rounded-lg text-center transition-all duration-300"
             onClick={() => setMenuOpen(false)}
           >
             Launch App

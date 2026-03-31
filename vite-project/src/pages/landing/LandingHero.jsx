@@ -48,7 +48,7 @@ export default function LandingHero({
   const typingRef = useRef(null);
   const legend = useMemo(
     () => [
-      { color: "bg-stella-500", label: `${tokenSymbol} Payments` },
+      { color: "bg-stream-500", label: `${tokenSymbol} Payments` },
       { color: "bg-accent-500", label: "AI Calls" },
       { color: "bg-success-500", label: "RWA Yields" },
     ],
@@ -121,7 +121,7 @@ export default function LandingHero({
 
       {/* ── Headline ── */}
       <div className="relative z-10 text-center px-4 pt-3 md:pt-12 pb-0 animate-slide-up">
-        {/* <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-stella-500/30 bg-stella-500/10 text-stella-300 text-xs font-mono mb-5">
+        {/* <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-stream-500/30 bg-stream-500/10 text-stream-300 text-xs font-mono mb-5">
           <span className="w-1.5 h-1.5 rounded-full bg-success-400 animate-pulse" aria-hidden="true" />
           Live · Stellar · x402 · AI-Powered
         </div> */}
@@ -268,7 +268,7 @@ export default function LandingHero({
             <span className="font-mono text-xs text-surface-400">
               {overviewLabel}
             </span>
-            <span className="font-mono text-sm font-bold text-stella-400 tabular-nums">
+            <span className="font-mono text-sm font-bold text-stream-400 tabular-nums">
               {overviewValue.toLocaleString()}
             </span>
           </div>
@@ -320,7 +320,7 @@ export default function LandingHero({
           {[
             {
               label: "x402 Streaming",
-              cls: "border-stella-500/40 text-stella-300 bg-stella-500/10",
+              cls: "border-stream-500/40 text-stream-300 bg-stream-500/10",
             },
             {
               label: "RWA Studio",
@@ -342,7 +342,7 @@ export default function LandingHero({
         <div className="flex flex-wrap gap-4 justify-center">
           <Link
             to="/app"
-            className="group relative px-8 py-3.5 rounded-xl font-semibold text-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-stella-500/50"
+            className="group relative px-8 py-3.5 rounded-xl font-semibold text-white overflow-hidden focus:outline-none focus:ring-2 focus:ring-stream-500/50"
             style={{ background: "linear-gradient(135deg,#3b82f6,#a855f7)" }}
             aria-label="Launch Stella's Stream Engine"
           >
@@ -354,7 +354,7 @@ export default function LandingHero({
           </Link>
           <Link
             to="/app/docs"
-            className="px-8 py-3.5 rounded-xl font-semibold border border-surface-600 text-surface-300 hover:border-stella-500/60 hover:text-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-stella-500/50"
+            className="px-8 py-3.5 rounded-xl font-semibold border border-surface-600 text-surface-300 hover:border-stream-500/60 hover:text-white transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-stream-500/50"
           >
             View Docs
           </Link>

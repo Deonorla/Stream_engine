@@ -488,17 +488,17 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           headers: ["Header", "Meaning"],
           rows: [
             [
-              "X-Stella-Mode",
+              "X-Stream-Mode",
               "Whether the route expects streaming, direct payment, or a hybrid path",
             ],
-            ["X-Stella-Rate", "How much value is required"],
-            ["X-Stella-Token", "Which token is accepted"],
+            ["X-Stream-Rate", "How much value is required"],
+            ["X-Stream-Token", "Which token is accepted"],
             [
-              "X-Stella-Recipient",
+              "X-Stream-Recipient",
               "Which service wallet should receive value",
             ],
             [
-              "X-Stella-Contract",
+              "X-Stream-Contract",
               stellar
                 ? "Which session rail or relay surface the runtime should use"
                 : "Which stream contract the runtime should use",
@@ -523,9 +523,9 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             "API keys identify a client. They do not solve pricing, per-route payment terms, or onchain settlement for autonomous agents.",
         },
         {
-          question: "Why do some payment headers still say Stella?",
+          question: "Why do the payment headers say Stream instead of the full product name?",
           answer:
-            "Because the active wire protocol uses X-Stella-* headers for payment negotiation. The product name is Stella's Stream Engine, and those header names are part of the current runtime contract between client and server.",
+            "Because the active wire protocol uses X-Stream-* headers for payment negotiation. The product name is Stella's Stream Engine, and those header names are part of the current runtime contract between client and server.",
         },
       ],
     },
@@ -1299,11 +1299,11 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           question:
-            "Why do the onchain deployment ids still say Stella?",
+            "Why do some runtime identifiers say StreamEngine instead of the full product name?",
           answer:
             stellar
-              ? "Because the repo uses concise Stella-prefixed runtime names for SDK classes, headers, and contract labels while the product name stays Stella's Stream Engine."
-              : "Those are the actual deployed Solidity contract identifiers. The product is now Stella's Stream Engine, but the deployed contract names were kept so the existing chain deployment, ABI references, and tooling did not have to be broken or redeployed just for naming.",
+              ? "Because the repo uses StreamEngine-prefixed runtime names for SDK classes, headers, and contract labels while the full product name stays Stella's Stream Engine."
+              : "Those are the actual deployed Solidity contract identifiers. The product is Stella's Stream Engine, and the concise StreamEngine prefix keeps the runtime surface readable without changing the product name itself.",
         },
         {
           question:

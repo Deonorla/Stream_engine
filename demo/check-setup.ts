@@ -23,13 +23,13 @@ async function checkSetup() {
   console.log("Stella's Stream Engine demo setup check\n");
 
   console.log('1. Environment');
-  console.log(`   STELLA_RECIPIENT_ADDRESS: ${process.env.STELLA_RECIPIENT_ADDRESS ? 'Found' : 'Missing'}`);
+  console.log(`   STREAM_ENGINE_RECIPIENT_ADDRESS: ${process.env.STREAM_ENGINE_RECIPIENT_ADDRESS ? 'Found' : 'Missing'}`);
   console.log(`   DEMO_STELLAR_SENDER: ${process.env.DEMO_STELLAR_SENDER ? 'Found' : 'Missing'}`);
   console.log(`   STELLAR_HORIZON_URL: ${process.env.STELLAR_HORIZON_URL ? 'Found' : 'Missing'}`);
   console.log(`   STELLAR_SOROBAN_RPC_URL: ${process.env.STELLAR_SOROBAN_RPC_URL ? 'Found' : 'Missing'}`);
   console.log(`   GEMINI_API_KEY: ${process.env.GEMINI_API_KEY ? 'Found' : 'Missing (fallback heuristics only)'}`);
 
-  requireEnv('STELLA_RECIPIENT_ADDRESS');
+  requireEnv('STREAM_ENGINE_RECIPIENT_ADDRESS');
   requireEnv('DEMO_STELLAR_SENDER');
 
   console.log('\n2. Network');
@@ -40,7 +40,7 @@ async function checkSetup() {
 
   console.log('\n3. Session path');
   console.log(`   Session meter: ${runtime.contractAddress}`);
-  console.log(`   Session API: ${process.env.STELLA_SESSION_API_URL || 'http://127.0.0.1:3001'}`);
+  console.log(`   Session API: ${process.env.STREAM_ENGINE_SESSION_API_URL || 'http://127.0.0.1:3001'}`);
   console.log(`   Stellar sender: ${process.env.DEMO_STELLAR_SENDER}`);
 
   console.log('\n4. Demo commands');

@@ -1,25 +1,25 @@
 import axios from "axios";
 import { InterfaceAbi } from "ethers";
-import { StellaTransactionAdapter, StreamCreationResult } from "./transactionAdapter";
+import { StreamEngineTransactionAdapter, StreamCreationResult } from "./transactionAdapter";
 
-export interface StellaStellarAdapterConfig {
+export interface StreamEngineStellarAdapterConfig {
     apiBaseUrl: string;
     senderAddress: string;
 }
 
-export class StellaStellarAdapter implements StellaTransactionAdapter {
+export class StreamEngineStellarAdapter implements StreamEngineTransactionAdapter {
     private apiBaseUrl: string;
     private senderAddress: string;
 
-    constructor(config: StellaStellarAdapterConfig) {
+    constructor(config: StreamEngineStellarAdapterConfig) {
         this.apiBaseUrl = String(config.apiBaseUrl || "").replace(/\/$/, "");
         this.senderAddress = String(config.senderAddress || "").trim();
 
         if (!this.apiBaseUrl) {
-            throw new Error("StellaStellarAdapter requires apiBaseUrl");
+            throw new Error("StreamEngineStellarAdapter requires apiBaseUrl");
         }
         if (!this.senderAddress) {
-            throw new Error("StellaStellarAdapter requires senderAddress");
+            throw new Error("StreamEngineStellarAdapter requires senderAddress");
         }
     }
 
@@ -63,7 +63,7 @@ export class StellaStellarAdapter implements StellaTransactionAdapter {
         functionName: string,
         args: unknown[]
     ): Promise<unknown> {
-        throw new Error(`StellaStellarAdapter does not support direct contract call passthrough (${functionName}). Use the RWA client relay APIs instead.`);
+        throw new Error(`StreamEngineStellarAdapter does not support direct contract call passthrough (${functionName}). Use the RWA client relay APIs instead.`);
     }
 
     async readContract<T = unknown>(
@@ -82,6 +82,6 @@ export class StellaStellarAdapter implements StellaTransactionAdapter {
             return response.data?.session as T;
         }
 
-        throw new Error(`StellaStellarAdapter does not support readContract(${functionName})`);
+        throw new Error(`StreamEngineStellarAdapter does not support readContract(${functionName})`);
     }
 }

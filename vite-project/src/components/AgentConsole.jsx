@@ -17,7 +17,7 @@ const AgentAvatar = ({ agentId, status }) => {
 
     return (
         <div className="relative">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-stella-500 to-accent-500 flex items-center justify-center text-2xl font-bold text-white shadow-glow">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-stream-500 to-accent-500 flex items-center justify-center text-2xl font-bold text-white shadow-glow">
                 {initial}
             </div>
             <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full ${statusColors[status]} border-2 border-surface-800 ${status === 'active' ? 'animate-pulse' : ''}`} />
@@ -26,9 +26,9 @@ const AgentAvatar = ({ agentId, status }) => {
 };
 
 // Quick Stat Card
-const StatCard = ({ icon: Icon, label, value, trend, color = 'stella' }) => {
+const StatCard = ({ icon: Icon, label, value, trend, color = 'stream' }) => {
     const colorClasses = {
-        stella: 'text-stella-400',
+        stream: 'text-stream-400',
         accent: 'text-accent-400',
         success: 'text-success-400',
         warning: 'text-warning-400',
@@ -66,7 +66,7 @@ const BudgetGauge = ({ spent, limit, label }) => {
             </div>
             <div className="h-3 bg-surface-700 rounded-full overflow-hidden">
                 <div
-                    className={`h-full rounded-full transition-all duration-500 ${isCritical ? 'bg-error-gradient' : isWarning ? 'bg-warning-gradient' : 'bg-stella-gradient'
+                    className={`h-full rounded-full transition-all duration-500 ${isCritical ? 'bg-error-gradient' : isWarning ? 'bg-warning-gradient' : 'bg-stream-gradient'
                         }`}
                     style={{ width: `${percentage}%` }}
                 />
@@ -197,7 +197,7 @@ const AlertThresholds = ({ thresholds, onChange }) => {
                                     onChange(thresholds.filter(t => t !== pct));
                                 }
                             }}
-                            className="rounded border-white/20 bg-white/5 text-stella-500 focus:ring-stella-500/50"
+                            className="rounded border-white/20 bg-white/5 text-stream-500 focus:ring-stream-500/50"
                         />
                         <span className="text-white/70">{pct}%</span>
                     </label>
@@ -228,7 +228,7 @@ const RecentAlerts = ({ alerts }) => {
         `}>
                     {alert.type === 'error' ? <AlertTriangle className="w-4 h-4 text-error-400 shrink-0 mt-0.5" /> : 
                      alert.type === 'warning' ? <AlertTriangle className="w-4 h-4 text-warning-400 shrink-0 mt-0.5" /> : 
-                     <Info className="w-4 h-4 text-stella-400 shrink-0 mt-0.5" />}
+                     <Info className="w-4 h-4 text-stream-400 shrink-0 mt-0.5" />}
                     <div>
                         <div className="text-white/80">{alert.message}</div>
                         <div className="text-xs text-white/40 mt-1">{alert.time}</div>
@@ -401,7 +401,7 @@ export function AgentConsole({
 
     const alerts = alertsProp || [];
     const displayedStats = stats || [
-        { icon: Coins, label: 'Daily Spend', value: `$${spending.daily.toFixed(2)}`, color: 'stella' },
+        { icon: Coins, label: 'Daily Spend', value: `$${spending.daily.toFixed(2)}`, color: 'stream' },
         { icon: ArrowRightLeft, label: 'Active Streams', value: spending.streams, color: 'accent' },
         { icon: Mail, label: 'Protected Routes', value: serviceEndpoints?.length || 0, color: 'success' },
         { icon: Zap, label: 'System Status', value: isPaused ? 'Paused' : 'Live', color: 'warning' },
