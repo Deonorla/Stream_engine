@@ -28,7 +28,7 @@ The request flow is:
 1. agent requests a protected resource
 2. API returns `HTTP 402 Payment Required`
 3. x402-style response describes payment terms
-4. Stella's Stream Engine decides direct settlement vs reusable session/stream compatibility
+4. Stella's Stream Engine decides between direct settlement and a reusable payment session
 5. payment is satisfied
 6. request is retried
 
@@ -40,9 +40,9 @@ That is the key architectural split:
 ## Step 4: Create a stream
 
 ```typescript
-import { FlowPaySDK } from './sdk/src/FlowPaySDK';
+import { StreamEngineSDK } from './sdk/src/StreamEngineSDK';
 
-const sdk = new FlowPaySDK({
+const sdk = new StreamEngineSDK({
   adapter: stellarAdapter,
   rpcUrl: 'https://soroban-testnet.stellar.org',
   token: {

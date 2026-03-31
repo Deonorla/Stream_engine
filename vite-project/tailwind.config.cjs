@@ -59,8 +59,8 @@ module.exports = {
         '32': '8rem',       // 128px
       },
       colors: {
-        // FlowPay Brand Colors
-        flowpay: {
+        // Stream Engine Brand Colors
+        stream: {
           50: '#eff6ff',
           100: '#dbeafe',
           200: '#bfdbfe',
@@ -144,9 +144,9 @@ module.exports = {
       },
       backgroundImage: {
         grid: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.06) 1px, transparent 0)',
-        // FlowPay Brand Gradients
-        'flowpay-gradient': 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #a855f7 100%)',
-        'flowpay-subtle': 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(168,85,247,0.1) 100%)',
+        // Stream Engine Brand Gradients
+        'stream-gradient': 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #a855f7 100%)',
+        'stream-subtle': 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(168,85,247,0.1) 100%)',
         'hero': 'conic-gradient(from 180deg at 50% 50%, #3b82f6, #8b5cf6, #a855f7, #3b82f6)',
         'mesh': 'radial-gradient(at 40% 20%, rgba(59,130,246,0.15) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(168,85,247,0.12) 0px, transparent 50%), radial-gradient(at 0% 50%, rgba(59,130,246,0.08) 0px, transparent 50%)',
         // Status Gradients

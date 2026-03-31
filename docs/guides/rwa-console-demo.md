@@ -1,6 +1,6 @@
 # RWA Studio Demo Runbook
 
-This is the current **Stellar-backed** RWA Studio walkthrough. It keeps the same UI flow, but the backend/runtime behind it is now different from the old Polkadot demo.
+This is the current **Stellar-backed** RWA Studio walkthrough. It keeps the same UI flow while using the backend session and relay runtime described in this repo.
 
 ## Before the demo
 
@@ -113,7 +113,7 @@ Use the rental flow from the same UI.
 What changed under the hood:
 
 - the frontend now opens a **payment session** through `/api/sessions`
-- it still uses the existing `createStream` UI flow and `X-FlowPay-Stream-ID` compatibility header
+- it uses the existing `createStream` UI flow and passes the live `X-Stream-Stream-ID` session header
 - the backend tracks active, frozen, cancelled, claimable, and refundable session state
 
 ## Step 8 — Cancel or end early

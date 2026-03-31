@@ -26,15 +26,15 @@ In Stella's Stream Engine, `x402` is the **payment negotiation layer**, not the 
 | Header | Purpose |
 |--------|---------|
 | `X-Payment-Required` | signals payment requirement |
-| `X-FlowPay-Mode` | `streaming`, `direct`, or `free` |
-| `X-FlowPay-Rate` | price quoted in token units |
-| `X-FlowPay-Token` | payment token/precompile address |
-| `X-FlowPay-Token-Decimals` | token decimals |
+| `X-Stream-Mode` | `streaming`, `direct`, or `free` |
+| `X-Stream-Rate` | price quoted in token units |
+| `X-Stream-Token` | payment token/precompile address |
+| `X-Stream-Token-Decimals` | token decimals |
 | `X-Payment-Currency` | display symbol, currently `USDC` |
-| `X-FlowPay-Contract` | session rail or relay identifier |
-| `X-FlowPay-Recipient` | recipient for the paid route |
-| `X-FlowPay-Stream-ID` | session proof on retry |
-| `X-FlowPay-Tx-Hash` | direct-payment proof on retry |
+| `X-Stream-Contract` | session rail or relay identifier |
+| `X-Stream-Recipient` | recipient for the paid route |
+| `X-Stream-Stream-ID` | session proof on retry |
+| `X-Stream-Tx-Hash` | direct-payment proof on retry |
 
 ## Why It Matters
 

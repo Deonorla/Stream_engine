@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { Clock, Calendar, CalendarDays, Settings, Coins, Rocket } from 'lucide-react';
 import { StrKey } from '@stellar/stellar-sdk';
 import { paymentTokenDisplayName, paymentTokenSymbol } from '../contactInfo';
-import { ACTIVE_NETWORK } from '../networkConfig.js';
-import { isSupportedAddressInput, normalizeContractAddressInput } from '../lib/substrateAssets.js';
 
 // Duration presets in seconds
 const DURATION_PRESETS = [
@@ -28,7 +26,7 @@ const ProgressStep = ({ step, currentStep, label }) => {
       <div className={`
         w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-all
         ${isCompleted ? 'bg-success-500 text-white' :
-          isActive ? 'bg-flowpay-500 text-white shadow-glow-sm' :
+          isActive ? 'bg-stream-500 text-white shadow-glow-sm' :
             'bg-white/10 text-white/40'}
       `}>
         {isCompleted ? '✓' : step}
@@ -42,25 +40,13 @@ const ProgressStep = ({ step, currentStep, label }) => {
 
 // Recipient Input with validation
 const RecipientInput = ({ value, onChange, isValid }) => {
-  const isStellarRuntime = ACTIVE_NETWORK.kind === 'stellar';
-  const isResolved = isStellarRuntime
-    ? StrKey.isValidEd25519PublicKey(String(value || '').trim())
-    : isSupportedAddressInput(value);
+  const isResolved = StrKey.isValidEd25519PublicKey(String(value || '').trim());
   const showValidation = value.length > 0;
-  let resolvedRecipient = '';
-
-  if (showValidation && isResolved && !isStellarRuntime) {
-    try {
-      resolvedRecipient = normalizeContractAddressInput(value);
-    } catch {
-      resolvedRecipient = '';
-    }
-  }
 
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium text-white/80">
-        {isStellarRuntime ? 'Recipient Stellar Account' : 'Recipient Address'}
+        Recipient Stellar Account
       </label>
       <div className="relative">
         <input
@@ -70,7 +56,7 @@ const RecipientInput = ({ value, onChange, isValid }) => {
             ${showValidation && isResolved ? 'border-success-500/50 focus:border-success-500' : ''}
             ${showValidation && !isResolved ? 'border-error-500/50 focus:border-error-500' : ''}
           `}
-          placeholder={isStellarRuntime ? 'G...' : '0x... or 5F...'}
+          placeholder='G...'
           value={value}
           onChange={(e) => onChange(e.target.value)}
         />
@@ -84,18 +70,11 @@ const RecipientInput = ({ value, onChange, isValid }) => {
         </div>
       </div>
       <div className="text-xs leading-5 text-white/45">
-        {isStellarRuntime
-          ? 'Enter a Stellar public key (`G...`). The session meter will use that Stellar account directly as the recipient.'
-          : 'Enter an EVM `0x...` address or a Substrate `5...` / SS58 address. Stella\'s Stream Engine will resolve Substrate recipients to the contract-compatible address automatically.'}
+        Enter a Stellar public key (`G...`). The session meter will use that Stellar account directly as the recipient.
       </div>
-      {showValidation && isStellarRuntime && isResolved ? (
+      {showValidation && isResolved ? (
         <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/5 px-3 py-2 text-xs text-cyan-200">
           Stellar recipient ready: <span className="font-mono break-all">{value.trim()}</span>
-        </div>
-      ) : null}
-      {showValidation && !isStellarRuntime && isResolved && resolvedRecipient && resolvedRecipient !== value ? (
-        <div className="rounded-xl border border-cyan-400/15 bg-cyan-400/5 px-3 py-2 text-xs text-cyan-200">
-          Resolved onchain recipient: <span className="font-mono break-all">{resolvedRecipient}</span>
         </div>
       ) : null}
     </div>
@@ -117,7 +96,7 @@ const TokenSelector = ({ selected, onSelect, balance }) => (
             className={`
               p-4 rounded-xl border transition-all text-left
               ${selected?.symbol === token.symbol
-                ? 'border-flowpay-500 bg-flowpay-500/10 shadow-border-glow'
+                ? 'border-stream-500 bg-stream-500/10 shadow-border-glow'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'}
             `}
           >
@@ -141,9 +120,7 @@ const TokenSelector = ({ selected, onSelect, balance }) => (
 // Duration Selector
 const DurationSelector = ({ selected, onSelect, customValue, onCustomChange }) => (
   <div className="space-y-2">
-    <label className="text-sm font-medium text-white/80">
-      {ACTIVE_NETWORK.kind === 'stellar' ? 'Session Duration' : 'Stream Duration'}
-    </label>
+    <label className="text-sm font-medium text-white/80">Session Duration</label>
     <div className="grid grid-cols-4 gap-2">
       {DURATION_PRESETS.map(preset => {
         const PresetIcon = preset.Icon;
@@ -155,7 +132,7 @@ const DurationSelector = ({ selected, onSelect, customValue, onCustomChange }) =
             className={`
               p-3 rounded-lg border text-center transition-all
               ${selected?.label === preset.label
-                ? 'border-flowpay-500 bg-flowpay-500/10'
+                ? 'border-stream-500 bg-stream-500/10'
                 : 'border-white/10 bg-white/5 hover:bg-white/10'}
             `}
           >
@@ -197,9 +174,9 @@ const RateCalculator = ({ amount, duration, token }) => {
       <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
           <div className="text-white/50">
-            {ACTIVE_NETWORK.kind === 'stellar' ? 'Metering Rate' : 'Flow Rate'}
+            Metering Rate
           </div>
-          <div className="font-mono font-semibold text-flowpay-300">
+          <div className="font-mono font-semibold text-stream-300">
             {rate.toFixed(8)} {token?.symbol || paymentTokenSymbol}/sec
           </div>
         </div>
@@ -216,11 +193,9 @@ const RateCalculator = ({ amount, duration, token }) => {
           </div>
         </div>
         <div>
-          <div className="text-white/50">
-            {ACTIVE_NETWORK.kind === 'stellar' ? 'Est. Network Fee' : 'Est. Gas'}
-          </div>
+          <div className="text-white/50">Est. Network Fee</div>
           <div className="font-mono font-semibold text-warning-400">
-            {ACTIVE_NETWORK.kind === 'stellar' ? 'paid in XLM' : 'paid in WND'}
+            paid in XLM
           </div>
         </div>
       </div>
@@ -239,15 +214,12 @@ export default function CreateStreamForm({
   onSubmit,
   isProcessing = false,
 }) {
-  const isStellarRuntime = ACTIVE_NETWORK.kind === 'stellar';
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedToken, setSelectedToken] = useState(TOKENS[0]);
   const [selectedDuration, setSelectedDuration] = useState(DURATION_PRESETS[1]);
   const [customDuration, setCustomDuration] = useState('');
 
-  const isRecipientValid = isStellarRuntime
-    ? StrKey.isValidEd25519PublicKey(String(recipient || '').trim())
-    : isSupportedAddressInput(recipient);
+  const isRecipientValid = StrKey.isValidEd25519PublicKey(String(recipient || '').trim());
 
   const effectiveDuration = selectedDuration?.value || parseInt(customDuration) || 0;
 
@@ -345,7 +317,7 @@ export default function CreateStreamForm({
                 <span>Balance: {parseFloat(balance || 0).toFixed(4)} {selectedToken?.symbol}</span>
                 <button
                   type="button"
-                  className="text-flowpay-400 hover:text-flowpay-300"
+                  className="text-stream-400 hover:text-stream-300"
                   onClick={() => setAmountEth(parseFloat(balance || 0).toFixed(6))}
                 >
                   Max

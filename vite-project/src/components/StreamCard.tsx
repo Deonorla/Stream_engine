@@ -179,12 +179,12 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
     <>
       <div className={`
         card-glass relative overflow-hidden p-5 transition-all duration-300
-        ${isExpanded ? 'ring-1 ring-flowpay-500/30' : ''}
+        ${isExpanded ? 'ring-1 ring-stream-500/30' : ''}
         ${status === 'active' ? 'hover-lift' : 'opacity-80'}
       `}>
         {/* Background glow */}
         {status === 'active' && (
-          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-flowpay-500/10 blur-2xl" />
+          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-stream-500/10 blur-2xl" />
         )}
 
         {/* Main Content */}

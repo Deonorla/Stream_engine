@@ -74,7 +74,7 @@ const RAW_ASSETS = [
   {
     id: '79b1',
     type: 'commodity',
-    assetAddress: '0xe560dc13c7ef2ed80fbc17992836b04ceff379b1',
+    assetAddress: 'stellar:asset-79b1',
     name: 'Heavy-duty Road Roller',
     location: 'Port Harcourt Yard',
     pricePerHour: 0.01386,
@@ -86,7 +86,7 @@ const RAW_ASSETS = [
   {
     id: '7386',
     type: 'commodity',
-    assetAddress: '0x9c0059f1e51f2a7bcab0e6179021f1ad4e637386',
+    assetAddress: 'stellar:asset-7386',
     name: 'Heavy-duty Forklift',
     location: 'Apapa Warehouse Strip',
     pricePerHour: 0.01,
@@ -98,7 +98,7 @@ const RAW_ASSETS = [
   {
     id: '2109',
     type: 'real_estate',
-    assetAddress: '0x31c6e9aaf0947cf1230ee5d2a60b82482e1a2109',
+    assetAddress: 'stellar:asset-2109',
     name: 'Skyline Residence 2 Bed',
     location: 'Victoria Island, Lagos',
     pricePerHour: 0.041652,
@@ -110,7 +110,7 @@ const RAW_ASSETS = [
   {
     id: '9743',
     type: 'real_estate',
-    assetAddress: '0xe1e76fe5019c24f70f35c89b8dfab7a46d379743',
+    assetAddress: 'stellar:asset-9743',
     name: 'Skyline Residence 3 Bed',
     location: 'Ikoyi, Lagos',
     pricePerHour: 0.041652,
@@ -122,7 +122,7 @@ const RAW_ASSETS = [
   {
     id: '0e5f',
     type: 'real_estate',
-    assetAddress: '0xe17c133dc71266ab0ca70930f28d924485020e5f',
+    assetAddress: 'stellar:asset-0e5f',
     name: 'Grand Penthouse 2 Bed',
     location: 'Maitama, Abuja',
     pricePerHour: 0.249984,
@@ -134,7 +134,7 @@ const RAW_ASSETS = [
   {
     id: '8086',
     type: 'real_estate',
-    assetAddress: '0x502f21c0df11dd8f299c34f3419af49f35638086',
+    assetAddress: 'stellar:asset-8086',
     name: 'Harbour Loft 1 Bed',
     location: 'Eko Atlantic, Lagos',
     pricePerHour: 0.249984,
@@ -146,7 +146,7 @@ const RAW_ASSETS = [
   {
     id: 'b195',
     type: 'vehicle',
-    assetAddress: '0x197eb36ec1040bf4a8a0b4636ce13c0d5594b195',
+    assetAddress: 'stellar:asset-b195',
     name: 'Sunset Orange BMW',
     location: 'Lekki Phase 1',
     pricePerHour: 0.01386,
@@ -158,7 +158,7 @@ const RAW_ASSETS = [
   {
     id: '10cf',
     type: 'commodity',
-    assetAddress: '0x78122d475fdf9c8d7f0d15db0f5a03d8ebe610cf',
+    assetAddress: 'stellar:asset-10cf',
     name: 'Heavy-duty Tower Crane',
     location: 'Ibeju-Lekki Build Zone',
     pricePerHour: 0.041652,
@@ -170,7 +170,7 @@ const RAW_ASSETS = [
   {
     id: '49e5',
     type: 'real_estate',
-    assetAddress: '0x327801da2fbab010c1f27268e2093ff7dfcd49e5',
+    assetAddress: 'stellar:asset-49e5',
     name: 'Marina Studio 1 Bed',
     location: 'Marina, Lagos',
     pricePerHour: 0.012492,
@@ -182,7 +182,7 @@ const RAW_ASSETS = [
   {
     id: '3733',
     type: 'real_estate',
-    assetAddress: '0xd204ad24d0f23b10d7ac0c0e11d98ac48bf13733',
+    assetAddress: 'stellar:asset-3733',
     name: 'Midtown Residence 3 Bed',
     location: 'Banana Island, Lagos',
     pricePerHour: 0.024984,
@@ -194,7 +194,7 @@ const RAW_ASSETS = [
   {
     id: '7574',
     type: 'real_estate',
-    assetAddress: '0x286ff21aa2f87d8b094fb14d9e11950d5c7e7574',
+    assetAddress: 'stellar:asset-7574',
     name: 'Cedar Heights 3 Bed',
     location: 'Wuse 2, Abuja',
     pricePerHour: 0.083304,
@@ -206,7 +206,7 @@ const RAW_ASSETS = [
   {
     id: '44ae',
     type: 'commodity',
-    assetAddress: '0x31ed740fbb3b5e1c69d224a8d25e10a620b244ae',
+    assetAddress: 'stellar:asset-44ae',
     name: 'Heavy-duty Road Roller',
     location: 'Kano Logistics Yard',
     pricePerHour: 0.027756,
@@ -218,7 +218,7 @@ const RAW_ASSETS = [
   {
     id: 'ee5c',
     type: 'vehicle',
-    assetAddress: '0x189f5c6940ef1cd853e75d0bb3a71ec49595ee5c',
+    assetAddress: 'stellar:asset-ee5c',
     name: 'Emerald Green Bentley',
     location: 'Victoria Island Chauffeur Hub',
     pricePerHour: 0.01,
@@ -230,7 +230,7 @@ const RAW_ASSETS = [
   {
     id: 'b680',
     type: 'commodity',
-    assetAddress: '0xe53c09704f2b6d13828f519b763df0998c84b680',
+    assetAddress: 'stellar:asset-b680',
     name: 'Heavy-duty Road Roller',
     location: 'Onitsha Equipment Depot',
     pricePerHour: 0.01,
@@ -242,7 +242,7 @@ const RAW_ASSETS = [
   {
     id: '7e3a',
     type: 'commodity',
-    assetAddress: '0x2b53ebd3931dca12b0fe7d4d34103110d0da7e3a',
+    assetAddress: 'stellar:asset-7e3a',
     name: 'Heavy-duty Excavator',
     location: 'Abeokuta Quarry Site',
     pricePerHour: 0.041652,
@@ -254,7 +254,7 @@ const RAW_ASSETS = [
   {
     id: '9afe',
     type: 'real_estate',
-    assetAddress: '0x5d1a47168490bfad9b4e5ad7d8f54a1f0f009afe',
+    assetAddress: 'stellar:asset-9afe',
     name: 'Canal View 1 Bed',
     location: 'Oniru, Lagos',
     pricePerHour: 0.01,
@@ -266,7 +266,7 @@ const RAW_ASSETS = [
   {
     id: '55a1',
     type: 'real_estate',
-    assetAddress: '0x65cd3d68f8f018d21deeff24d833f77d48af55a1',
+    assetAddress: 'stellar:asset-55a1',
     name: 'Harbour View 2 Bed',
     location: 'Ikate, Lagos',
     pricePerHour: 0.124992,
@@ -285,7 +285,7 @@ function shortAddress(address) {
 }
 
 function buildCid(id) {
-  return `bafybeistreamenginerwa${id.toLowerCase()}metadata${id.toLowerCase()}`;
+  return `bafybeistellastreamengine${id.toLowerCase()}metadata${id.toLowerCase()}`;
 }
 
 function encodeVerificationPayload(payload) {
@@ -305,7 +305,7 @@ function encodeVerificationPayload(payload) {
 }
 
 function pseudoHash(seed) {
-  const normalized = Array.from(String(seed || '').trim() || 'stream-engine')
+  const normalized = Array.from(String(seed || '').trim() || 'stream-stream-engine')
     .map((char) => char.charCodeAt(0).toString(16).padStart(2, '0'))
     .join('')
     .slice(0, 64);
@@ -323,8 +323,8 @@ function buildFallbackVerificationPayload({
 }) {
   return encodeVerificationPayload({
     version: 2,
-    chainId: 420420421,
-    assetContract: '0x0340b3f493bae901f740c494b2f7744f5fffe348',
+    chainId: 0,
+    assetContract: 'stellar:rwa-registry',
     tokenId: Number(tokenId),
     publicMetadataURI: `ipfs://${verificationCid}`,
     publicMetadataHash,
@@ -336,7 +336,10 @@ function buildFallbackVerificationPayload({
 }
 
 function buildFallbackVerificationUrl(payload) {
-  return `https://app.streamengine.so/rwa/verify?payload=${encodeURIComponent(payload)}`;
+  const origin = typeof window !== 'undefined' && window.location?.origin
+    ? window.location.origin
+    : 'http://localhost:5173';
+  return `${origin}/rwa/verify?payload=${encodeURIComponent(payload)}`;
 }
 
 function buildActivity(asset) {
@@ -360,10 +363,11 @@ function buildActivity(asset) {
 }
 
 function enrichAsset(asset, index) {
+  const assetAddress = asset.assetAddress || `stellar:asset-${asset.id}`;
   const verificationCid = buildCid(asset.id);
   const ipfsUri = `ipfs://${verificationCid}`;
-  const tagSeed = `STREAMENGINE-${asset.id.toUpperCase()}-TAG`;
-  const propertyRef = `STREAM-ASSET-${asset.id.toUpperCase()}`;
+  const tagSeed = `STELLA-RWA-${asset.id.toUpperCase()}-TAG`;
+  const propertyRef = `STELLA-ASSET-${asset.id.toUpperCase()}`;
   const propertyRefHash = pseudoHash(`property:${propertyRef}`);
   const publicMetadataHash = pseudoHash(`metadata:${verificationCid}`);
   const evidenceRoot = pseudoHash(`evidence:${asset.id}`);
@@ -380,8 +384,9 @@ function enrichAsset(asset, index) {
 
   return {
     ...asset,
+    assetAddress,
     tokenId: asset.id,
-    displayAddress: shortAddress(asset.assetAddress),
+    displayAddress: shortAddress(assetAddress),
     verificationCid,
     ipfsUri,
     tagSeed,
@@ -392,8 +397,8 @@ function enrichAsset(asset, index) {
     status: 'Verified',
     completionRatio: 1,
     monthlyYieldTarget: Number((asset.pricePerHour * 24 * 30).toFixed(2)),
-    ownerAddress: asset.assetAddress,
-    renterAddress: index % 4 === 0 ? `0x${asset.id}${asset.id}${asset.id}`.slice(0, 10) : null,
+    ownerAddress: assetAddress,
+    renterAddress: index % 4 === 0 ? `stellar:renter-${asset.id}` : null,
     rightsModel: 'verified_rental_asset',
     rightsModelLabel: RIGHTS_MODEL_LABELS.verified_rental_asset,
     verificationStatus: 'verified',
@@ -436,7 +441,7 @@ function enrichAsset(asset, index) {
         attestationId: index + 1,
         role: 2,
         roleLabel: 'Lawyer',
-        attestor: asset.assetAddress,
+        attestor: assetAddress,
         issuedAt: Math.floor(Date.now() / 1000) - (index + 1) * 86400,
         expiry: Math.floor(Date.now() / 1000) + 1209600,
         revoked: false,
@@ -445,7 +450,7 @@ function enrichAsset(asset, index) {
         attestationId: index + 101,
         role: 4,
         roleLabel: 'Inspector',
-        attestor: asset.assetAddress,
+        attestor: assetAddress,
         issuedAt: Math.floor(Date.now() / 1000) - (index + 2) * 86400,
         expiry: Math.floor(Date.now() / 1000) + 1209600,
         revoked: false,
@@ -825,13 +830,13 @@ export function createMintedAsset(form, sequence = 0) {
     .toString(16)
     .padStart(4, '0');
   const normalizedType = form.type || 'real_estate';
-  const assetAddress = `0x${nextId}${'ab'.repeat(18)}`.slice(0, 42);
+  const assetAddress = `stellar:asset-${nextId}`;
   const monthlyYieldTarget = Number(form.monthlyYieldTarget || 0);
   const pricePerHour = Number((monthlyYieldTarget / 720 || 0).toFixed(6));
   const verificationCid = buildCid(nextId);
-  const tagSeed = (form.tagSeed || `STREAMENGINE-${nextId.toUpperCase()}-TAG`).trim();
+  const tagSeed = (form.tagSeed || `STELLA-RWA-${nextId.toUpperCase()}-TAG`).trim();
   const ipfsUri = `ipfs://${verificationCid}`;
-  const propertyRef = form.propertyRef?.trim() || `STREAM-ASSET-${nextId.toUpperCase()}`;
+  const propertyRef = form.propertyRef?.trim() || `STELLA-ASSET-${nextId.toUpperCase()}`;
   const propertyRefHash = pseudoHash(`property:${propertyRef}`);
   const publicMetadataHash = pseudoHash(`metadata:${verificationCid}`);
   const evidenceRoot = pseudoHash(`evidence:${nextId}`);

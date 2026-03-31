@@ -1,6 +1,6 @@
 const request = require("supertest");
 const { expect } = require("chai");
-const { ethers } = require("ethers");
+const { Keypair } = require("@stellar/stellar-sdk");
 const createApp = require("../index");
 const {
     buildAttestationAuthorizationMessage,
@@ -17,6 +17,17 @@ describe("RWA API Integration", function () {
     let issuerWallet;
     let backendSigner;
     let ipfsPins;
+
+    function createMockStellarSigner() {
+        const keypair = Keypair.random();
+        return {
+            address: keypair.publicKey(),
+            publicKey: keypair.publicKey(),
+            async signMessage(message) {
+                return Buffer.from(keypair.sign(Buffer.from(message))).toString("base64");
+            },
+        };
+    }
 
     const basePublicMetadata = {
         name: "Lagos Rental Asset",
@@ -58,7 +69,8 @@ describe("RWA API Integration", function () {
         return {
             issuedAt: "2026-03-18T00:00:00Z",
             nonce: "mint-7",
-            signatureType: "evm",
+            signerAddress: issuer,
+            signatureType: "stellar",
             signature: await issuerWallet.signMessage(message),
         };
     }
@@ -85,7 +97,8 @@ describe("RWA API Integration", function () {
         return {
             issuedAt: "2026-03-18T00:00:00Z",
             nonce: "attest-7",
-            signatureType: "evm",
+            signerAddress: attestor,
+            signatureType: "stellar",
             signature: await issuerWallet.signMessage(message),
         };
     }
@@ -106,14 +119,15 @@ describe("RWA API Integration", function () {
         return {
             issuedAt: "2026-03-18T00:00:00Z",
             nonce: "revoke-7",
-            signatureType: "evm",
+            signerAddress: attestor,
+            signatureType: "stellar",
             signature: await issuerWallet.signMessage(message),
         };
     }
 
     beforeEach(() => {
-        issuerWallet = ethers.Wallet.createRandom();
-        backendSigner = ethers.Wallet.createRandom();
+        issuerWallet = createMockStellarSigner();
+        backendSigner = createMockStellarSigner();
         ipfsPins = new Map();
 
         const activities = [
@@ -152,12 +166,12 @@ describe("RWA API Integration", function () {
         };
 
         app = createApp({
-            recipientAddress: "0xRecipientMock",
-            paymentTokenAddress: "0xUsdcMock",
+            recipientAddress: "GSERVICERECIPIENT11111111111111111111111111111111111111",
+            paymentTokenAddress: "stellar:usdc-sac",
             tokenSymbol: "USDC",
-            tokenDecimals: 6,
-            chainId: 420420417,
-            flowPayContractAddress: "0xMock",
+            tokenDecimals: 7,
+            chainId: 0,
+            streamEngineContractAddress: "stellar:session-meter",
             routes: {},
             services: {
                 ipfsService: {
@@ -184,14 +198,13 @@ describe("RWA API Integration", function () {
                 evidenceVault: new EvidenceVaultService(),
                 chainService: {
                     signer: backendSigner,
-                    useSubstrateWrites: false,
                     ensuredIssuerApprovals: [],
                     provider: {
                         async getNetwork() {
-                            return { chainId: 420420417n };
+                            return { chainId: 0n };
                         },
                     },
-                    assetNFTAddress: "0xAssetNft",
+                    assetNFTAddress: "stellar:rwa-nft",
                     isConfigured() {
                         return false;
                     },

@@ -10,11 +10,11 @@ export async function callRoute(path, { streamId, txHash } = {}) {
   const headers = {};
 
   if (streamId) {
-    headers['X-FlowPay-Stream-ID'] = String(streamId);
+    headers['X-Stream-Stream-ID'] = String(streamId);
   }
 
   if (txHash) {
-    headers['X-FlowPay-Tx-Hash'] = txHash;
+    headers['X-Stream-Tx-Hash'] = txHash;
   }
 
   const response = await fetch(buildUrl(path), {

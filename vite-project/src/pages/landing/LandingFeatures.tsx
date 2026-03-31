@@ -3,13 +3,13 @@ export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'S
     {
       title: 'x402 Service Discovery',
       desc: 'Standard HTTP 402 responses. Any AI agent hits your API and gets payment requirements automatically with no custom handshake.',
-      color: 'text-flowpay-400', span: 'md:col-span-2',
+      color: 'text-stream-400', span: 'md:col-span-2',
       extra: (
         <div className="mt-4 rounded-lg bg-surface-900 border border-surface-700 p-3 font-mono text-xs space-y-1">
-          <div><span className="text-surface-500">GET</span> <span className="text-flowpay-300">/api/weather</span></div>
+          <div><span className="text-surface-500">GET</span> <span className="text-stream-300">/api/weather</span></div>
           <div><span className="text-warning-400">← 402</span> <span className="text-surface-300">Payment Required</span></div>
           <div className="pl-2 text-surface-400">X-Payment-Mode: <span className="text-success-400">streaming</span></div>
-          <div className="pl-2 text-surface-400">X-Stream-Rate: <span className="text-flowpay-400">0.0001 {tokenSymbol}/sec</span></div>
+          <div className="pl-2 text-surface-400">X-Stream-Rate: <span className="text-stream-400">0.0001 {tokenSymbol}/sec</span></div>
           <div><span className="text-success-400">→ 200</span> <span className="text-surface-300">OK + Data</span></div>
         </div>
       ),
@@ -17,7 +17,7 @@ export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'S
     {
       title: `Autonomous ${tokenSymbol} Payments`,
       desc: `Agents pay for API access with Stellar ${tokenSymbol} on ${networkName} without repeated approvals or manual settlement loops.`,
-      color: 'text-flowpay-400', span: '',
+      color: 'text-stream-400', span: '',
     },
     {
       title: 'RWA Physical Access',
@@ -32,7 +32,7 @@ export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'S
     {
       title: 'Hybrid Payment Modes',
       desc: 'Per-request for low volume, streaming for high frequency. One runtime can support both patterns without changing the paywall.',
-      color: 'text-flowpay-300', span: '',
+      color: 'text-stream-300', span: '',
     },
     {
       title: 'Human Safety Controls',
@@ -56,12 +56,12 @@ export default function LandingFeatures({ tokenSymbol = 'USDC', networkName = 'S
     <section id="use-cases" className="w-full bg-surface-900 py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="space-y-3 mb-16">
-          <p className="text-flowpay-400 text-sm font-semibold uppercase tracking-widest font-mono">Features</p>
+          <p className="text-stream-400 text-sm font-semibold uppercase tracking-widest font-mono">Features</p>
           <h2 className="text-4xl lg:text-5xl font-bold text-white">Built for the agent economy.</h2>
         </div>
         <div className="grid md:grid-cols-3 gap-4">
           {features.map((f, i) => (
-            <div key={i} className={`bg-surface-800/60 backdrop-blur border border-surface-700 rounded-2xl p-6 hover:border-flowpay-500/40 hover:shadow-glow transition-all duration-300 ${f.span || ''} ${f.glow || ''}`}>
+            <div key={i} className={`bg-surface-800/60 backdrop-blur border border-surface-700 rounded-2xl p-6 hover:border-stream-500/40 hover:shadow-glow transition-all duration-300 ${f.span || ''} ${f.glow || ''}`}>
               <h3 className={`text-lg font-semibold mb-2 ${f.color}`}>{f.title}</h3>
               <p className="text-surface-300 text-sm leading-relaxed">{f.desc}</p>
               {f.extra}

@@ -3,7 +3,7 @@ import { User, Bot, Wrench, Database, Globe, Plus } from 'lucide-react';
 
 // Initial node positions
 const INITIAL_NODES = [
-    { id: 'client', label: 'Client', Icon: User, type: 'client', x: 80, y: 200, color: 'flowpay' },
+    { id: 'client', label: 'Client', Icon: User, type: 'client', x: 80, y: 200, color: 'stream' },
     { id: 'agent-a', label: 'Agent A', Icon: Bot, type: 'agent', x: 280, y: 120, color: 'accent', margin: 10 },
     { id: 'agent-b', label: 'Agent B', Icon: Bot, type: 'agent', x: 280, y: 280, color: 'accent', margin: 5 },
     { id: 'service-a', label: 'API Service', Icon: Wrench, type: 'service', x: 480, y: 120, color: 'success' },
@@ -20,7 +20,7 @@ const INITIAL_EDGES = [
 // Node Component
 const GraphNode = ({ node, isSelected, onSelect, onDragStart, isDragging }) => {
     const colors = {
-        flowpay: 'from-flowpay-500 to-flowpay-600 border-flowpay-400 shadow-glow',
+        stream: 'from-stream-500 to-stream-600 border-stream-400 shadow-glow',
         accent: 'from-accent-500 to-accent-600 border-accent-400 shadow-glow-accent',
         success: 'from-success-500 to-success-600 border-success-400 shadow-glow-success',
     };
@@ -47,7 +47,7 @@ const GraphNode = ({ node, isSelected, onSelect, onDragStart, isDragging }) => {
             {/* Node circle */}
             <circle
                 r="30"
-                className={`fill-current ${colors[node.color]?.includes('flowpay') ? 'text-flowpay-500' :
+                className={`fill-current ${colors[node.color]?.includes('stream') ? 'text-stream-500' :
                     colors[node.color]?.includes('accent') ? 'text-accent-500' : 'text-success-500'}`}
                 stroke={isSelected ? '#fff' : 'rgba(255,255,255,0.3)'}
                 strokeWidth="2"
@@ -195,7 +195,7 @@ const MetricsPanel = ({ nodes, edges }) => {
         <div className="absolute bottom-4 left-4 right-4 glass rounded-xl p-4 z-10">
             <div className="grid grid-cols-4 gap-4 text-center">
                 <div>
-                    <div className="text-xl font-bold text-flowpay-400">{nodes.length}</div>
+                    <div className="text-xl font-bold text-stream-400">{nodes.length}</div>
                     <div className="text-xs text-white/50">Total Nodes</div>
                 </div>
                 <div>

@@ -16,24 +16,24 @@ const TimelineEntry = ({ log, isLast, onExpand, isExpanded }) => {
             {/* Timeline dot */}
             <div className={`
         absolute left-0 top-1 w-6 h-6 rounded-full flex items-center justify-center
-        ${isStream ? 'bg-flowpay-500/20 border-2 border-flowpay-500' : 'bg-success-500/20 border-2 border-success-500'}
+        ${isStream ? 'bg-stream-500/20 border-2 border-stream-500' : 'bg-success-500/20 border-2 border-success-500'}
         ${log.isNew ? 'animate-pulse' : ''}
       `}>
-                {isStream ? <Waves className="w-3 h-3 text-flowpay-400" /> : <Zap className="w-3 h-3 text-success-400" />}
+                {isStream ? <Waves className="w-3 h-3 text-stream-400" /> : <Zap className="w-3 h-3 text-success-400" />}
             </div>
 
             {/* Content Card */}
             <div
                 className={`
           p-4 rounded-xl cursor-pointer transition-all duration-300
-          ${isStream ? 'glass-primary border-flowpay-500/20' : 'glass border-success-500/20'}
+          ${isStream ? 'glass-primary border-stream-500/20' : 'glass border-success-500/20'}
           ${isExpanded ? 'ring-1 ring-white/20' : 'hover:bg-white/5'}
         `}
                 onClick={onExpand}
             >
                 {/* Header */}
                 <div className="flex items-center justify-between mb-2">
-                    <span className={`font-bold text-sm uppercase tracking-wide flex items-center gap-1 ${isStream ? 'text-flowpay-400' : 'text-success-400'}`}>
+                    <span className={`font-bold text-sm uppercase tracking-wide flex items-center gap-1 ${isStream ? 'text-stream-400' : 'text-success-400'}`}>
                         {isStream ? <><Waves className="w-4 h-4" /> Streaming Mode</> : <><Zap className="w-4 h-4" /> Direct Payment</>}
                     </span>
                     <span className="text-xs text-white/40">{time.toLocaleTimeString()}</span>
@@ -63,9 +63,9 @@ const TimelineEntry = ({ log, isLast, onExpand, isExpanded }) => {
                         <div className="text-sm">
                             <div className="text-white/60 mb-2">Cost Comparison</div>
                             <div className="grid grid-cols-2 gap-2">
-                                <div className={`p-3 rounded-lg ${isStream ? 'bg-flowpay-500/10' : 'bg-white/5'}`}>
+                                <div className={`p-3 rounded-lg ${isStream ? 'bg-stream-500/10' : 'bg-white/5'}`}>
                                     <div className="text-xs text-white/50">Streaming Cost</div>
-                                    <div className={`font-mono font-bold ${isStream ? 'text-flowpay-300' : 'text-white/70'}`}>
+                                    <div className={`font-mono font-bold ${isStream ? 'text-stream-300' : 'text-white/70'}`}>
                                         ${log.streamCost?.toFixed(4) || '0.0012'}
                                     </div>
                                 </div>
@@ -123,7 +123,7 @@ const PieChart = ({ streamCount, directCount }) => {
             </svg>
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-flowpay-500" />
+                    <div className="w-3 h-3 rounded-full bg-stream-500" />
                     <span className="text-sm text-white/70">Streaming ({streamPct.toFixed(0)}%)</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -153,7 +153,7 @@ const DateRangeFilter = ({ value, onChange }) => {
                     className={`
             px-3 py-1.5 rounded-lg text-xs font-medium transition-all
             ${value === opt.value
-                            ? 'bg-flowpay-500/20 text-flowpay-300 border border-flowpay-500/30'
+                            ? 'bg-stream-500/20 text-stream-300 border border-stream-500/30'
                             : 'text-white/50 hover:bg-white/5'}
           `}
                 >
@@ -183,7 +183,7 @@ const AnalyticsSummary = ({ logs }) => {
     return (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="p-4 rounded-xl glass text-center">
-                <div className="text-2xl font-bold text-flowpay-400">{stats.streamCount}</div>
+                <div className="text-2xl font-bold text-stream-400">{stats.streamCount}</div>
                 <div className="text-xs text-white/50">Streaming Decisions</div>
             </div>
             <div className="p-4 rounded-xl glass text-center">

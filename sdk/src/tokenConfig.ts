@@ -7,10 +7,10 @@ export interface PaymentTokenConfig {
 
 export function resolvePaymentTokenConfig(config: PaymentTokenConfig = {}) {
     return {
-        symbol: config.symbol || process.env.FLOWPAY_PAYMENT_TOKEN_SYMBOL || "USDC",
+        symbol: config.symbol || process.env.STREAM_ENGINE_PAYMENT_TOKEN_SYMBOL || "USDC",
         decimals: Number.isFinite(Number(config.decimals))
             ? Number(config.decimals)
-            : Number(process.env.FLOWPAY_PAYMENT_TOKEN_DECIMALS || 6),
+            : Number(process.env.STREAM_ENGINE_PAYMENT_TOKEN_DECIMALS || 6),
     };
 }
 

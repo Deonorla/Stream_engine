@@ -14,7 +14,7 @@ Given an x402-style payment challenge, the decision layer can choose between:
 
 The active SDK runtime wires this through:
 
-- `FlowPaySDK`
+- `StreamEngineSDK`
 - `GeminiPaymentBrain`
 - `SpendingMonitor`
 

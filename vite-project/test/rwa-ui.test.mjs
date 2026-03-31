@@ -11,7 +11,7 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rwaPagePath = path.resolve(__dirname, "../src/pages/RWA.jsx");
-const docsPagePath = path.resolve(__dirname, "../src/pages/Docs.jsx");
+const docsPagePath = path.resolve(__dirname, "../src/pages/Docs.tsx");
 
 test("mapApiAssetToUiAsset preserves v2 verification fields", () => {
   const mapped = mapApiAssetToUiAsset({

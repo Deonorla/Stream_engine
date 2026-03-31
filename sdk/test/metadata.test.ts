@@ -1,13 +1,13 @@
 import { expect } from 'chai';
-import { FlowPaySDK } from '../src/FlowPaySDK';
+import { StreamEngineSDK } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 
 describe('Stream Metadata System', () => {
-    let sdk: FlowPaySDK;
+    let sdk: StreamEngineSDK;
     let createdMetadata: any = null;
 
     beforeEach(() => {
-        sdk = new FlowPaySDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             agentId: 'agent-007'
@@ -43,11 +43,11 @@ describe('Stream Metadata System', () => {
 
         const details = sdk.getStreamDetails('123');
         expect(details.agentId).to.equal('agent-007');
-        expect(details.client).to.equal('FlowPaySDK/1.0');
+        expect(details.client).to.equal('StreamEngineSDK/1.0');
     });
 
     it('Should return "unknown" Agent ID if not configured', () => {
-        const anonSdk = new FlowPaySDK({
+        const anonSdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545'
         });

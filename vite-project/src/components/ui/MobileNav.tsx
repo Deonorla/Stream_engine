@@ -49,7 +49,7 @@ export function MobileBottomNav({ walletAddress, tabs = defaultTabs }) {
                 min-w-[64px] py-2 px-3 rounded-xl
                 transition-all duration-200 touch-manipulation
                 ${activeTab === tab.id
-                  ? 'bg-flowpay-500/20 text-flowpay-300'
+                  ? 'bg-stream-500/20 text-stream-300'
                   : 'text-white/50 active:bg-white/10'
                 }
               `}
@@ -57,7 +57,7 @@ export function MobileBottomNav({ walletAddress, tabs = defaultTabs }) {
               <Icon className="w-5 h-5 mb-0.5" />
               <span className="text-[10px] font-medium">{tab.label}</span>
               {activeTab === tab.id && (
-                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-flowpay-400" />
+                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-stream-400" />
               )}
             </Link>
           );
@@ -198,7 +198,7 @@ export function PullToRefreshIndicator({ isRefreshing }) {
   return (
     <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-down">
       <div className="flex items-center gap-2 px-4 py-2 rounded-full glass">
-        <svg className="w-4 h-4 animate-spin text-flowpay-400" viewBox="0 0 24 24" fill="none">
+        <svg className="w-4 h-4 animate-spin text-stream-400" viewBox="0 0 24 24" fill="none">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
         </svg>

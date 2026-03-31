@@ -1,6 +1,3 @@
-const { ethers } = require("ethers");
-const { signatureVerify, cryptoWaitReady } = require("@polkadot/util-crypto");
-const { stringToHex } = require("@polkadot/util");
 const { Keypair, StrKey } = require("@stellar/stellar-sdk");
 
 function decodeStellarSignature(signature) {
@@ -8,16 +5,18 @@ function decodeStellarSignature(signature) {
     if (!raw) {
         return null;
     }
+
     if (/^[0-9a-f]+$/i.test(raw)) {
         return Buffer.from(raw, "hex");
     }
+
     return Buffer.from(raw, "base64");
 }
 
 function buildIssuerAuthorizationMessage(payload = {}) {
     return [
         "Stream Engine RWA Mint Authorization",
-        `issuer:${String(payload.issuer || "").toLowerCase()}`,
+        `issuer:${String(payload.issuer || "").trim().toUpperCase()}`,
         `rightsModel:${payload.rightsModel || ""}`,
         `jurisdiction:${payload.jurisdiction || ""}`,
         `propertyRef:${payload.propertyRef || ""}`,
@@ -33,7 +32,7 @@ function buildAttestationAuthorizationMessage(payload = {}) {
         "Stream Engine RWA Attestation Authorization",
         `tokenId:${payload.tokenId || ""}`,
         `role:${payload.role || ""}`,
-        `attestor:${String(payload.attestor || "").toLowerCase()}`,
+        `attestor:${String(payload.attestor || "").trim().toUpperCase()}`,
         `evidenceHash:${payload.evidenceHash || ""}`,
         `statementType:${payload.statementType || ""}`,
         `expiry:${payload.expiry || 0}`,
@@ -46,121 +45,79 @@ function buildAttestationRevocationAuthorizationMessage(payload = {}) {
     return [
         "Stream Engine RWA Attestation Revocation Authorization",
         `attestationId:${payload.attestationId || ""}`,
-        `attestor:${String(payload.attestor || "").toLowerCase()}`,
+        `attestor:${String(payload.attestor || "").trim().toUpperCase()}`,
         `reason:${payload.reason || ""}`,
         `issuedAt:${payload.issuedAt || ""}`,
         `nonce:${payload.nonce || ""}`,
     ].join("\n");
 }
 
-async function verifyAuthorizationMessage({
+function verifyStellarAuthorization({
     expectedSigner,
     signature,
-    authorization,
-    fallbackSignatureType = "evm",
+    authorization = {},
     message,
     missingSignatureReason,
 }) {
-    const signatureType = String(
-        authorization.signatureType || fallbackSignatureType
-    ).toLowerCase();
-    const signerAddress = authorization.signerAddress || expectedSigner;
+    const signatureType = String(authorization.signatureType || "stellar").toLowerCase();
+    const signerAddress = String(authorization.signerAddress || expectedSigner || "").trim().toUpperCase();
+    const normalizedExpected = String(expectedSigner || "").trim().toUpperCase();
 
-    if (!expectedSigner || !signature) {
+    if (!normalizedExpected || !signature) {
         return {
             valid: false,
             reason: missingSignatureReason,
         };
     }
 
-    if (signatureType === "substrate") {
-        await cryptoWaitReady();
-        const verification = signatureVerify(
-            stringToHex(message),
-            signature,
-            signerAddress
-        );
+    if (signatureType !== "stellar") {
         return {
-            valid: verification.isValid,
-            reason: verification.isValid ? "" : "invalid substrate signature",
+            valid: false,
+            reason: "only stellar signatures are supported",
             message,
             signatureType,
             signerAddress,
         };
     }
 
-    if (signatureType === "stellar") {
-        if (!StrKey.isValidEd25519PublicKey(String(signerAddress || ""))) {
-            return {
-                valid: false,
-                reason: "invalid stellar signer address",
-                message,
-                signatureType,
-                signerAddress,
-            };
-        }
-
-        if (String(signerAddress) !== String(expectedSigner)) {
-            return {
-                valid: false,
-                reason: "stellar signerAddress must match the declared signer",
-                message,
-                signatureType,
-                signerAddress,
-            };
-        }
-
-        try {
-            const verifier = Keypair.fromPublicKey(String(signerAddress));
-            const signatureBuffer = decodeStellarSignature(signature);
-            const isValid = verifier.verify(Buffer.from(message), signatureBuffer);
-            return {
-                valid: isValid,
-                reason: isValid ? "" : "invalid stellar signature",
-                message,
-                signatureType,
-                signerAddress,
-            };
-        } catch (error) {
-            return {
-                valid: false,
-                reason: error.message || "invalid stellar signature",
-                message,
-                signatureType,
-                signerAddress,
-            };
-        }
-    }
-
-    if (String(signerAddress).toLowerCase() !== String(expectedSigner).toLowerCase()) {
+    if (!StrKey.isValidEd25519PublicKey(signerAddress)) {
         return {
             valid: false,
-            reason: "evm signerAddress must match the declared signer",
+            reason: "invalid stellar signer address",
             message,
-            signatureType: "evm",
+            signatureType,
+            signerAddress,
+        };
+    }
+
+    if (signerAddress !== normalizedExpected) {
+        return {
+            valid: false,
+            reason: "stellar signerAddress must match the declared signer",
+            message,
+            signatureType,
             signerAddress,
         };
     }
 
     try {
-        const recovered = ethers.verifyMessage(message, signature);
+        const verifier = Keypair.fromPublicKey(signerAddress);
+        const signatureBuffer = decodeStellarSignature(signature);
+        const isValid = verifier.verify(Buffer.from(message), signatureBuffer);
         return {
-            valid: recovered.toLowerCase() === signerAddress.toLowerCase(),
-            reason:
-                recovered.toLowerCase() === signerAddress.toLowerCase()
-                    ? ""
-                    : "invalid evm signature",
-            recoveredAddress: recovered,
+            valid: isValid,
+            reason: isValid ? "" : "invalid stellar signature",
             message,
-            signatureType: "evm",
+            signatureType,
             signerAddress,
         };
     } catch (error) {
         return {
             valid: false,
-            reason: error.message || "invalid evm signature",
+            reason: error.message || "invalid stellar signature",
             message,
-            signatureType: "evm",
+            signatureType,
+            signerAddress,
         };
     }
 }
@@ -191,7 +148,7 @@ async function verifyIssuerAuthorization({
         nonce,
     });
 
-    return verifyAuthorizationMessage({
+    return verifyStellarAuthorization({
         expectedSigner: issuer,
         signature,
         authorization,
@@ -226,7 +183,7 @@ async function verifyAttestationAuthorization({
         nonce,
     });
 
-    return verifyAuthorizationMessage({
+    return verifyStellarAuthorization({
         expectedSigner: attestor,
         signature,
         authorization,
@@ -255,7 +212,7 @@ async function verifyAttestationRevocationAuthorization({
         nonce,
     });
 
-    return verifyAuthorizationMessage({
+    return verifyStellarAuthorization({
         expectedSigner: attestor,
         signature,
         authorization,

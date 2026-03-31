@@ -1,7 +1,5 @@
 # Architecture Overview
 
-> Legacy note: the older Westend deployment remains in the repo for reference only. The current demo path is Stellar-backed.
-
 Stella's Stream Engine has two linked rails:
 
 1. an **x402-compatible payment rail** for agents and paid APIs
@@ -39,12 +37,12 @@ agent / user / renter
 
 | Component | Role |
 |----------|------|
-| `FlowPayAssetNFT` | the onchain rental twin / digital twin NFT |
-| `FlowPayAssetRegistry` | stores identity, metadata hash, evidence root, and verification state |
-| `FlowPayAssetAttestationRegistry` | stores role-based attestations and revocations |
-| `FlowPayComplianceGuard` | issuer approval, compliance checks, asset policy, attestation policy |
-| `FlowPayAssetStream` | binds rental yield to NFT ownership |
-| `FlowPayRWAHub` | orchestration layer for minting, operator-driven issuer onboarding, attestation, policy, and yield actions |
+| `StreamEngineAssetNFT` | the onchain rental twin / digital twin NFT |
+| `StreamEngineAssetRegistry` | stores identity, metadata hash, evidence root, and verification state |
+| `StreamEngineAssetAttestationRegistry` | stores role-based attestations and revocations |
+| `StreamEngineComplianceGuard` | issuer approval, compliance checks, asset policy, attestation policy |
+| `StreamEngineAssetStream` | binds rental yield to NFT ownership |
+| `StreamEngineRWAHub` | orchestration layer for minting, operator-driven issuer onboarding, attestation, policy, and yield actions |
 | Private evidence vault | stores deed/tax/inspection/insurance evidence offchain |
 | IPFS | stores sanitized public metadata only |
 | Indexer | exposes activity history and hydrated asset snapshots |
@@ -97,4 +95,4 @@ The result is a structured trust state such as:
 
 ## Deployed Runtime
 
-The active Stellar-backed runtime is documented in [deployment/README.md](../deployment/README.md). The older Westend contract suite remains archived in the repo for reference only.
+The active Stellar-backed runtime is documented in [deployment/README.md](../deployment/README.md).

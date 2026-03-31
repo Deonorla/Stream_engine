@@ -23,9 +23,9 @@ npm install
 ## Quick Start
 
 ```typescript
-import { FlowPaySDK } from './FlowPaySDK';
+import { StreamEngineSDK } from './StreamEngineSDK';
 
-const sdk = new FlowPaySDK({
+const sdk = new StreamEngineSDK({
   privateKey: process.env.PRIVATE_KEY,
   rpcUrl: 'https://soroban-testnet.stellar.org',
   token: {
@@ -43,10 +43,10 @@ const response = await sdk.request('https://api.provider.com/premium');
 
 | Component | Description |
 |-----------|-------------|
-| [FlowPaySDK](flowpay-sdk.md) | Main agent payment runtime |
+| [StreamEngineSDK](stream-engine-sdk.md) | Main agent payment runtime |
 | [GeminiPaymentBrain](gemini-payment-brain.md) | Payment strategy and optimization layer |
 | [SpendingMonitor](spending-monitor.md) | Safety controls and limits |
-| [FlowPayProxy](flowpay-proxy.md) | Multi-agent support |
+| [StreamEngineProxy](stream-engine-proxy.md) | Multi-agent support |
 
 ## Architecture
 
@@ -65,7 +65,7 @@ Agent Request
 - route-aware direct vs streaming decisions
 - reusable payment session creation and cancellation
 - budget and spending guardrails
-- runtime-driven compatibility across Stellar-backed and legacy adapters
+- runtime-driven integration across Stellar-backed payment adapters
 
 ## Why This Matters
 
@@ -80,9 +80,9 @@ With this runtime:
 
 ## Compatibility Note
 
-The product is now **Stella's Stream Engine**, but some exported classes still keep earlier FlowPay names for compatibility with the existing codebase.
+The product is **Stella's Stream Engine**. The exported SDK classes use `StreamEngine*` names so the developer surface matches the short product form used across the repo.
 
 ## Next Steps
 
-- [FlowPaySDK Reference](flowpay-sdk.md)
+- [StreamEngineSDK Reference](stream-engine-sdk.md)
 - [Building AI Agents](../guides/building-ai-agents.md)

@@ -1,14 +1,14 @@
 import { expect } from 'chai';
-import { FlowPaySDK, StreamMetadata } from '../src/FlowPaySDK';
+import { StreamEngineSDK, StreamMetadata } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 import { parsePaymentAmount } from '../src/tokenConfig';
 
-describe('FlowPaySDK Real-time Calculations', () => {
-    let sdk: FlowPaySDK;
+describe('StreamEngineSDK Real-time Calculations', () => {
+    let sdk: StreamEngineSDK;
     let originalDateNow: any;
 
     beforeEach(() => {
-        sdk = new FlowPaySDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545'
         });

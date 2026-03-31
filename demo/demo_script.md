@@ -9,13 +9,13 @@
 
 1. Ensure `.env` contains:
    ```
-   FLOWPAY_RUNTIME_KIND=stellar
+   STREAM_ENGINE_RUNTIME_KIND=stellar
    STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
    STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
    STELLAR_ASSET_CODE=USDC
    STELLAR_ASSET_ISSUER=...
-   FLOWPAY_RECIPIENT_ADDRESS=G...
-   FLOWPAY_SESSION_API_URL=http://127.0.0.1:3001
+   STREAM_ENGINE_RECIPIENT_ADDRESS=G...
+   STREAM_ENGINE_SESSION_API_URL=http://127.0.0.1:3001
    DEMO_STELLAR_SENDER=G...
    GEMINI_API_KEY=your_gemini_api_key_here
    ```

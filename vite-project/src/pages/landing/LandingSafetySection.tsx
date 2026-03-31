@@ -11,7 +11,7 @@ function Toggle({ label, defaultOn }) {
       <button
         role="switch" aria-checked={on} aria-label={`Toggle ${label}`}
         onClick={() => setOn(!on)}
-        className={`relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-flowpay-500/50 ${on ? 'bg-success-500' : 'bg-surface-600'}`}
+        className={`relative w-10 h-5 rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-stream-500/50 ${on ? 'bg-success-500' : 'bg-surface-600'}`}
       >
         <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-300 ${on ? 'translate-x-5' : 'translate-x-0'}`} />
       </button>
@@ -25,7 +25,7 @@ export default function LandingSafetySection() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-6">
-            <p className="text-flowpay-400 text-sm font-semibold uppercase tracking-widest font-mono">Safety & Compliance</p>
+            <p className="text-stream-400 text-sm font-semibold uppercase tracking-widest font-mono">Safety & Compliance</p>
             <h2 className="text-4xl lg:text-5xl font-bold text-white">Humans stay in control.</h2>
             <p className="text-surface-300 leading-relaxed">AI agents operate autonomously on the Stellar-backed runtime, but you always have the final word. Kill switches, rate limiters, and budget caps keep your system safe.</p>
             <ul className="space-y-3">
@@ -49,7 +49,7 @@ export default function LandingSafetySection() {
             </div>
             <div className="mt-5 pt-4 border-t border-surface-700 space-y-2">
               <label className="text-xs text-surface-400 uppercase tracking-widest" htmlFor="budget-cap">Agent Budget Cap (USDC/day)</label>
-              <input id="budget-cap" type="number" defaultValue="50" className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-flowpay-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-flowpay-500/50 hover:border-surface-600 transition-colors duration-200" aria-label="Agent daily budget cap in USDC" />
+              <input id="budget-cap" type="number" defaultValue="50" className="w-full bg-surface-900 border border-surface-700 rounded-lg px-3 py-2 text-stream-400 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-stream-500/50 hover:border-surface-600 transition-colors duration-200" aria-label="Agent daily budget cap in USDC" />
             </div>
             <div className="mt-4 flex items-center gap-2 text-warning-400 text-xs font-mono">
               <span aria-hidden="true">⚠</span>

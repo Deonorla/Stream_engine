@@ -9,13 +9,13 @@ const FilterTab = ({ label, count, active, onClick }) => (
     className={`
       px-4 py-2 rounded-lg text-sm font-medium transition-all
       ${active
-        ? 'bg-flowpay-500/20 text-flowpay-300 border border-flowpay-500/30'
+        ? 'bg-stream-500/20 text-stream-300 border border-stream-500/30'
         : 'text-white/60 hover:text-white hover:bg-white/5'}
     `}
   >
     {label}
     {count > 0 && (
-      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${active ? 'bg-flowpay-500/30' : 'bg-white/10'}`}>
+      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${active ? 'bg-stream-500/30' : 'bg-white/10'}`}>
         {count}
       </span>
     )}
@@ -36,7 +36,7 @@ const SortDropdown = ({ value, onChange }) => {
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-flowpay-500"
+      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-stream-500"
     >
       {options.map(opt => (
         <option key={opt.value} value={opt.value} className="bg-surface-800">
@@ -108,7 +108,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
           className={`
             w-8 h-8 rounded-lg text-sm font-medium transition-all
             ${currentPage === i + 1
-              ? 'bg-flowpay-500 text-white'
+              ? 'bg-stream-500 text-white'
               : 'text-white/60 hover:bg-white/10'}
           `}
         >

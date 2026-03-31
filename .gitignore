@@ -17,6 +17,7 @@ ignition/deployments/
 /substrate.json
 /substrate-*.json
 /substrate*.json
+/.stellar-cli/
 *.pem
 *.key
 *.crt

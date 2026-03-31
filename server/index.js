@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { StrKey } = require("@stellar/stellar-sdk");
-const flowPayMiddleware = require("./middleware/flowPayMiddleware");
+const streamEngineMiddleware = require("./middleware/streamEngineMiddleware");
 const { IPFSService, normalizeCid } = require("./services/ipfsService");
 const {
     buildVerificationPayload,
@@ -9,8 +9,6 @@ const {
     parseVerificationPayload,
 } = require("./services/verificationPayload");
 const { createIndexerStore, MemoryIndexerStore } = require("./services/indexerStore");
-const { RWAIndexer } = require("./services/rwaIndexer");
-const { RWAChainService } = require("./services/rwaChainService");
 const { StellarRWAChainService } = require("./services/stellarRwaChainService");
 const { EvidenceVaultService } = require("./services/evidenceVault");
 const {
@@ -33,16 +31,18 @@ const PORT = Number(process.env.PORT || 3001);
 const runtimeConfig = createRuntimeConfig();
 const PAYMENT_TOKEN_ADDRESS = runtimeConfig.paymentTokenAddress;
 const CONTRACT_ADDRESS =
-    process.env.FLOWPAY_CONTRACT_ADDRESS
-    || process.env.VITE_CONTRACT_ADDRESS
-    || "0x0000000000000000000000000000000000000000";
+    process.env.STREAM_ENGINE_CONTRACT_ADDRESS
+    || process.env.VITE_STREAM_ENGINE_CONTRACT_ADDRESS
+    || "stellar:session-meter";
 const RPC_URL = runtimeConfig.rpcUrl;
 const RECIPIENT_ADDRESS =
-    process.env.FLOWPAY_RECIPIENT_ADDRESS || process.env.FLOWPAY_SERVICE_RECIPIENT || "0x0000000000000000000000000000000000000000";
+    process.env.STREAM_ENGINE_RECIPIENT_ADDRESS
+    || process.env.STELLAR_PLATFORM_ADDRESS
+    || "";
 
 const defaultConfig = {
     rpcUrl: RPC_URL,
-    flowPayContractAddress: CONTRACT_ADDRESS,
+    streamEngineContractAddress: CONTRACT_ADDRESS,
     paymentTokenAddress: PAYMENT_TOKEN_ADDRESS,
     tokenSymbol: runtimeConfig.paymentTokenSymbol,
     tokenDecimals: runtimeConfig.paymentTokenDecimals,
@@ -52,15 +52,11 @@ const defaultConfig = {
     horizonUrl: runtimeConfig.horizonUrl || "",
     sorobanRpcUrl: runtimeConfig.sorobanRpcUrl || runtimeConfig.rpcUrl,
     networkPassphrase: runtimeConfig.networkPassphrase || "",
-    paymentAssetId: runtimeConfig.paymentAssetId,
     paymentAssetCode: runtimeConfig.paymentAssetCode || "",
     paymentAssetIssuer: runtimeConfig.paymentAssetIssuer || "",
     settlement: runtimeConfig.settlement || "",
     recipientAddress: RECIPIENT_ADDRESS,
-    useSubstrateReads:
-        process.env.FLOWPAY_USE_SUBSTRATE_READS === "true"
-        || process.env.FLOWPAY_USE_SUBSTRATE_WRITES === "true",
-    appBaseUrl: process.env.FLOWPAY_APP_BASE_URL || "http://localhost:5173",
+    appBaseUrl: process.env.STREAM_ENGINE_APP_BASE_URL || "http://localhost:5173",
     postgresUrl: process.env.POSTGRES_URL || "",
     routes: {
         "/api/free": {
@@ -80,12 +76,12 @@ const defaultConfig = {
         },
     },
     rwa: {
-        hubAddress: process.env.FLOWPAY_RWA_HUB_ADDRESS || "",
-        assetNFTAddress: process.env.FLOWPAY_RWA_ASSET_NFT_ADDRESS || "",
-        assetRegistryAddress: process.env.FLOWPAY_RWA_ASSET_REGISTRY_ADDRESS || "",
-        attestationRegistryAddress: process.env.FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS || "",
-        assetStreamAddress: process.env.FLOWPAY_RWA_ASSET_STREAM_ADDRESS || "",
-        complianceGuardAddress: process.env.FLOWPAY_RWA_COMPLIANCE_GUARD_ADDRESS || "",
+        hubAddress: process.env.STREAM_ENGINE_RWA_HUB_ADDRESS || "",
+        assetNFTAddress: process.env.STREAM_ENGINE_RWA_ASSET_NFT_ADDRESS || "",
+        assetRegistryAddress: process.env.STREAM_ENGINE_RWA_ASSET_REGISTRY_ADDRESS || "",
+        attestationRegistryAddress: process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "",
+        assetStreamAddress: process.env.STREAM_ENGINE_RWA_ASSET_STREAM_ADDRESS || "",
+        complianceGuardAddress: process.env.STREAM_ENGINE_RWA_COMPLIANCE_GUARD_ADDRESS || "",
         startBlock: Number(process.env.RWA_INDEXER_START_BLOCK || 0),
     },
 };
@@ -139,39 +135,17 @@ async function buildServices(config) {
     }
 
     if (!services.chainService) {
-        if ((config.runtimeKind || runtimeConfig.kind) === "stellar") {
-            services.chainService = new StellarRWAChainService({
-                runtime: runtimeConfig,
-                store: services.store,
-                hubAddress: config.rwa?.hubAddress,
-                assetNFTAddress: config.rwa?.assetNFTAddress,
-                assetRegistryAddress: config.rwa?.assetRegistryAddress,
-                attestationRegistryAddress: config.rwa?.attestationRegistryAddress,
-                assetStreamAddress: config.rwa?.assetStreamAddress,
-                complianceGuardAddress: config.rwa?.complianceGuardAddress,
-                operatorSecret: process.env.STELLAR_OPERATOR_SECRET || process.env.PRIVATE_KEY,
-                operatorPublicKey: process.env.STELLAR_OPERATOR_PUBLIC_KEY || process.env.STELLAR_PLATFORM_ADDRESS,
-            });
-        } else {
-            services.chainService = new RWAChainService({
-                rpcUrl: config.rpcUrl,
-                chainId: config.chainId,
-                hubAddress: config.rwa?.hubAddress,
-                assetNFTAddress: config.rwa?.assetNFTAddress,
-                assetRegistryAddress: config.rwa?.assetRegistryAddress,
-                attestationRegistryAddress: config.rwa?.attestationRegistryAddress,
-                assetStreamAddress: config.rwa?.assetStreamAddress,
-                complianceGuardAddress: config.rwa?.complianceGuardAddress,
-                privateKey: process.env.PRIVATE_KEY,
-            });
-        }
-    }
-
-    if (!services.indexer && services.chainService.kind !== "stellar") {
-        services.indexer = new RWAIndexer({
-            chainService: services.chainService,
+        services.chainService = new StellarRWAChainService({
+            runtime: runtimeConfig,
             store: services.store,
-            startBlock: config.rwa?.startBlock,
+            hubAddress: config.rwa?.hubAddress,
+            assetNFTAddress: config.rwa?.assetNFTAddress,
+            assetRegistryAddress: config.rwa?.assetRegistryAddress,
+            attestationRegistryAddress: config.rwa?.attestationRegistryAddress,
+            assetStreamAddress: config.rwa?.assetStreamAddress,
+            complianceGuardAddress: config.rwa?.complianceGuardAddress,
+            operatorSecret: process.env.STELLAR_OPERATOR_SECRET || process.env.PRIVATE_KEY,
+            operatorPublicKey: process.env.STELLAR_OPERATOR_PUBLIC_KEY || process.env.STELLAR_PLATFORM_ADDRESS,
         });
     }
 
@@ -179,27 +153,9 @@ async function buildServices(config) {
 }
 
 function beginIndexerSync(app, options = {}) {
-    if (app.locals.indexerSyncPromise) {
-        return app.locals.indexerSyncPromise;
-    }
-
-    app.locals.indexerSyncPromise = (async () => {
-        const services = await app.locals.ready;
-        if (!services.indexer) {
-            return null;
-        }
-
-        return services.indexer.sync(options);
-    })()
-        .catch((error) => {
-            console.error("RWA indexer sync failed:", error);
-            return null;
-        })
-        .finally(() => {
-            app.locals.indexerSyncPromise = null;
-        });
-
-    return app.locals.indexerSyncPromise;
+    void app;
+    void options;
+    return null;
 }
 
 async function primeAssetsFromChain(services, { owner } = {}) {
@@ -303,19 +259,16 @@ function createApp(config = defaultConfig) {
         return services;
     });
 
-    app.use(flowPayMiddleware({
+    app.use(streamEngineMiddleware({
         ...resolvedConfig,
-        runtimeKind: resolvedConfig.runtimeKind || runtimeConfig.kind,
-        sessionResolver:
-            (resolvedConfig.runtimeKind || runtimeConfig.kind) === "stellar"
-                ? async (streamId) => {
-                    const services = await app.locals.ready;
-                    if (typeof services.chainService?.getSessionSnapshot !== "function") {
-                        return null;
-                    }
-                    return services.chainService.getSessionSnapshot(streamId);
-                }
-                : undefined,
+        runtimeKind: runtimeConfig.kind,
+        sessionResolver: async (streamId) => {
+            const services = await app.locals.ready;
+            if (typeof services.chainService?.getSessionSnapshot !== "function") {
+                return null;
+            }
+            return services.chainService.getSessionSnapshot(streamId);
+        },
     }));
 
     app.get("/api/weather", (req, res) => {
@@ -323,7 +276,7 @@ function createApp(config = defaultConfig) {
             temperature: 22,
             city: "London",
             condition: "Cloudy",
-            paidWithStream: req.flowPay?.streamId || null,
+            paidWithStream: req.streamEngine?.streamId || null,
             paidWithRecipient: resolvedConfig.recipientAddress,
         });
     });
@@ -331,7 +284,7 @@ function createApp(config = defaultConfig) {
     app.get("/api/premium", (req, res) => {
         res.json({
             content: "This is premium content.",
-            paidWithStream: req.flowPay?.streamId || null,
+            paidWithStream: req.streamEngine?.streamId || null,
             paidWithRecipient: resolvedConfig.recipientAddress,
         });
     });
@@ -356,7 +309,7 @@ function createApp(config = defaultConfig) {
                 name: resolvedConfig.networkName,
                 chainId: resolvedConfig.chainId,
                 rpcUrl: resolvedConfig.rpcUrl,
-                kind: resolvedConfig.runtimeKind || runtimeConfig.kind,
+                kind: runtimeConfig.kind,
                 passphrase: resolvedConfig.networkPassphrase || runtimeConfig.networkPassphrase || "",
                 horizonUrl: resolvedConfig.horizonUrl || runtimeConfig.horizonUrl || "",
                 sorobanRpcUrl: resolvedConfig.sorobanRpcUrl || runtimeConfig.sorobanRpcUrl || runtimeConfig.rpcUrl,
@@ -365,12 +318,11 @@ function createApp(config = defaultConfig) {
                 tokenAddress: resolvedConfig.paymentTokenAddress,
                 tokenSymbol: resolvedConfig.tokenSymbol,
                 tokenDecimals: resolvedConfig.tokenDecimals,
-                paymentAssetId: resolvedConfig.paymentAssetId,
                 assetCode: resolvedConfig.paymentAssetCode || runtimeConfig.paymentAssetCode || "",
                 assetIssuer: resolvedConfig.paymentAssetIssuer || runtimeConfig.paymentAssetIssuer || "",
                 settlement: resolvedConfig.settlement || runtimeConfig.settlement || "",
                 recipientAddress: resolvedConfig.recipientAddress,
-                contractAddress: resolvedConfig.flowPayContractAddress,
+                contractAddress: resolvedConfig.streamEngineContractAddress,
             },
             rwa: {
                 hubAddress: resolvedConfig.rwa?.hubAddress || "",
@@ -454,7 +406,7 @@ function createApp(config = defaultConfig) {
     app.post("/api/rwa/assets", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
         const chainService = services.chainService;
-        if (!chainService?.signer && !chainService?.useSubstrateWrites) {
+        if (!chainService?.signer) {
             return res.status(503).json({ error: "RWA minting signer is not configured" });
         }
 
@@ -626,7 +578,7 @@ function createApp(config = defaultConfig) {
     app.post("/api/rwa/attestations", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
         const chainService = services.chainService;
-        if (!chainService?.signer && !chainService?.useSubstrateWrites) {
+        if (!chainService?.signer) {
             return res.status(503).json({ error: "RWA attestation signer is not configured" });
         }
 
@@ -756,19 +708,17 @@ function createApp(config = defaultConfig) {
             });
         }
 
-        if (runtimeConfig.kind === "stellar") {
-            if (!StrKey.isValidEd25519PublicKey(String(sender))) {
-                return res.status(400).json({
-                    error: "sender must be a valid Stellar public key",
-                    code: "invalid_stellar_sender",
-                });
-            }
-            if (!StrKey.isValidEd25519PublicKey(String(recipient))) {
-                return res.status(400).json({
-                    error: "recipient must be a valid Stellar public key",
-                    code: "invalid_stellar_recipient",
-                });
-            }
+        if (!StrKey.isValidEd25519PublicKey(String(sender))) {
+            return res.status(400).json({
+                error: "sender must be a valid Stellar public key",
+                code: "invalid_stellar_sender",
+            });
+        }
+        if (!StrKey.isValidEd25519PublicKey(String(recipient))) {
+            return res.status(400).json({
+                error: "recipient must be a valid Stellar public key",
+                code: "invalid_stellar_recipient",
+            });
         }
 
         const result = await services.chainService.openSession({
@@ -1068,7 +1018,7 @@ function createApp(config = defaultConfig) {
     app.post("/api/rwa/admin", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
         const chainService = services.chainService;
-        if (!chainService?.signer && !chainService?.useSubstrateWrites) {
+        if (!chainService?.signer) {
             return res.status(503).json({ error: "RWA admin signer is not configured" });
         }
 
@@ -1168,8 +1118,8 @@ if (require.main === module) {
         console.log(`Payment recipient: ${RECIPIENT_ADDRESS}`);
         console.log(`Stream contract: ${CONTRACT_ADDRESS}`);
         console.log(`Payment token (${runtimeConfig.paymentTokenSymbol}): ${PAYMENT_TOKEN_ADDRESS}`);
-        console.log(`RWA hub: ${process.env.FLOWPAY_RWA_HUB_ADDRESS || "not configured"}`);
-        console.log(`RWA attestation registry: ${process.env.FLOWPAY_RWA_ATTESTATION_REGISTRY_ADDRESS || "not configured"}`);
+        console.log(`RWA hub: ${process.env.STREAM_ENGINE_RWA_HUB_ADDRESS || "not configured"}`);
+        console.log(`RWA attestation registry: ${process.env.STREAM_ENGINE_RWA_ATTESTATION_REGISTRY_ADDRESS || "not configured"}`);
     });
 }
 

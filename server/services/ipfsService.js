@@ -54,7 +54,7 @@ class IPFSService {
         }
 
         const digest = crypto.createHash("sha256").update(serialized).digest("hex");
-        const cid = `bafyflowpay${digest.slice(0, 48)}`;
+        const cid = `bafystella${digest.slice(0, 48)}`;
         const uri = `ipfs://${cid}`;
         this.localPins.set(cid, metadata);
         return { cid, uri, pinned: false };

@@ -1,7 +1,5 @@
 # Frequently Asked Questions
 
-> Legacy note: references to Westend in this page describe the archived Polkadot demo path, not the active Stellar hackathon path.
-
 ## General
 
 ### What is Stella's Stream Engine?
@@ -11,14 +9,14 @@ Stella's Stream Engine is an `x402`-compatible payment and settlement stack for 
 It combines:
 
 - machine-readable HTTP payment discovery
-- reusable payment streams for agent workloads
+- reusable payment sessions for agent workloads
 - verification, provenance, and yield streaming for rental assets
 
 ### What problem does Stella's Stream Engine solve?
 
 It solves the agent payment efficiency problem.
 
-Without a reusable settlement rail, a naive paid API flow can require a fresh onchain payment for every request. Stella's Stream Engine reduces that repeated execution overhead by letting an agent open one stream and reuse it across many requests.
+Without a reusable settlement rail, a naive paid API flow can require a fresh onchain payment for every request. Stella's Stream Engine reduces that repeated execution overhead by letting an agent open one session and reuse it across many requests.
 
 ### Is Stella's Stream Engine replacing x402?
 
@@ -30,7 +28,7 @@ Stella's Stream Engine is the settlement layer behind that handshake.
 The clean model is:
 
 - `x402` says: "payment is required, here are the terms"
-- `Stella's Stream Engine` says: "satisfy that requirement with direct settlement or a reusable stream"
+- `Stella's Stream Engine` says: "satisfy that requirement with direct settlement or a reusable session"
 
 ### Why is x402 useful here?
 
@@ -76,20 +74,20 @@ Not when streaming is used.
 
 The point of the system is to keep the `x402` negotiation layer while avoiding a fresh onchain payment for every repeated call.
 
-### How is stream balance calculated?
+### How is session balance calculated?
 
 ```text
 flowRate = totalAmount / duration
 claimable = (flowRate * secondsElapsed) - amountWithdrawn
 ```
 
-### Can a sender cancel a stream early?
+### Can a sender end a session early?
 
 Yes.
 
-When a stream is cancelled:
+When a session is cancelled:
 
-- the recipient keeps what has already accrued
+- the service keeps what has already accrued
 - the sender recovers unused balance
 
 ## Agent Usage
@@ -123,7 +121,7 @@ No.
 The architecture supports both:
 
 - direct settlement for low-frequency routes
-- reusable streaming for high-frequency routes
+- reusable sessions for high-frequency routes
 
 That is why route mode and runtime policy both matter.
 
@@ -134,7 +132,7 @@ That is why route mode and runtime policy both matter.
 The RWA lane uses the same payment and streaming mindset for rental assets:
 
 - owners keep the NFT and financial rights
-- renters stream payment for real-world access
+- renters open a metered payment session for real-world access
 - metadata is pinned to IPFS
 - QR or NFC payloads can be verified against the onchain registry and indexed activity
 
@@ -147,16 +145,8 @@ Verification checks:
 3. attestation coverage and document freshness
 4. indexed activity history and policy state for provenance
 
-## Compatibility
+## Naming
 
-### Why do I still see "FlowPay" names in code and contracts?
+### Why do some classes use short "StreamEngine" names?
 
-Because some identifiers are kept for compatibility while the product is now branded as **Stella's Stream Engine**.
-
-Examples include:
-
-- `FlowPaySDK`
-- `FlowPayStream`
-- `FlowPayRWAHub`
-
-Those names are implementation-era carryovers, not the product name.
+The product name is **Stella's Stream Engine**. Some runtime classes use concise names such as `StreamEngineSDK` and `StreamEngineRWAClient` because they are the active SDK surfaces exposed to developers.

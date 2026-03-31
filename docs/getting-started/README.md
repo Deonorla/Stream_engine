@@ -6,14 +6,14 @@ This section is the quickest way to understand how the system fits together:
 
 1. `x402` tells the agent that payment is required
 2. the Stella's Stream Engine runtime decides how to satisfy that payment
-3. the settlement layer uses direct payment or reusable sessions/stream compatibility
+3. the settlement layer uses direct payment or reusable sessions
 4. middleware verifies payment state and unlocks the API response
 
 ## What You'll Learn
 
 1. **Installation** - set up the app and SDK
 2. **Quick Start** - run the local stack and make your first paid request flow
-3. **Configuration** - point the runtime at the right chain, token, and contracts
+3. **Configuration** - point the runtime at the right Stellar network, asset, and backend services
 
 ## Prerequisites
 
@@ -35,8 +35,8 @@ AI Agent
 ## Notes
 
 - the product name is **Stella's Stream Engine**
-- some code-level identifiers still keep earlier `FlowPay*` names for compatibility
-- legacy Westend docs remain in the repo for reference, but the active hackathon path is Stellar
+- the active runtime is Stellar-first
+- frontend and SDK flows share the same backend session semantics
 
 ## Next Steps
 

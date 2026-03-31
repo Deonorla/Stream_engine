@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { FlowPaySDK } from '../src/FlowPaySDK';
+import { StreamEngineSDK } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 import express, { Express } from 'express';
 import { Server } from 'http';
@@ -11,19 +11,19 @@ app.use(express.json());
 
 // Mock 402 Route
 app.get('/api/resource', (req, res) => {
-    const streamId = req.headers['x-flowpay-stream-id'];
+    const streamId = req.headers['x-stream-stream-id'];
     if (streamId === '12345') {
         res.json({ success: true, da: 'ta' });
     } else {
         res.status(402).set({
             'X-Payment-Required': 'true',
-            'X-FlowPay-Mode': 'streaming',
-            'X-FlowPay-Rate': '0.0001',
-            'X-FlowPay-Token': '0xToken',
+            'X-Stream-Mode': 'streaming',
+            'X-Stream-Rate': '0.0001',
+            'X-Stream-Token': 'stellar:usdc-sac',
             'X-Payment-Currency': 'USDC',
-            'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
-            'X-FlowPay-Contract': '0xContract',
-            'X-FlowPay-Token-Decimals': '6'
+            'X-Stream-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
+            'X-Stream-Contract': 'stellar:session-meter',
+            'X-Stream-Token-Decimals': '6'
         }).json({
             error: "Payment Required"
         });
@@ -38,19 +38,19 @@ app.get('/api/secure', (req, res) => {
     }
 
     // Auth success, now check payment
-    const streamId = req.headers['x-flowpay-stream-id'];
+    const streamId = req.headers['x-stream-stream-id'];
     if (streamId === '12345') {
         res.json({ success: true, secure: 'data' });
     } else {
         res.status(402).set({
             'X-Payment-Required': 'true',
-            'X-FlowPay-Mode': 'streaming',
-            'X-FlowPay-Rate': '0.0002', // Higher rate
-            'X-FlowPay-Token': '0xToken',
+            'X-Stream-Mode': 'streaming',
+            'X-Stream-Rate': '0.0002', // Higher rate
+            'X-Stream-Token': 'stellar:usdc-sac',
             'X-Payment-Currency': 'USDC',
-            'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
-            'X-FlowPay-Contract': '0xContract',
-            'X-FlowPay-Token-Decimals': '6'
+            'X-Stream-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
+            'X-Stream-Contract': 'stellar:session-meter',
+            'X-Stream-Token-Decimals': '6'
         }).json({
             error: "Payment Required"
         });
@@ -61,8 +61,8 @@ let server: Server;
 const PORT = 3005;
 const BASE_URL = `http://localhost:${PORT}`;
 
-describe('FlowPaySDK Integration & Property Tests', () => {
-    let sdk: FlowPaySDK;
+describe('StreamEngineSDK Integration & Property Tests', () => {
+    let sdk: StreamEngineSDK;
     let createStreamSpy: any;
 
     before((done) => {
@@ -75,7 +75,7 @@ describe('FlowPaySDK Integration & Property Tests', () => {
 
     beforeEach(() => {
         // Init SDK with dummy config
-        sdk = new FlowPaySDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             apiKey: 'secret-key' // Default valid key
@@ -113,9 +113,9 @@ describe('FlowPaySDK Integration & Property Tests', () => {
     it('Property 4: Should fail if mode is not streaming', async () => {
         app.get('/api/badmode', (req, res) => {
             res.status(402).set({
-                'X-FlowPay-Mode': 'one-time',
-                'X-FlowPay-Contract': '0xContract',
-                'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc'
+                'X-Stream-Mode': 'one-time',
+                'X-Stream-Contract': 'stellar:session-meter',
+                'X-Stream-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF'
             }).end();
         });
 
@@ -154,7 +154,7 @@ describe('FlowPaySDK Integration & Property Tests', () => {
     });
 
     it('Property 14: Should fail with 401 if API key is invalid', async () => {
-        const badSdk = new FlowPaySDK({
+        const badSdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545',
             apiKey: 'wrong-key'

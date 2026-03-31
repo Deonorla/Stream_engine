@@ -1,6 +1,6 @@
 # Stella's Stream Engine Documentation
 
-Stella's Stream Engine is an x402-compatible payment and settlement stack for AI agents and rental RWAs. The current hackathon path is **Stellar-first**.
+Stella's Stream Engine is an x402-compatible payment and settlement stack for AI agents and rental RWAs on **Stellar testnet**.
 
 ## Current Runtime
 
@@ -19,9 +19,7 @@ Stella's Stream Engine is an x402-compatible payment and settlement stack for AI
 - how reusable payment sessions reduce agent payment overhead
 - how the Stellar deployment is configured
 - how the SDK, middleware, relay layer, and runtime services fit together
-- how rental RWA minting, evidence anchoring, attestation, verification, and yield streaming work
-
-Legacy Polkadot/Westend docs remain in the repo for reference, but they are no longer the primary path for the hackathon demo.
+- how rental RWA minting, evidence anchoring, attestation, verification, and yield behavior work
 
 ## Recommended Reading Order
 

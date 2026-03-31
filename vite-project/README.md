@@ -1,41 +1,34 @@
-## Stella's Stream Engine Frontend
-Small notes:
-- Tailwind config is CJS (`tailwind.config.cjs`) for better Windows compatibility.
-- PostCSS config is CJS (`postcss.config.cjs`).
+# Stella's Stream Engine Web App
 
-### Setup
+This frontend is the active browser shell for **Stella's Stream Engine** on **Stellar testnet**.
 
-1. Install deps
-```
-cd vite-project
+## Runtime assumptions
+
+- wallet: `Freighter`
+- network: `Stellar Testnet`
+- payment asset: `USDC via SAC`
+- backend API: `http://localhost:3001`
+
+## Local development
+
+```bash
 npm install
-```
-
-2. Configure environment
-
-Create a `.env` file in `vite-project/` with:
-```
-VITE_CONTRACT_ADDRESS=0x75edbf3d9857521f5fb2f581c896779f5110a8a0
-VITE_FLOWPAY_CHAIN_ID=420420421
-VITE_FLOWPAY_RPC_URL=https://westend-asset-hub-eth-rpc.polkadot.io
-VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS=0x00007a6900000000000000000000000001200000
-VITE_FLOWPAY_PAYMENT_ASSET_ID=31337
-VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL=USDC
-```
-
-3. Run
-```
 npm run dev
 ```
 
-### Build
-```
-npm run build
-npm run preview
-```
+## Required env
 
-The frontend assumes:
-
-- Westend Asset Hub
-- Circle USDC as the payment asset
-- backend API at `http://localhost:3001`
+```bash
+VITE_STREAM_ENGINE_RUNTIME_KIND=stellar
+VITE_STREAM_ENGINE_NETWORK_NAME=Stellar Testnet
+VITE_STREAM_ENGINE_RPC_URL=https://soroban-testnet.stellar.org
+VITE_STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+VITE_STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
+VITE_STELLAR_PAYMENT_ASSET_CODE=USDC
+VITE_STELLAR_PAYMENT_ASSET_ISSUER=your_testnet_usdc_issuer_here
+VITE_STREAM_ENGINE_PAYMENT_TOKEN_ADDRESS=stellar:usdc-sac
+VITE_STREAM_ENGINE_PAYMENT_TOKEN_SYMBOL=USDC
+VITE_STREAM_ENGINE_PAYMENT_TOKEN_DECIMALS=7
+VITE_RWA_API_URL=http://localhost:3001
+VITE_STREAM_ENGINE_CONTRACT_ADDRESS=stellar:session-meter
+```

@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { FlowPaySDK } from '../src/FlowPaySDK';
+import { StreamEngineSDK } from '../src/StreamEngineSDK';
 import { Wallet, ethers } from 'ethers';
 import express, { Express } from 'express';
 import { Server } from 'http';
@@ -10,19 +10,19 @@ app.use(express.json());
 
 // Mock 402 Route
 app.get('/api/load', (req, res) => {
-    const streamId = req.headers['x-flowpay-stream-id'];
+    const streamId = req.headers['x-stream-stream-id'];
     if (streamId === 'STREAM_1') {
         res.json({ success: true });
     } else {
         res.status(402).set({
             'X-Payment-Required': 'true',
-            'X-FlowPay-Mode': 'streaming',
-            'X-FlowPay-Rate': '0.0001',
-            'X-FlowPay-Token': '0xToken',
+            'X-Stream-Mode': 'streaming',
+            'X-Stream-Rate': '0.0001',
+            'X-Stream-Token': 'stellar:usdc-sac',
             'X-Payment-Currency': 'USDC',
-            'X-FlowPay-Recipient': '0x0000000000000000000000000000000000000abc',
-            'X-FlowPay-Contract': '0xContract',
-            'X-FlowPay-Token-Decimals': '6'
+            'X-Stream-Recipient': 'GCI4OKCKDRFMYEB2J4KGC25ZH3NGNQDVCUIJFCZTTFYUKYHMANQYZ5QF',
+            'X-Stream-Contract': 'stellar:session-meter',
+            'X-Stream-Token-Decimals': '6'
         }).json({
             error: "Payment Required"
         });
@@ -33,8 +33,8 @@ let server: Server;
 const PORT = 3006;
 const BASE_URL = `http://localhost:${PORT}`;
 
-describe('FlowPaySDK Load & Efficiency Tests', () => {
-    let sdk: FlowPaySDK;
+describe('StreamEngineSDK Load & Efficiency Tests', () => {
+    let sdk: StreamEngineSDK;
     let createStreamCallCount = 0;
 
     before((done) => {
@@ -48,7 +48,7 @@ describe('FlowPaySDK Load & Efficiency Tests', () => {
     beforeEach(() => {
         createStreamCallCount = 0;
 
-        sdk = new FlowPaySDK({
+        sdk = new StreamEngineSDK({
             privateKey: Wallet.createRandom().privateKey,
             rpcUrl: 'http://localhost:8545'
         });
