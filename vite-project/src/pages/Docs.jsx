@@ -19,58 +19,6 @@ import {
 import { useProtocolCatalog } from "../hooks/useProtocolCatalog";
 import { ACTIVE_NETWORK } from "../networkConfig.js";
 
-const LEGACY_CONTRACT_DEFAULTS = {
-  stream: {
-    name: "Stella's Stream Engine Stream",
-    onchainName: "FlowPayStream",
-    group: "Payment Rail",
-    address: "0x75edbf3d9857521f5fb2f581c896779f5110a8a0",
-    role: "Reusable payment stream rail for x402-compatible API and access payments.",
-  },
-  rwaHub: {
-    name: "Stella's Stream Engine RWA Hub",
-    onchainName: "FlowPayRWAHub",
-    group: "RWA Rail",
-    address: "0x1286a0fe3413dd70083df2d654677a7c39096753",
-    role: "Main RWA orchestrator for minting, yield funding, claims, flash advance, and admin actions.",
-  },
-  assetNft: {
-    name: "Stella's Stream Engine Asset NFT",
-    onchainName: "FlowPayAssetNFT",
-    group: "RWA Rail",
-    address: "0x0340b3f493bae901f740c494b2f7744f5fffe348",
-    role: "ERC-721 digital twin contract for productive real-world rental assets.",
-  },
-  assetRegistry: {
-    name: "Stella's Stream Engine Asset Registry",
-    onchainName: "FlowPayAssetRegistry",
-    group: "RWA Rail",
-    address: "0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f",
-    role: "Onchain asset identity registry for rights model, property reference hash, public metadata hash, evidence roots, and verification status.",
-  },
-  attestationRegistry: {
-    name: "Stella's Stream Engine Attestation Registry",
-    onchainName: "FlowPayAssetAttestationRegistry",
-    group: "RWA Rail",
-    address: "",
-    role: "Role-based attestation registry for lawyers, inspectors, valuers, insurers, registrars, issuers, and compliance operators.",
-  },
-  assetStream: {
-    name: "Stella's Stream Engine Asset Stream",
-    onchainName: "FlowPayAssetStream",
-    group: "RWA Rail",
-    address: "0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396",
-    role: "Asset-linked yield engine that keeps future revenue coupled to NFT ownership.",
-  },
-  complianceGuard: {
-    name: "Stella's Stream Engine Compliance Guard",
-    onchainName: "FlowPayComplianceGuard",
-    group: "RWA Rail",
-    address: "0x72a979756061c5993a4c9c95e87519e9492dd721",
-    role: "Compliance and freeze control layer for regulated RWA actions.",
-  },
-};
-
 const STELLAR_RUNTIME_COMPONENT_DEFAULTS = {
   sessionMeter: {
     name: "Stella's Stream Engine Session Meter",
@@ -138,9 +86,7 @@ function isPlaceholderRuntimeAddress(value) {
 function getExplorerBase(catalog) {
   return String(
     ACTIVE_NETWORK.explorerUrl
-    || (isStellarRuntime(catalog)
-      ? "https://stellar.expert/explorer/testnet"
-      : "https://westmint.subscan.io"),
+    || "https://stellar.expert/explorer/testnet",
   ).replace(/\/$/, "");
 }
 
@@ -167,121 +113,64 @@ function buildExplorerHref(catalog, value) {
 }
 
 function getDeployedContractDescriptors(catalog) {
-  if (isStellarRuntime(catalog)) {
-    return [
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter,
-        address:
-          catalog?.payments?.contractAddress
-          || ACTIVE_NETWORK.contractAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter.address,
-        note:
-          "This is the active payment-session rail the middleware checks before serving a paid route or allowing an early refund.",
-      },
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.usdcSac,
-        address:
-          catalog?.payments?.tokenAddress
-          || ACTIVE_NETWORK.paymentTokenAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.usdcSac.address,
-        note:
-          "This is the settlement asset the current Stellar-backed runtime uses for sessions, direct payments, rentals, and yield funding.",
-      },
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetTwin,
-        address:
-          catalog?.rwa?.assetNFTAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetTwin.address,
-        note:
-          "This twin is the durable ownership anchor that yield and verification status resolve back to.",
-      },
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetRegistry,
-        address:
-          catalog?.rwa?.assetRegistryAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetRegistry.address,
-        note:
-          "This registry stores the durable asset identity: rights model, public metadata hash, property reference hash, evidence roots, and verification state.",
-      },
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.attestationRegistry,
-        address:
-          catalog?.rwa?.attestationRegistryAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.attestationRegistry.address,
-        note:
-          "This registry stores who attested to what, when it was signed, when it expires, and whether it was revoked.",
-      },
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.yieldVault,
-        address:
-          catalog?.rwa?.assetStreamAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.yieldVault.address,
-        note:
-          "This is where productive RWA logic becomes real. It tracks rental yield, claimable balances, and flash-advance behavior.",
-      },
-      {
-        ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.policyService,
-        address:
-          catalog?.rwa?.hubAddress
-          || STELLAR_RUNTIME_COMPONENT_DEFAULTS.policyService.address,
-        note:
-          "This is the platform-facing relay and policy surface for issuer onboarding, verification status changes, and asset freezes.",
-      },
-    ];
-  }
-
   return [
     {
-      ...LEGACY_CONTRACT_DEFAULTS.stream,
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter,
       address:
-        catalog?.payments?.contractAddress || LEGACY_CONTRACT_DEFAULTS.stream.address,
+        catalog?.payments?.contractAddress
+        || ACTIVE_NETWORK.contractAddress
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter.address,
       note:
-        "This is the contract the payment runtime uses for sender budgets, claims, and stream cancellation.",
+        "This is the active payment-session rail the middleware checks before serving a paid route or allowing an early refund.",
     },
     {
-      ...LEGACY_CONTRACT_DEFAULTS.rwaHub,
-      address: catalog?.rwa?.hubAddress || LEGACY_CONTRACT_DEFAULTS.rwaHub.address,
-      note:
-        "This is the user-facing entrypoint for the RWA subsystem. It ties together minting, yield funding, claims, compliance, and freezes.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.assetNft,
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.usdcSac,
       address:
-        catalog?.rwa?.assetNFTAddress || LEGACY_CONTRACT_DEFAULTS.assetNft.address,
+        catalog?.payments?.tokenAddress
+        || ACTIVE_NETWORK.paymentTokenAddress
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.usdcSac.address,
       note:
-        "This NFT is the digital twin. Ownership of this token is what future uncaptured yield follows.",
+        "This is the settlement asset the current Stellar-backed runtime uses for sessions, direct payments, rentals, and yield funding.",
     },
     {
-      ...LEGACY_CONTRACT_DEFAULTS.assetRegistry,
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetTwin,
+      address:
+        catalog?.rwa?.assetNFTAddress
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetTwin.address,
+      note:
+        "This twin is the durable ownership anchor that yield and verification status resolve back to.",
+    },
+    {
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetRegistry,
       address:
         catalog?.rwa?.assetRegistryAddress
-        || LEGACY_CONTRACT_DEFAULTS.assetRegistry.address,
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.assetRegistry.address,
       note:
         "This registry stores the durable asset identity: rights model, public metadata hash, property reference hash, evidence roots, and verification state.",
     },
     {
-      ...LEGACY_CONTRACT_DEFAULTS.attestationRegistry,
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.attestationRegistry,
       address:
         catalog?.rwa?.attestationRegistryAddress
-        || LEGACY_CONTRACT_DEFAULTS.attestationRegistry.address,
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.attestationRegistry.address,
       note:
         "This registry stores who attested to what, when it was signed, when it expires, and whether it was revoked.",
     },
     {
-      ...LEGACY_CONTRACT_DEFAULTS.assetStream,
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.yieldVault,
       address:
         catalog?.rwa?.assetStreamAddress
-        || LEGACY_CONTRACT_DEFAULTS.assetStream.address,
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.yieldVault.address,
       note:
-        "This contract is where productive RWA logic becomes real. It tracks time-based yield and supports flash-advance behavior.",
+        "This is where productive RWA logic becomes real. It tracks rental yield, claimable balances, and flash-advance behavior.",
     },
     {
-      ...LEGACY_CONTRACT_DEFAULTS.complianceGuard,
+      ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.policyService,
       address:
-        catalog?.rwa?.complianceGuardAddress
-        || LEGACY_CONTRACT_DEFAULTS.complianceGuard.address,
+        catalog?.rwa?.hubAddress
+        || STELLAR_RUNTIME_COMPONENT_DEFAULTS.policyService.address,
       note:
-        "This guard blocks claims or funding when compliance rules or freeze controls say the action should not proceed.",
+        "This is the platform-facing relay and policy surface for issuer onboarding, verification status changes, and asset freezes.",
     },
   ];
 }
@@ -323,20 +212,17 @@ function buildContractLinks(catalog) {
 
 function buildSections(catalog) {
   const stellar = isStellarRuntime(catalog);
-  const networkName = catalog?.network?.name || (stellar ? "Stellar Testnet" : "Westend Asset Hub");
-  const chainId = catalog?.network?.chainId ?? (stellar ? 0 : 420420421);
+  const networkName = catalog?.network?.name || "Stellar Testnet";
+  const chainId = catalog?.network?.chainId ?? 0;
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
-  const paymentAssetId = catalog?.payments?.paymentAssetId ?? (stellar ? 0 : 31337);
   const paymentAssetCode = catalog?.payments?.assetCode || tokenSymbol;
   const paymentAssetIssuer = catalog?.payments?.assetIssuer || "";
-  const settlement = catalog?.payments?.settlement || (stellar ? "soroban-sac" : "evm-precompile");
+  const settlement = catalog?.payments?.settlement || "soroban-sac";
   const recipientAddress =
     catalog?.payments?.recipientAddress || "Not configured";
-  const paymentTokenLabel = stellar ? `Stellar ${tokenSymbol}` : `Circle ${tokenSymbol}`;
-  const gasToken = stellar ? "XLM" : "WND";
-  const paymentAssetLabel = stellar
-    ? `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"}`
-    : `Asset id ${paymentAssetId}`;
+  const paymentTokenLabel = `Stellar ${tokenSymbol}`;
+  const gasToken = "XLM";
+  const paymentAssetLabel = `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"}`;
 
   return [
     {
@@ -385,7 +271,7 @@ function buildSections(catalog) {
           headers: ["Item", "Value"],
           rows: [
             ["Network", networkName],
-            ["Runtime", stellar ? "Stellar-backed session runtime" : "Polkadot contract runtime"],
+            ["Runtime", "Stellar-backed session runtime"],
             ["Chain ID", String(chainId)],
             ["Gas token", gasToken],
             ["Payment token", paymentTokenLabel],
@@ -1135,9 +1021,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       points: [
         {
           title: stellar ? "Built for Stellar testnet" : "Built with Solidity",
-          body: stellar
-            ? "The active hackathon path uses a Stellar-backed runtime with backend relays, reusable payment sessions, and direct-chain fallbacks. The older Westend Solidity suite remains in the repo as legacy reference material."
-            : "The live stream rail and RWA contract suite are Solidity contracts deployed to the Polkadot environment. The point is not only to talk about architecture abstractly, but to let readers verify the deployed code and addresses themselves.",
+          body: "The active runtime uses Stellar-backed sessions, backend relays, reusable payment sessions, and direct-chain fallbacks for reads and verification.",
         },
         {
           title: stellar ? "Payment session runtime" : "Payment contract",
@@ -1147,9 +1031,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: stellar ? "RWA runtime services" : "RWA contracts",
-          body: stellar
-            ? "The RWA side is deliberately split into multiple runtime services because productive assets need more than ownership. The twin records durable ownership, the registry stores asset identity anchors, the attestation registry stores verifier claims, the yield vault handles revenue flow, the policy orchestrator controls regulated actions, and the backend relay ties those pieces together."
-            : "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores asset identity anchors, the attestation registry stores verifier claims, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
+          body: "The RWA side is deliberately split into multiple runtime services because productive assets need more than ownership. The twin records durable ownership, the registry stores asset identity anchors, the attestation registry stores verifier claims, the yield vault handles revenue flow, the policy orchestrator controls regulated actions, and the backend relay ties those pieces together.",
         },
         {
           title: "How the RWA half really works",
@@ -1182,13 +1064,9 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       steps: [
         `The frontend collects user intent: start a ${stellar ? "payment session" : "stream"}, mint an asset, verify a payload, or claim yield.`,
         "The backend helps with metadata pinning, registry views, and indexed history when needed.",
-        stellar
-          ? "The Stellar-backed runtime services enforce the payment, ownership, compliance, and yield rules."
-          : "The Solidity contracts enforce the payment, ownership, compliance, and yield rules.",
+        "The Stellar-backed runtime services enforce the payment, ownership, compliance, and yield rules.",
         "The indexer rebuilds the public activity trail so the UI can show understandable history.",
-        stellar
-          ? "Where explorer-friendly identifiers exist, the catalog surfaces them. Legacy Westend contract references remain available in the repo for audit context."
-          : "The explorer links let anyone verify the live deployment state independently of the app UI.",
+        "Where explorer-friendly identifiers exist, the catalog surfaces them so anyone can verify the live deployment state independently of the app UI.",
       ],
       tables: [
         {
@@ -1957,7 +1835,6 @@ function FaqList({ items = [] }) {
 function ArchitectureDiagram({ catalog }) {
   const stellar = isStellarRuntime(catalog);
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
-  const paymentAssetId = catalog?.payments?.paymentAssetId ?? (stellar ? 0 : 31337);
   const paymentAssetCode = catalog?.payments?.assetCode || tokenSymbol;
   const paymentAssetIssuer = catalog?.payments?.assetIssuer || "";
   const paymentRecipient =
@@ -1965,7 +1842,7 @@ function ArchitectureDiagram({ catalog }) {
   const paymentTokenAddress =
     catalog?.payments?.tokenAddress
     || ACTIVE_NETWORK.paymentTokenAddress
-    || (stellar ? "stellar:usdc-sac" : "0x00007a6900000000000000000000000001200000");
+    || "stellar:usdc-sac";
   const contracts = getDeployedContractDescriptors(catalog);
   const paymentContracts = contracts.filter((contract) => contract.group === "Payment Rail");
   const rwaContracts = contracts.filter((contract) => contract.group === "RWA Rail");
@@ -2082,9 +1959,7 @@ function ArchitectureDiagram({ catalog }) {
                     {paymentTokenAddress}
                   </div>
                   <p className="mt-3 text-sm leading-6 text-white/55">
-                    {stellar
-                      ? `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"} used for direct settlement, rental funding, and yield operations.`
-                      : `Native payment asset ${paymentAssetId} used for approvals, direct settlement, rental funding, and yield operations.`}
+                    {`${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"} used for direct settlement, rental funding, and yield operations.`}
                   </p>
                 </div>
                 {paymentContracts.map((contract) => (
@@ -2385,17 +2260,15 @@ export default function Docs() {
               <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                 <StatCard
                   label="Network"
-                  value={catalog?.network?.name || (stellar ? "Stellar Testnet" : "Westend Asset Hub")}
+                  value={catalog?.network?.name || "Stellar Testnet"}
                 />
                 <StatCard
                   label="Payment Token"
-                  value={`${stellar ? "Stellar" : "Circle"} ${catalog?.payments?.tokenSymbol || "USDC"}`}
+                  value={`Stellar ${catalog?.payments?.tokenSymbol || "USDC"}`}
                 />
                 <StatCard
-                  label={stellar ? "Settlement" : "Asset Id"}
-                  value={stellar
-                    ? (catalog?.payments?.settlement || "soroban-sac")
-                    : String(catalog?.payments?.paymentAssetId || 31337)}
+                  label="Settlement"
+                  value={catalog?.payments?.settlement || "soroban-sac"}
                 />
                 <StatCard label="Paid Routes" value={String(routeCount)} />
                 <StatCard

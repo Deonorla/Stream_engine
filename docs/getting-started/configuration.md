@@ -75,7 +75,3 @@ Issuer approval is now a separate admin action.
 - onboarding happens once
 - mint checks onboarding but does not auto-fix it
 - mint failures now return `issuer_not_onboarded` instead of opaque contract reverts
-
-## Legacy note
-
-Polkadot/Westend env vars still exist in the repo for the old demo path, but they are legacy and no longer the primary documented flow.

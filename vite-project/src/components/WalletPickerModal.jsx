@@ -1,5 +1,3 @@
-import { ACTIVE_NETWORK } from '../networkConfig.js';
-
 function WalletIcon({ wallet }) {
   if (wallet.icon) {
     return (
@@ -31,13 +29,10 @@ export default function WalletPickerModal({
     return null;
   }
 
-  const isStellarRuntime = ACTIVE_NETWORK.kind === 'stellar';
-  const helperCopy = isStellarRuntime
-    ? 'Connect Freighter to sign Stellar session approvals and asset authorizations for the active runtime.'
-    : 'Connect a compatible wallet for the current runtime.';
-  const emptyCopy = isStellarRuntime
-    ? 'No compatible Stellar wallets were detected. Install Freighter and reload this page.'
-    : 'No compatible wallets were detected in this browser.';
+  const helperCopy =
+    'Connect Freighter to sign Stellar session approvals and asset authorizations for the active runtime.';
+  const emptyCopy =
+    'No compatible Stellar wallets were detected. Install Freighter and reload this page.';
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
@@ -92,11 +87,7 @@ export default function WalletPickerModal({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-base font-semibold text-white">{wallet.name}</span>
                     <span className="rounded-full bg-cyan-500/15 px-2 py-0.5 text-[11px] font-mono text-cyan-300">
-                      {wallet.type === 'substrate'
-                        ? 'Substrate'
-                        : wallet.type === 'stellar'
-                          ? 'Stellar'
-                          : 'EVM'}
+                      Stellar
                     </span>
                     {isActive && (
                       <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-mono text-emerald-300">

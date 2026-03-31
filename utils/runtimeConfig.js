@@ -1,7 +1,3 @@
-const {
-    createFlowPayRuntimeConfig: createPolkadotRuntimeConfig,
-} = require("./polkadot");
-
 const STELLAR_TESTNET_PASSPHRASE = "Test SDF Network ; September 2015";
 const STELLAR_MAINNET_PASSPHRASE = "Public Global Stellar Network ; September 2015";
 
@@ -10,30 +6,7 @@ function normalizeNumber(value, fallback) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function resolveRuntimeKind(overrides = {}) {
-    const explicit =
-        overrides.kind
-        || process.env.FLOWPAY_RUNTIME_KIND
-        || process.env.VITE_FLOWPAY_RUNTIME_KIND
-        || "";
-
-    const normalized = String(explicit).trim().toLowerCase();
-    if (normalized === "stellar" || normalized === "polkadot") {
-        return normalized;
-    }
-
-    if (
-        process.env.STELLAR_SOROBAN_RPC_URL
-        || process.env.STELLAR_HORIZON_URL
-        || process.env.STELLAR_NETWORK_PASSPHRASE
-    ) {
-        return "stellar";
-    }
-
-    return "stellar";
-}
-
-function createStellarRuntimeConfig(overrides = {}) {
+function createRuntimeConfig(overrides = {}) {
     const networkName =
         overrides.networkName
         || process.env.STELLAR_NETWORK_NAME
@@ -53,11 +26,11 @@ function createStellarRuntimeConfig(overrides = {}) {
         overrides.sorobanRpcUrl
         || process.env.STELLAR_SOROBAN_RPC_URL
         || "https://soroban-testnet.stellar.org";
-    const contractAddress =
+    const paymentTokenAddress =
         overrides.paymentTokenAddress
         || process.env.STELLAR_USDC_SAC_ADDRESS
         || process.env.FLOWPAY_PAYMENT_TOKEN_ADDRESS
-        || "";
+        || "stellar:usdc-sac";
 
     return {
         kind: "stellar",
@@ -81,7 +54,7 @@ function createStellarRuntimeConfig(overrides = {}) {
             decimals: 7,
         },
         paymentAssetId: 0,
-        paymentTokenAddress: contractAddress,
+        paymentTokenAddress,
         paymentTokenSymbol:
             overrides.paymentTokenSymbol
             || process.env.STELLAR_ASSET_CODE
@@ -105,28 +78,9 @@ function createStellarRuntimeConfig(overrides = {}) {
     };
 }
 
-function createRuntimeConfig(overrides = {}) {
-    const kind = resolveRuntimeKind(overrides);
-    if (kind === "polkadot") {
-        return {
-            kind,
-            ...createPolkadotRuntimeConfig(overrides),
-            settlement: "evm-precompile",
-            sorobanRpcUrl: "",
-            horizonUrl: "",
-            networkPassphrase: "",
-            paymentAssetCode: "",
-            paymentAssetIssuer: "",
-        };
-    }
-
-    return createStellarRuntimeConfig(overrides);
-}
-
 module.exports = {
     STELLAR_TESTNET_PASSPHRASE,
     STELLAR_MAINNET_PASSPHRASE,
     createRuntimeConfig,
-    createStellarRuntimeConfig,
-    resolveRuntimeKind,
+    createStellarRuntimeConfig: createRuntimeConfig,
 };

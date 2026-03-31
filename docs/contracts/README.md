@@ -1,52 +1,36 @@
-# Smart Contracts
+# Runtime Surfaces
 
-> Legacy note: this contract section documents the archived Westend deployment. The active hackathon integration path is Stellar-backed and relay/session-driven.
+Stella's Stream Engine is now a Stellar-first system. The active runtime is built around backend-managed session metering and RWA registry services.
 
-This section is a **legacy reference** for the older Solidity contracts deployed on **Westend Asset Hub**.
+## Payment Surface
 
-## Payment Rail
+| Surface | Purpose |
+|---------|---------|
+| `SessionMeter` | reusable payment sessions for x402-protected routes |
+| Stellar USDC SAC | settlement asset used for session pricing and API access |
+| x402 middleware | bridges HTTP 402 negotiation to active Stellar session state |
 
-| Contract | Purpose |
-|----------|---------|
-| `FlowPayStream` | reusable payment streams for x402-protected services |
+## RWA Surface
 
-## RWA Suite
+| Surface | Purpose |
+|---------|---------|
+| `RwaRegistry` | stores rental-twin identity, public metadata hash, evidence root, and verification status |
+| `AttestationRegistry` | stores role-based attestations, revocations, and expiry information |
+| `YieldVault` | tracks asset-linked rental yield, claims, and flash advances |
+| Policy/admin layer | issuer onboarding, compliance decisions, verification status, and asset freeze/dispute state |
 
-| Contract | Purpose |
-|----------|---------|
-| `FlowPayAssetNFT` | rental asset NFT |
-| `FlowPayAssetRegistry` | property identity, metadata hash, evidence root, and verification state |
-| `FlowPayAssetAttestationRegistry` | role-based attestation and revocation records |
-| `FlowPayComplianceGuard` | issuer approval, compliance policy, attestation policy, freeze / dispute state |
-| `FlowPayAssetStream` | asset-bound yield streams |
-| `FlowPayRWAHub` | orchestration layer and operator-driven issuer onboarding |
+## Verification Model
 
-## Legacy Payment Asset
+The active RWA stack verifies **productive rental twins**, not direct legal title transfer.
 
-The archived contracts use **Circle USDC** on Westend Asset Hub:
+Verification combines:
 
-- asset id: `31337`
-- decimals: `6`
-- precompile: `0x00007a6900000000000000000000000001200000`
+- public metadata binding
+- property reference hashing
+- private evidence root anchoring
+- attestation coverage
+- document freshness
+- policy state
+- ownership and yield linkage
 
-## Verification Notes
-
-The v2 RWA suite is designed for **verified productive rental assets**, not direct deed-title transfer claims.
-
-Onchain state anchors:
-
-- public metadata hash
-- property reference hash
-- private evidence root
-- evidence manifest hash
-- verification status
-- attestation records
-- asset policy state
-
-Private evidence such as deeds, tax records, inspections, and insurance documents stays offchain in the server-managed evidence vault.
-
-## Next Steps
-
-- [FlowPayStream Details](flowpaystream.md)
-- [Circle USDC Integration](circle-usdc.md)
-- [Events & Errors](events-errors.md)
+Private evidence such as deeds, tax records, inspections, and insurance documents remains offchain in the evidence vault.

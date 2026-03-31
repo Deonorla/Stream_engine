@@ -38,7 +38,7 @@ const HOST = process.env.DEMO_PROVIDER_HOST || '127.0.0.1';
  * This is the gatekeeper service:
  * 1. exposes protected API routes
  * 2. returns machine-readable HTTP 402 responses when payment is required
- * 3. validates active streams onchain before serving premium content
+ * 3. validates active payment sessions before serving premium content
  */
 const app = express();
 
@@ -55,9 +55,6 @@ const config = {
   settlement: runtime.settlement,
   tokenSymbol: runtime.paymentTokenSymbol,
   tokenDecimals: runtime.paymentTokenDecimals,
-  useSubstrateReads:
-    process.env.FLOWPAY_USE_SUBSTRATE_READS === 'true'
-    || process.env.FLOWPAY_USE_SUBSTRATE_WRITES === 'true',
   routes: {
     '/api/premium': {
       mode: 'streaming',
@@ -72,7 +69,7 @@ const config = {
 
 console.log('Provider configuration:');
 console.log(`   Network: ${runtime.networkName}`);
-console.log(`   Stream contract: ${FLOWPAYSTREAM_ADDRESS}`);
+console.log(`   Session meter: ${FLOWPAYSTREAM_ADDRESS}`);
 console.log(`   Payment token: ${PAYMENT_TOKEN_ADDRESS}`);
 console.log(`   Recipient: ${RECIPIENT_ADDRESS}`);
 console.log(`   RPC URL: ${runtime.rpcUrl}`);
@@ -88,14 +85,14 @@ app.get('/health', (_req, res) => {
 app.get('/api/premium', (req: any, res) => {
   const streamId = req.flowPay?.streamId || 'unknown';
 
-  console.log(`Serving premium content for stream #${streamId}`);
+  console.log(`Serving premium content for session #${streamId}`);
 
   res.json({
     success: true,
-    data: `Premium content delivered through ${runtime.paymentTokenSymbol} payment streaming.`,
+    data: `Premium content delivered through ${runtime.paymentTokenSymbol} payment sessions.`,
     streamId,
     timestamp: Date.now(),
-    message: 'x402 signaled the paywall, and Stream Engine reused an active stream to unlock this response.',
+    message: 'x402 signaled the paywall, and Stella\'s Stream Engine reused an active session to unlock this response.',
   });
 });
 
@@ -103,14 +100,14 @@ app.get('/api/ai-insight', (req: any, res) => {
   const streamId = req.flowPay?.streamId || 'unknown';
   const txHash = req.flowPay?.txHash;
 
-  console.log(`Serving AI insight for stream #${streamId}`);
+  console.log(`Serving AI insight for session #${streamId}`);
 
   res.json({
     success: true,
-    insight: 'Paid access verified. Agent can continue without opening a new stream for every request.',
+    insight: 'Paid access verified. Agent can continue without opening a new session for every request.',
     confidence: 0.87,
     streamId,
-    paidWith: txHash || `stream:${streamId}`,
+    paidWith: txHash || `session:${streamId}`,
     timestamp: Date.now(),
   });
 });

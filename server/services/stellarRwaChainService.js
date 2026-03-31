@@ -125,8 +125,6 @@ class StellarRWAChainService {
                 name: this.runtime.networkName || "Stellar Testnet",
             }),
         };
-        this.useSubstrateReads = false;
-        this.useSubstrateWrites = false;
         this.kind = "stellar";
         this.hubAddress = config.hubAddress || process.env.FLOWPAY_RWA_HUB_ADDRESS || "stellar:rwa-registry";
         this.assetNFTAddress = config.assetNFTAddress || process.env.FLOWPAY_RWA_ASSET_NFT_ADDRESS || "stellar:rwa-nft";

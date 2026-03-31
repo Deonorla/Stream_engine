@@ -50,9 +50,9 @@ export default function LandingPage() {
     ].filter(Boolean).length
 
     return {
-      networkName: catalog?.network?.name || 'Westend Asset Hub',
+      networkName: catalog?.network?.name || 'Stellar Testnet',
       tokenSymbol: catalog?.payments?.tokenSymbol || 'USDC',
-      paymentAssetId: catalog?.payments?.paymentAssetId || 31337,
+      settlement: catalog?.payments?.settlement || 'soroban-sac',
       routeCount,
       assetCount,
       contractCount,

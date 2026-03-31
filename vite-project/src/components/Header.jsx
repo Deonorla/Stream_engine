@@ -13,7 +13,6 @@ const defaultTabs = [
 
 export default function Header({
   walletAddress,
-  chainId,
   networkName,
   onConnect,
   onManageWallets,

@@ -537,9 +537,7 @@ export default function Streams() {
             </p>
           </div>
           <div className="text-xs text-white/40 font-mono">
-            {ACTIVE_NETWORK.kind === 'stellar'
-              ? `${catalog?.payments?.assetCode || paymentTokenSymbol} settlement`
-              : `Asset ID ${catalog?.payments?.paymentAssetId || 31337}`}
+            {`${catalog?.payments?.assetCode || paymentTokenSymbol} settlement`}
           </div>
         </div>
 

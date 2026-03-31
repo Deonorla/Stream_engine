@@ -1,6 +1,6 @@
 # FlowPaySDK
 
-`FlowPaySDK` is the main agent runtime class. The product is now **Stella's Stream Engine**, but the exported class name remains for compatibility.
+`FlowPaySDK` is the main agent runtime class used by Stella's Stream Engine.
 
 ## Role
 
@@ -9,7 +9,7 @@ The SDK:
 1. makes the HTTP request
 2. intercepts `402 Payment Required`
 3. parses the payment requirements
-4. chooses direct payment vs streaming
+4. chooses direct payment vs reusable sessions
 5. executes settlement
 6. retries automatically
 
@@ -30,6 +30,6 @@ const sdk = new FlowPaySDK({
 
 ## Important Notes
 
-- the current runtime token is Circle `USDC`
+- the current runtime token is Stellar testnet `USDC`
 - the SDK can operate with a direct signer or a runtime adapter such as `FlowPayStellarAdapter`
-- on the active hackathon path, the SDK consumes the catalog and session endpoints instead of talking directly to a Westend stream contract
+- on the active hackathon path, the SDK consumes the catalog and session endpoints instead of talking directly to a chain-specific payment contract

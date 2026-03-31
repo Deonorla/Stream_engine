@@ -1,7 +1,5 @@
 # Architecture Overview
 
-> Legacy note: the older Westend deployment remains in the repo for reference only. The current demo path is Stellar-backed.
-
 Stella's Stream Engine has two linked rails:
 
 1. an **x402-compatible payment rail** for agents and paid APIs
@@ -97,4 +95,4 @@ The result is a structured trust state such as:
 
 ## Deployed Runtime
 
-The active Stellar-backed runtime is documented in [deployment/README.md](../deployment/README.md). The older Westend contract suite remains archived in the repo for reference only.
+The active Stellar-backed runtime is documented in [deployment/README.md](../deployment/README.md).

@@ -1,7 +1,5 @@
 # Installation
 
-> Legacy note: any Westend-specific setup below is retained for reference only. The primary hackathon runtime is now Stellar.
-
 Install the full Stella's Stream Engine workspace:
 
 ```bash
@@ -18,9 +16,9 @@ This installs:
 ## Runtime Dependencies
 
 - Node.js 18+
-- a funded Westend Asset Hub account
-- `WND` for gas
-- Circle test `USDC` asset `31337`
+- a funded Stellar testnet account
+- XLM for testnet fees
+- Stellar testnet USDC
 
 ## Local Stack
 
@@ -39,6 +37,4 @@ That starts:
 npx ts-node --project demo/tsconfig.json demo/check-setup.ts
 npx ts-node --project demo/tsconfig.json demo/provider.ts
 npx ts-node --project demo/tsconfig.json demo/consumer.ts
-
-On Westend Asset Hub, the CLI demo should use a funded native Substrate signer. The ETH-RPC path is not reliable enough for native Circle USDC precompile calls in this demo flow.
 ```

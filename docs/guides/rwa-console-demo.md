@@ -1,6 +1,6 @@
 # RWA Studio Demo Runbook
 
-This is the current **Stellar-backed** RWA Studio walkthrough. It keeps the same UI flow, but the backend/runtime behind it is now different from the old Polkadot demo.
+This is the current **Stellar-backed** RWA Studio walkthrough. It keeps the same UI flow while using the backend session and relay runtime described in this repo.
 
 ## Before the demo
 

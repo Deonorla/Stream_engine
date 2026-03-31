@@ -13,15 +13,12 @@
 
 * [Overview](architecture/README.md)
 * [x402 Protocol](architecture/x402-protocol.md)
-* [Payment Streams](architecture/payment-streams.md)
+* [Payment Sessions](architecture/payment-streams.md)
 * [AI Decision Engine](architecture/ai-decision-engine.md)
 
 ## Smart Contracts
 
 * [Overview](contracts/README.md)
-* [FlowPayStream](contracts/flowpaystream.md)
-* [Circle USDC Integration](contracts/circle-usdc.md)
-* [Events & Errors](contracts/events-errors.md)
 
 ## SDK Reference
 
@@ -41,13 +38,12 @@
 ## Deployment
 
 * [Overview](deployment/README.md)
-* [Westend Asset Hub (Legacy)](deployment/westend.md)
 * [Production Checklist](deployment/production.md)
 
 ## Guides
 
-* [Creating Streams](guides/creating-streams.md)
-* [Withdrawing Funds](guides/withdrawing-funds.md)
+* [Creating Sessions](guides/creating-streams.md)
+* [Claiming Session Balance](guides/withdrawing-funds.md)
 * [Building AI Agents](guides/building-ai-agents.md)
 * [Provider Integration](guides/provider-integration.md)
 

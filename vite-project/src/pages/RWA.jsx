@@ -350,13 +350,6 @@ async function hashFileToHex(file) {
     .join("")}`;
 }
 
-function textToHex(value) {
-  const bytes = new TextEncoder().encode(value);
-  return `0x${Array.from(bytes)
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("")}`;
-}
-
 function buildIssuerAuthorizationMessage({
   issuer,
   rightsModel,
@@ -3198,13 +3191,9 @@ function StartRentalModal({ asset, onClose, onConfirm, isProcessing }) {
 export default function RWA() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
-    provider,
     signer,
     walletAddress,
     walletDisplayAddress,
-    activeWallet,
-    nativeAccountAddress,
-    substrateSession,
     openWalletPicker,
     createStream,
     cancel,
@@ -3212,7 +3201,6 @@ export default function RWA() {
     setStatus,
     toast,
     getNetworkName,
-    chainId,
     outgoingStreams,
     formatEth,
   } = useWallet();
@@ -3267,7 +3255,7 @@ export default function RWA() {
   const assetStreamAddress = catalog?.rwa?.assetStreamAddress || "";
   const tokenAddress = catalog?.payments?.tokenAddress || "";
   const hasContractControls = Boolean(
-    (signer || substrateSession) && hubAddress,
+    signer && hubAddress,
   );
   const hasFundingControls = Boolean(
     hasContractControls && assetStreamAddress && tokenAddress,
@@ -3419,7 +3407,7 @@ export default function RWA() {
 
   const registryAssets = registryFilter === "mine" ? ownedAssets : allAssets;
   const latestMint = sessionMints[0] || null;
-  const networkName = catalog?.network?.name || getNetworkName(chainId);
+  const networkName = catalog?.network?.name || getNetworkName();
 
   const setActiveTab = (nextTab) => setTabParam(setSearchParams, nextTab);
   const setActionFlag = (key, value) => {
@@ -3450,12 +3438,9 @@ export default function RWA() {
         setWorkspaceAsset(mappedAsset);
         setWorkspaceActivity(mappedAsset.activity || []);
 
-        if ((provider || substrateSession) && hubAddress) {
+        if (hubAddress) {
           try {
             const claimable = await readClaimableYield({
-              provider,
-              substrateSession,
-              hubAddress,
               tokenId: Number(tokenId),
             });
             setWorkspaceClaimableYield(
@@ -3492,7 +3477,7 @@ export default function RWA() {
         setIsWorkspaceLoading(false);
       }
     },
-    [allAssets, hubAddress, provider, substrateSession, toast],
+    [allAssets, hubAddress, toast],
   );
 
   const openWorkspace = useCallback(
@@ -3564,26 +3549,6 @@ export default function RWA() {
         nonce,
       });
 
-      if (
-        substrateSession?.account?.injected?.signer?.signRaw &&
-        nativeAccountAddress
-      ) {
-        const signatureResult =
-          await substrateSession.account.injected.signer.signRaw({
-            address: nativeAccountAddress,
-            data: textToHex(message),
-            type: "bytes",
-          });
-
-        return {
-          issuedAt,
-          nonce,
-          signatureType: "substrate",
-          signerAddress: nativeAccountAddress,
-          signature: signatureResult.signature,
-        };
-      }
-
       if (!signer) {
         throw new Error(
           "Connected wallet cannot sign the issuer authorization message.",
@@ -3593,12 +3558,12 @@ export default function RWA() {
       return {
         issuedAt,
         nonce,
-        signatureType: activeWallet?.type === "stellar" ? "stellar" : "evm",
+        signatureType: "stellar",
         signerAddress: walletAddress,
         signature: await signer.signMessage(message),
       };
     },
-    [activeWallet?.type, nativeAccountAddress, signer, substrateSession, walletAddress],
+    [signer, walletAddress],
   );
 
   const signAttestationAuthorization = useCallback(
@@ -3623,26 +3588,6 @@ export default function RWA() {
         nonce,
       });
 
-      if (
-        substrateSession?.account?.injected?.signer?.signRaw &&
-        nativeAccountAddress
-      ) {
-        const signatureResult =
-          await substrateSession.account.injected.signer.signRaw({
-            address: nativeAccountAddress,
-            data: textToHex(message),
-            type: "bytes",
-          });
-
-        return {
-          issuedAt,
-          nonce,
-          signatureType: "substrate",
-          signerAddress: nativeAccountAddress,
-          signature: signatureResult.signature,
-        };
-      }
-
       if (!signer) {
         throw new Error(
           "Connected wallet cannot sign the attestation authorization message.",
@@ -3652,12 +3597,12 @@ export default function RWA() {
       return {
         issuedAt,
         nonce,
-        signatureType: activeWallet?.type === "stellar" ? "stellar" : "evm",
+        signatureType: "stellar",
         signerAddress: walletAddress,
         signature: await signer.signMessage(message),
       };
     },
-    [activeWallet?.type, nativeAccountAddress, signer, substrateSession, walletAddress],
+    [signer, walletAddress],
   );
 
   const signAttestationRevocationAuthorization = useCallback(
@@ -3672,26 +3617,6 @@ export default function RWA() {
         nonce,
       });
 
-      if (
-        substrateSession?.account?.injected?.signer?.signRaw &&
-        nativeAccountAddress
-      ) {
-        const signatureResult =
-          await substrateSession.account.injected.signer.signRaw({
-            address: nativeAccountAddress,
-            data: textToHex(message),
-            type: "bytes",
-          });
-
-        return {
-          issuedAt,
-          nonce,
-          signatureType: "substrate",
-          signerAddress: nativeAccountAddress,
-          signature: signatureResult.signature,
-        };
-      }
-
       if (!signer) {
         throw new Error(
           "Connected wallet cannot sign the attestation revocation message.",
@@ -3701,12 +3626,12 @@ export default function RWA() {
       return {
         issuedAt,
         nonce,
-        signatureType: activeWallet?.type === "stellar" ? "stellar" : "evm",
+        signatureType: "stellar",
         signerAddress: walletAddress,
         signature: await signer.signMessage(message),
       };
     },
-    [activeWallet?.type, nativeAccountAddress, signer, substrateSession, walletAddress],
+    [signer, walletAddress],
   );
 
   const buildVerificationResult = useCallback((response, fallbackAsset) => {
@@ -3985,7 +3910,6 @@ export default function RWA() {
     try {
       await approveAndCreateAssetYieldStream({
         signer,
-        substrateSession,
         tokenAddress,
         streamAddress: assetStreamAddress,
         hubAddress,
@@ -4019,7 +3943,6 @@ export default function RWA() {
     try {
       await claimAssetYield({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
       });
@@ -4171,7 +4094,6 @@ export default function RWA() {
     try {
       await flashAdvanceAssetYield({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         amount: parseTokenAmount(amountValue, paymentTokenDecimals),
@@ -4205,7 +4127,6 @@ export default function RWA() {
         : 0;
       await setAssetCompliance({
         signer,
-        substrateSession,
         hubAddress,
         user: form.user,
         assetType:
@@ -4243,7 +4164,6 @@ export default function RWA() {
     try {
       await setAssetVerificationStatus({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         status: ONCHAIN_VERIFICATION_STATUS_OPTIONS.indexOf(form.status),
@@ -4278,7 +4198,6 @@ export default function RWA() {
     try {
       await setAssetPolicyOnChain({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         frozen: Boolean(form.frozen),
@@ -4321,7 +4240,6 @@ export default function RWA() {
     try {
       await setAssetIssuerApproval({
         signer,
-        substrateSession,
         hubAddress,
         issuer: form.issuer.trim(),
         approved: Boolean(form.approved),
@@ -4359,7 +4277,6 @@ export default function RWA() {
     try {
       await setAssetAttestationPolicy({
         signer,
-        substrateSession,
         hubAddress,
         assetType:
           TYPE_TO_CHAIN_ASSET_TYPE[asset.type] || Number(asset.assetType || 1),
@@ -4398,7 +4315,6 @@ export default function RWA() {
     try {
       await updateAssetEvidenceOnChain({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         evidenceRoot: form.evidenceRoot,
@@ -4430,7 +4346,6 @@ export default function RWA() {
     try {
       await setAssetStreamFreeze({
         signer,
-        substrateSession,
         hubAddress,
         streamId: Number(asset.activeStreamId),
         frozen: Boolean(form.frozen),
@@ -4463,7 +4378,6 @@ export default function RWA() {
     try {
       await updateAssetMetadataOnChain({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         metadataURI,
@@ -4495,7 +4409,6 @@ export default function RWA() {
     try {
       await updateAssetVerificationTag({
         signer,
-        substrateSession,
         hubAddress,
         tokenId: Number(asset.tokenId),
         tag: tagValue,

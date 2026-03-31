@@ -1,13 +1,6 @@
 # Deployment Overview
 
-The primary hackathon deployment target is now **Stellar testnet**.
-
-## Supported runtime
-
-| Network | Status | Settlement | Notes |
-|---------|--------|------------|-------|
-| Stellar Testnet | Primary | USDC via SAC | current hackathon path |
-| Polkadot Westend Asset Hub | Legacy | Circle USDC asset `31337` | archived demo path |
+The primary deployment target is **Stellar testnet**.
 
 ## Runtime components
 
@@ -17,19 +10,19 @@ The Stellar backend integration exposes these logical contracts/components:
 |----------|-------------|
 | Session meter | `stellar:session-meter` |
 | RWA registry / hub | `stellar:rwa-registry` |
-| Asset NFT | `stellar:rwa-nft` |
+| Asset twin | `stellar:rwa-twin` |
 | Attestation registry | `stellar:rwa-attestation` |
 | Yield vault | `stellar:yield-vault` |
-| Policy / compliance | `stellar:policy` |
+| Policy orchestrator | `stellar:policy-orchestrator` |
 
 These are surfaced through `GET /api/engine/catalog` and the backend env vars.
 
 ## Deployment notes
 
-- the frontend no longer depends on direct contract writes for the active demo path
-- browser and CLI integrations go through the backend relay/session model
+- the frontend uses backend relay/session endpoints for the active runtime
+- browser and CLI integrations go through the same Stellar session model
 - issuer approval is explicit and should be completed before mint demos
-- session cancel/refund is now a first-class backend path
+- session cancel/refund is a first-class backend path
 
 ## Demo checklist
 
@@ -42,8 +35,4 @@ These are surfaced through `GET /api/engine/catalog` and the backend env vars.
 7. verify asset
 8. start rental session
 9. cancel/end rental and inspect refund state
-10. fund yield stream and claim yield
-
-## Legacy note
-
-The old Westend deployment docs still exist in the repo for historical reference, but they should not be treated as the primary hackathon path.
+10. fund yield and claim yield

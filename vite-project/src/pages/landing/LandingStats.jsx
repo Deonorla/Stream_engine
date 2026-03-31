@@ -20,14 +20,13 @@ function useCountUp(target, duration = 1600, active = false) {
 
 export default function LandingStats({
   tokenSymbol = "USDC",
-  paymentAssetId = 31337,
+  settlement = "soroban-sac",
   routeCount = 0,
   assetCount = 0,
   contractCount = 0,
 }) {
   const routesValue = useCountUp(routeCount, 1600, true);
   const assetsValue = useCountUp(assetCount, 1600, true);
-  const assetIdValue = useCountUp(paymentAssetId, 1600, true);
   const contractsValue = useCountUp(contractCount, 1600, true);
 
   const stats = [
@@ -40,8 +39,8 @@ export default function LandingStats({
       value: assetsValue.toLocaleString(),
     },
     {
-      label: `${tokenSymbol} Asset ID`,
-      value: assetIdValue.toLocaleString(),
+      label: `${tokenSymbol} Settlement`,
+      value: settlement,
     },
     {
       label: "Contracts Live",

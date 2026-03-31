@@ -181,7 +181,7 @@ export default function Dashboard() {
 
       {/* ── Top stats ── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard icon={Coins}         label={`${paymentTokenSymbol} Balance`} value={Number(paymentBalance).toFixed(2)}  sub={catalog?.network?.name || 'Westend Asset Hub'} color="text-cyan-400" />
+        <StatCard icon={Coins}         label={`${paymentTokenSymbol} Balance`} value={Number(paymentBalance).toFixed(2)}  sub={catalog?.network?.name || 'Stellar Testnet'} color="text-cyan-400" />
         <StatCard icon={ArrowUpRight}  label="Outgoing Streams" value={outgoingStreams.length}           sub={`${totalOutflow.toFixed(2)} ${paymentTokenSymbol}`} color="text-blue-400"    to="/app/streams" />
         <StatCard icon={ArrowDownLeft} label="Incoming Streams" value={incomingStreams.length}           sub="claimable now"                    color="text-emerald-400" to="/app/streams" />
         <StatCard icon={Building2}     label="RWA Assets"       value={liveRwaAssets.length}               sub={`${rwaStreamed.toFixed(2)} ${paymentTokenSymbol}`}  color="text-purple-400"  to="/app/rwa" />
@@ -276,8 +276,8 @@ export default function Dashboard() {
           {[
             { label: 'Protected Routes', value: String(catalog?.routes?.length || 0), color: 'text-emerald-400' },
             { label: 'Service Wallet', value: shortAddress(catalog?.payments?.recipientAddress), color: 'text-cyan-400' },
-            { label: `${paymentTokenSymbol} Asset ID`, value: String(catalog?.payments?.paymentAssetId || 31337), color: 'text-purple-400' },
-            { label: 'Network', value: catalog?.network?.name || 'Westend Asset Hub', color: 'text-blue-400' },
+            { label: `${paymentTokenSymbol} Settlement`, value: catalog?.payments?.settlement || 'soroban-sac', color: 'text-purple-400' },
+            { label: 'Network', value: catalog?.network?.name || 'Stellar Testnet', color: 'text-blue-400' },
           ].map(({ label, value, color }) => (
             <div key={label}>
               <div className={`font-mono font-bold text-xl ${color}`}>{value}</div>

@@ -323,8 +323,8 @@ function buildFallbackVerificationPayload({
 }) {
   return encodeVerificationPayload({
     version: 2,
-    chainId: 420420421,
-    assetContract: '0x0340b3f493bae901f740c494b2f7744f5fffe348',
+    chainId: 0,
+    assetContract: 'stellar:rwa-registry',
     tokenId: Number(tokenId),
     publicMetadataURI: `ipfs://${verificationCid}`,
     publicMetadataHash,
