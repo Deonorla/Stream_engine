@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowRight, ArrowUpRight, ArrowDownLeft, Plus, Wallet, Shield, Zap, RefreshCw } from 'lucide-react';
 import { useWallet } from '../context/WalletContext';
 import StreamList from '../components/StreamList';
+import { supportedPaymentAssets } from '../contactInfo.js';
 
 const DURATION_OPTIONS = [
   { label: '1 Hour',   seconds: 3600 },
@@ -25,17 +26,24 @@ export default function Streams() {
     formatEth,
     fetchPaymentBalance,
     refreshStreams,
+    xlmBalance,
   } = useWallet();
 
   const [recipient, setRecipient]   = useState('');
   const [amount, setAmount]         = useState('');
   const [duration, setDuration]     = useState(DURATION_OPTIONS[0].seconds);
   const [sessionId, setSessionId]   = useState('');
+  const [selectedAssetSymbol, setSelectedAssetSymbol] = useState(
+    supportedPaymentAssets[0]?.symbol || 'USDC',
+  );
+
+  const selectedAsset = supportedPaymentAssets.find((asset) => asset.symbol === selectedAssetSymbol)
+    || supportedPaymentAssets[0];
 
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!recipient || !amount) return;
-    await createStream(recipient, duration, amount);
+    await createStream(recipient, duration, amount, "{}", { asset: selectedAsset });
     setRecipient('');
     setAmount('');
   };
@@ -124,7 +132,18 @@ export default function Streams() {
                 />
               </div>
               <div className="space-y-3">
-                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">2. Amount (USDC)</label>
+                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">2. Asset & Amount</label>
+                <select
+                  className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-blue-200 text-sm appearance-none mb-3"
+                  value={selectedAssetSymbol}
+                  onChange={e => setSelectedAssetSymbol(e.target.value)}
+                >
+                  {supportedPaymentAssets.map((asset) => (
+                    <option key={asset.symbol} value={asset.symbol}>
+                      {asset.symbol} · {asset.name}
+                    </option>
+                  ))}
+                </select>
                 <div className="relative">
                   <input
                     type="number"
@@ -136,8 +155,16 @@ export default function Streams() {
                     onChange={e => setAmount(e.target.value)}
                     required
                   />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">USDC</span>
+                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
+                    {selectedAsset?.symbol || 'USDC'}
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-400 ml-1">
+                  Available:{' '}
+                  {selectedAsset?.symbol === 'XLM'
+                    ? `${parseFloat(xlmBalance || '0').toFixed(4)} XLM`
+                    : `${parseFloat(paymentBalance || '0').toFixed(4)} ${selectedAsset?.symbol || 'USDC'}`}
+                </p>
               </div>
               <div className="space-y-3">
                 <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">3. Duration</label>

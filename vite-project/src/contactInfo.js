@@ -8,13 +8,13 @@ export const contractAddress = env.VITE_STREAM_ENGINE_CONTRACT_ADDRESS
   || env.VITE_CONTRACT_ADDRESS
   || env.VITE_FLOWPAY_CONTRACT_ADDRESS
   || (runtimeKind === 'stellar'
-    ? 'stellar:session-meter'
+    ? 'CBC4DKMWZTHTA35LHKNWYNC5DNVT4VBRZLR7YF7HMZIDYJTAUECIAMHE'
     : '0x75edbf3d9857521f5fb2f581c896779f5110a8a0');
 
 export const paymentTokenAddress = env.VITE_STREAM_ENGINE_PAYMENT_TOKEN_ADDRESS
   || env.VITE_FLOWPAY_PAYMENT_TOKEN_ADDRESS
   || (runtimeKind === 'stellar'
-    ? 'stellar:usdc-sac'
+    ? 'CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA'
     : '0x00007a6900000000000000000000000001200000');
 
 export const paymentTokenSymbol = env.VITE_STREAM_ENGINE_PAYMENT_TOKEN_SYMBOL || env.VITE_FLOWPAY_PAYMENT_TOKEN_SYMBOL || 'USDC';
@@ -30,6 +30,9 @@ export const paymentTokenDecimals = Number(
 export const paymentAssetId = Number(env.VITE_STREAM_ENGINE_PAYMENT_ASSET_ID || env.VITE_FLOWPAY_PAYMENT_ASSET_ID || (runtimeKind === 'stellar' ? 0 : 31337));
 export const paymentAssetCode = env.VITE_STELLAR_PAYMENT_ASSET_CODE || paymentTokenSymbol;
 export const paymentAssetIssuer = env.VITE_STELLAR_PAYMENT_ASSET_ISSUER || '';
+export const nativeTokenAddress =
+  env.VITE_STELLAR_NATIVE_TOKEN_ADDRESS
+  || 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 export const settlementRecipientAddress =
   env.VITE_STREAM_ENGINE_RECIPIENT_ADDRESS
   || env.VITE_FLOWPAY_RECIPIENT_ADDRESS
@@ -41,6 +44,7 @@ export const supportedPaymentAssets = runtimeKind === 'stellar'
         symbol: paymentAssetCode || 'USDC',
         name: paymentTokenDisplayName,
         decimals: paymentTokenDecimals,
+        tokenAddress: paymentTokenAddress,
         assetCode: paymentAssetCode || 'USDC',
         assetIssuer: paymentAssetIssuer,
         isNative: false,
@@ -49,6 +53,7 @@ export const supportedPaymentAssets = runtimeKind === 'stellar'
         symbol: 'XLM',
         name: 'Stellar Lumens',
         decimals: 7,
+        tokenAddress: nativeTokenAddress,
         assetCode: 'XLM',
         assetIssuer: '',
         isNative: true,

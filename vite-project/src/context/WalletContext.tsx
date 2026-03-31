@@ -10,16 +10,10 @@ import {
 import { ethers } from "ethers";
 import {
   getNetworkDetails as getFreighterNetworkDetails,
-  signTransaction as signFreighterTransaction,
   signMessage as signFreighterMessage,
 } from '@stellar/freighter-api';
 import {
-  Asset,
-  BASE_FEE,
-  Horizon,
-  Operation,
   StrKey,
-  TransactionBuilder,
 } from '@stellar/stellar-sdk';
 import {
   contractAddress,
@@ -31,19 +25,11 @@ import {
   paymentAssetId,
   paymentAssetCode,
   paymentAssetIssuer,
-  settlementRecipientAddress,
   supportedPaymentAssets,
 } from '../contactInfo.js';
 import { useToast } from '../components/ui';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
 import { getAvailableWallets, resolveWalletSelection } from '../lib/wallets.js';
-import {
-  claimPaymentSession,
-  openPaymentSession,
-  cancelPaymentSession,
-  fetchPaymentSessions,
-  fetchPaymentSession,
-} from '../services/rwaApi.js';
 import {
   connectInjectedSubstrateWallet,
   disconnectInjectedSubstrateWallet,
@@ -55,6 +41,13 @@ import {
   substrateCallContract,
   substrateReadContract,
 } from '../lib/substrateAssets.js';
+import {
+  cancelStellarSession,
+  claimStellarSession,
+  getStellarSession,
+  listStellarSessionsForAddress,
+  openStellarSession,
+} from '../lib/stellarSessionMeter.ts';
 
 const WalletContext = createContext(null);
 
@@ -103,84 +96,6 @@ function computeSessionClaimable(session) {
   const streamed = (totalAmount * BigInt(elapsed)) / BigInt(durationSeconds);
   const withdrawn = BigInt(String(session?.amountWithdrawn || 0));
   return streamed > withdrawn ? streamed - withdrawn : 0n;
-}
-
-async function buildAndSubmitStellarFundingTransaction({
-  sender,
-  destination,
-  amountUnits,
-  assetCode,
-  assetIssuer,
-}) {
-  if (!ACTIVE_NETWORK.horizonUrl) {
-    throw new Error('Stellar Horizon URL is not configured.');
-  }
-
-  const server = new Horizon.Server(String(ACTIVE_NETWORK.horizonUrl).replace(/\/$/, ''));
-  const account = await server.loadAccount(sender);
-  const asset = String(assetCode || 'XLM').toUpperCase() === 'XLM' || !assetIssuer
-    ? Asset.native()
-    : new Asset(String(assetCode).toUpperCase(), assetIssuer);
-
-  const transaction = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: ACTIVE_NETWORK.passphrase,
-  })
-    .addOperation(
-      Operation.payment({
-        destination,
-        asset,
-        amount: ethers.formatUnits(amountUnits, 7),
-      }),
-    )
-    .setTimeout(30)
-    .build();
-
-  const signed = await signFreighterTransaction(transaction.toXDR(), {
-    address: sender,
-    networkPassphrase: ACTIVE_NETWORK.passphrase,
-  });
-
-  if (signed?.error) {
-    throw new Error(signed.error.message || 'Freighter could not sign the Stellar transaction.');
-  }
-  if (!signed?.signedTxXdr) {
-    throw new Error('Freighter returned an empty signed transaction.');
-  }
-
-  const signedTransaction = TransactionBuilder.fromXDR(
-    signed.signedTxXdr,
-    ACTIVE_NETWORK.passphrase,
-  );
-  const submitted = await server.submitTransaction(signedTransaction);
-  return {
-    txHash: submitted.hash,
-  };
-}
-
-function mapSessionToStreamCard(session) {
-  const metadata = parseSessionMetadata(session.metadata);
-  return {
-    id: Number(session.id),
-    sender: session.sender,
-    recipient: session.recipient,
-    totalAmount: BigInt(String(session.totalAmount || 0)),
-    flowRate: BigInt(String(session.flowRate || 0)),
-    startTime: Number(session.startTime || 0),
-    stopTime: Number(session.stopTime || 0),
-    amountWithdrawn: BigInt(String(session.amountWithdrawn || 0)),
-    isActive: Boolean(session.isActive),
-    isFrozen: Boolean(session.isFrozen),
-    metadata: typeof session.metadata === 'string'
-      ? session.metadata
-      : JSON.stringify(session.metadata || {}),
-    paymentTokenSymbol: session.paymentTokenSymbol || metadata.paymentTokenSymbol || session.assetCode || paymentTokenSymbol,
-    paymentAssetCode: session.assetCode || metadata.paymentAssetCode || paymentAssetCode,
-    paymentAssetIssuer: session.assetIssuer || metadata.paymentAssetIssuer || paymentAssetIssuer,
-    claimableInitial: BigInt(String(session.claimableInitial || computeSessionClaimable(session))),
-    refundableAmount: BigInt(String(session.refundableAmount || 0)),
-    sessionKind: 'stellar',
-  };
 }
 
 function createFreighterSigner(address) {
@@ -713,8 +628,7 @@ export function WalletProvider({ children }) {
         const normalizedAddress = me?.toLowerCase();
 
         if (IS_STELLAR_RUNTIME) {
-          const sessions = await fetchPaymentSessions(me);
-          const streamCards = sessions.map(mapSessionToStreamCard);
+          const streamCards = await listStellarSessionsForAddress(me);
           return {
             incoming: streamCards.filter(
               (stream) => String(stream.recipient || '').toLowerCase() === normalizedAddress,
@@ -878,7 +792,10 @@ export function WalletProvider({ children }) {
       );
 
       if (IS_STELLAR_RUNTIME) {
-        await claimPaymentSession(streamId, { claimer: walletAddress || '' });
+        await claimStellarSession({
+          recipient: walletAddress || '',
+          sessionId: streamId,
+        });
       } else if (activeWallet?.type === 'substrate') {
         if (!substrateSession) {
           throw new Error('Reconnect your Substrate wallet and try again.');
@@ -938,7 +855,10 @@ export function WalletProvider({ children }) {
       );
 
       if (IS_STELLAR_RUNTIME) {
-        await cancelPaymentSession(streamId, { cancelledBy: walletAddress || '' });
+        await cancelStellarSession({
+          payer: walletAddress || '',
+          sessionId: streamId,
+        });
       } else if (activeWallet?.type === 'substrate') {
         if (!substrateSession) {
           throw new Error('Reconnect your Substrate wallet and try again.');
@@ -996,7 +916,7 @@ export function WalletProvider({ children }) {
     }
   };
 
-  const createStream = async (recipient, duration, amount, metadata = "{}") => {
+  const createStream = async (recipient, duration, amount, metadata = "{}", options = {}) => {
     if ((!provider && !IS_STELLAR_RUNTIME) || (!signer && activeWallet?.type !== 'substrate' && !IS_STELLAR_RUNTIME)) {
       setStatus("Please connect your wallet.");
       return null;
@@ -1018,7 +938,7 @@ export function WalletProvider({ children }) {
       }
       const totalAmountWei = ethers.parseUnits(
         amount.toString(),
-        paymentTokenDecimals,
+        Number(options?.asset?.decimals ?? paymentTokenDecimals),
       );
       const parsedDuration = parseInt(duration, 10);
       if (
@@ -1075,12 +995,22 @@ export function WalletProvider({ children }) {
       let createdId = null;
 
       if (IS_STELLAR_RUNTIME) {
-        const response = await openPaymentSession({
-          sender: walletAddress,
+        const selectedAsset = options?.asset || supportedPaymentAssets[0];
+        const response = await openStellarSession({
+          payer: walletAddress,
           recipient: normalizedRecipient,
-          duration: parsedDuration,
-          amount: totalAmountWei.toString(),
-          metadata: metadataString,
+          token: String(selectedAsset?.tokenAddress || paymentTokenAddress),
+          assetCode: String(selectedAsset?.assetCode || paymentAssetCode || paymentTokenSymbol),
+          assetIssuer: String(selectedAsset?.assetIssuer || ''),
+          durationSeconds: parsedDuration,
+          totalAmount: totalAmountWei,
+          metadata: JSON.stringify({
+            ...parseSessionMetadata(metadataString),
+            paymentTokenSymbol: selectedAsset?.symbol || paymentTokenSymbol,
+            paymentAssetCode: selectedAsset?.assetCode || paymentAssetCode || paymentTokenSymbol,
+            paymentAssetIssuer: selectedAsset?.assetIssuer || '',
+            paymentTokenAddress: selectedAsset?.tokenAddress || paymentTokenAddress,
+          }),
         });
         createdId = Number(response?.streamId);
       } else if (activeWallet?.type === 'substrate') {
@@ -1179,7 +1109,7 @@ export function WalletProvider({ children }) {
     try {
       let amount;
       if (IS_STELLAR_RUNTIME) {
-        const session = await fetchPaymentSession(streamId);
+        const session = await getStellarSession(streamId);
         return ethers.formatUnits(
           BigInt(String(session?.claimableInitial || computeSessionClaimable(session))),
           paymentTokenDecimals,
