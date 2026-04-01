@@ -48,6 +48,10 @@ import {
   listStellarSessionsForAddress,
   openStellarSession,
 } from '../lib/stellarSessionMeter.ts';
+import {
+  fetchPaymentSessions,
+  syncPaymentSessionMetadata,
+} from '../services/rwaApi.js';
 
 const WalletContext = createContext(null);
 
@@ -675,7 +679,13 @@ export function WalletProvider({ children }) {
         const normalizedAddress = me?.toLowerCase();
 
         if (IS_STELLAR_RUNTIME) {
-          const streamCards = (await listStellarSessionsForAddress(me)).map(hydrateSessionMetadata);
+          let streamCards = [];
+          try {
+            streamCards = (await fetchPaymentSessions(me)).map(hydrateSessionMetadata);
+          } catch (backendError) {
+            console.warn('Falling back to direct Soroban session reads:', backendError);
+            streamCards = (await listStellarSessionsForAddress(me)).map(hydrateSessionMetadata);
+          }
           return {
             incoming: streamCards.filter(
               (stream) => String(stream.recipient || '').toLowerCase() === normalizedAddress,
@@ -1063,6 +1073,19 @@ export function WalletProvider({ children }) {
         createdId = Number(response?.streamId);
         if (createdId) {
           cacheSessionMetadata(createdId, sessionMetadata);
+          try {
+            await syncPaymentSessionMetadata(createdId, {
+              metadata: sessionMetadata,
+              txHash: response?.txHash || '',
+              fundingTxHash: response?.txHash || '',
+              sender: walletAddress,
+              recipient: normalizedRecipient,
+              assetCode: String(selectedAsset?.assetCode || paymentAssetCode || paymentTokenSymbol),
+              assetIssuer: String(selectedAsset?.assetIssuer || ''),
+            });
+          } catch (syncError) {
+            console.warn('Failed to sync Stellar session metadata with backend:', syncError);
+          }
         }
       } else if (activeWallet?.type === 'substrate') {
         await substrateCallContract(substrateSession, {

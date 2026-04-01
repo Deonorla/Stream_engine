@@ -27,6 +27,22 @@ function formatSessionAmount(stream, rawValue) {
   return `${numeric.toFixed(4)} ${symbol}`;
 }
 
+function resolveRentalReadiness(asset) {
+  if (asset?.rentalReadiness) {
+    return asset.rentalReadiness;
+  }
+
+  const ownerAddress = asset?.currentOwner || asset?.ownerAddress || asset?.assetAddress || '';
+  const ready = StrKey.isValidEd25519PublicKey(String(ownerAddress || '').trim());
+  return {
+    ready,
+    label: ready ? 'Stellar Rental Ready' : 'Needs Owner Sync',
+    reason: ready
+      ? 'This asset is ready for live Stellar rental sessions.'
+      : 'This asset still needs a Stellar owner account before rentals can start.',
+  };
+}
+
 export default function RentalSessionComposer({ asset, onStarted }) {
   const {
     cancel,
@@ -57,7 +73,8 @@ export default function RentalSessionComposer({ asset, onStarted }) {
   const renterHours = durationSeconds / 3600;
   const budgetAmount = Number((Number(asset?.pricePerHour || 0) * renterHours).toFixed(6));
   const ownerAddress = asset?.currentOwner || asset?.ownerAddress || asset?.assetAddress || '';
-  const hasValidRecipient = StrKey.isValidEd25519PublicKey(String(ownerAddress || '').trim());
+  const rentalReadiness = resolveRentalReadiness(asset);
+  const hasValidRecipient = Boolean(rentalReadiness.ready);
   const isOwner = Boolean(walletAddress && walletAddress === ownerAddress);
   const linkedSession = useMemo(() => {
     const currentTokenId = String(asset?.tokenId || asset?.id || '');
@@ -192,7 +209,9 @@ export default function RentalSessionComposer({ asset, onStarted }) {
               <p className="text-[10px] font-label font-bold uppercase tracking-widest text-blue-500">Active Rental Session</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">Session #{linkedSession.id}</p>
               <p className="mt-1 text-xs text-slate-600">
-                {linkedSessionActive ? 'This renter wallet already has a live session for this asset.' : 'Latest renter session for this asset.'}
+                {linkedSessionActive
+                  ? `This renter wallet already has a live ${linkedSession.sessionStatusLabel || 'session'} for this asset.`
+                  : `Latest ${linkedSession.sessionStatusLabel || 'session'} for this asset.`}
               </p>
             </div>
             <button
@@ -216,7 +235,8 @@ export default function RentalSessionComposer({ asset, onStarted }) {
               <p className="mt-1 text-sm font-semibold text-slate-900">
                 {formatSessionAmount(
                   linkedSession,
-                  Math.max(
+                  linkedSession.consumedAmount
+                  ?? Math.max(
                     0,
                     Number(linkedSession.totalAmount || 0) - Number(linkedSession.refundableAmount || 0),
                   ),
@@ -245,7 +265,7 @@ export default function RentalSessionComposer({ asset, onStarted }) {
         <p className="text-xs text-amber-600">Switch to a renter wallet to start a session for your own asset.</p>
       )}
       {!hasValidRecipient && (
-        <p className="text-xs text-amber-600">This asset still points to a legacy non-Stellar owner address, so live rental sessions are disabled until it is reindexed.</p>
+        <p className="text-xs text-amber-600">{rentalReadiness.reason || 'This asset is not ready for live Stellar rental sessions yet.'}</p>
       )}
       {linkedSessionActive && (
         <p className="text-xs text-blue-600">End the current session first if you want to reopen this asset with a different duration or payment asset.</p>

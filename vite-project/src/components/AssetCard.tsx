@@ -11,12 +11,28 @@ export const IMAGE_SEEDS = {
   commodity: 'cyber',
 };
 
+function resolveRentalReadiness(asset) {
+  if (asset?.rentalReadiness) {
+    return asset.rentalReadiness;
+  }
+
+  const ownerAddress = asset.currentOwner || asset.ownerAddress || asset.assetAddress || '';
+  const ready = StrKey.isValidEd25519PublicKey(String(ownerAddress || '').trim());
+  return {
+    ready,
+    label: ready ? 'Stellar Rental Ready' : 'Needs Owner Sync',
+    reason: ready
+      ? 'This asset is ready for live Stellar rental sessions.'
+      : 'This asset still needs a Stellar owner account before rentals can start.',
+  };
+}
+
 export function AssetCard({ asset, onDetails }) {
   const meta = TYPE_META[asset.type] || TYPE_META.real_estate;
   const Icon = TYPE_ICON[asset.type] || Building2;
   const seed = IMAGE_SEEDS[asset.type] || 'villa';
-  const ownerAddress = asset.currentOwner || asset.ownerAddress || asset.assetAddress || '';
-  const isRentalReady = StrKey.isValidEd25519PublicKey(String(ownerAddress || '').trim());
+  const rentalReadiness = resolveRentalReadiness(asset);
+  const isRentalReady = Boolean(rentalReadiness.ready);
 
   return (
     <motion.div
@@ -44,7 +60,7 @@ export function AssetCard({ asset, onDetails }) {
             ? 'border-emerald-200 bg-emerald-50/95 text-emerald-600'
             : 'border-amber-200 bg-amber-50/95 text-amber-700'
         }`}>
-          {isRentalReady ? 'Stellar Rental Ready' : 'Needs Owner Sync'}
+          {rentalReadiness.label}
         </div>
       </div>
       <div className="p-8">
@@ -77,8 +93,8 @@ export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
   const meta = TYPE_META[asset.type] || TYPE_META.real_estate;
   const Icon = TYPE_ICON[asset.type] || Building2;
   const seed = IMAGE_SEEDS[asset.type] || 'villa';
-  const ownerAddress = asset.currentOwner || asset.ownerAddress || asset.assetAddress || '';
-  const isRentalReady = StrKey.isValidEd25519PublicKey(String(ownerAddress || '').trim());
+  const rentalReadiness = resolveRentalReadiness(asset);
+  const isRentalReady = Boolean(rentalReadiness.ready);
 
   return (
     <motion.div
@@ -125,11 +141,21 @@ export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
                 ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
                 : 'border-amber-100 bg-amber-50 text-amber-700'
             }`}>
-              <Shield size={11} /> {isRentalReady ? 'Stellar Rental Ready' : 'Needs Owner Sync'}
+              <Shield size={11} /> {rentalReadiness.label}
             </span>
           </div>
 
           <p className="text-slate-600 text-sm leading-relaxed">{asset.description}</p>
+
+          {rentalReadiness.reason && (
+            <div className={`rounded-2xl border px-4 py-3 text-xs ${
+              isRentalReady
+                ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                : 'border-amber-100 bg-amber-50 text-amber-700'
+            }`}>
+              {rentalReadiness.reason}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             {[

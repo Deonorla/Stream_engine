@@ -143,6 +143,7 @@ describe("RWA API Integration", function () {
 
         store = {
             asset: null,
+            session: null,
             async listAssets() {
                 return this.asset ? [this.asset] : [];
             },
@@ -151,6 +152,15 @@ describe("RWA API Integration", function () {
             },
             async upsertAsset(asset) {
                 this.asset = asset;
+            },
+            async getSession(sessionId) {
+                return Number(sessionId) === Number(this.session?.id) ? this.session : null;
+            },
+            async upsertSession(session) {
+                this.session = session;
+            },
+            async listSessions() {
+                return this.session ? [this.session] : [];
             },
             async getActivities(tokenId) {
                 return Number(tokenId) === 7 ? activities : [];
@@ -266,6 +276,17 @@ describe("RWA API Integration", function () {
                                 updatedBy: backendSigner.address,
                                 reason: "",
                             },
+                            rentalReady: true,
+                            rentalReadiness: {
+                                ready: true,
+                                code: "ready_pending_attestation",
+                                label: "Stellar Rental Ready",
+                                reason: "The asset can open rental sessions while attestation review is still pending.",
+                                severity: "info",
+                            },
+                            readinessCode: "ready_pending_attestation",
+                            readinessLabel: "Stellar Rental Ready",
+                            readinessReason: "The asset can open rental sessions while attestation review is still pending.",
                             attestationPolicies: [
                                 { role: 2, roleLabel: "lawyer", required: true, maxAge: 86400 },
                                 { role: 4, roleLabel: "inspector", required: true, maxAge: 86400 },
@@ -328,6 +349,48 @@ describe("RWA API Integration", function () {
                     },
                     async getAssetSnapshot() {
                         return store.asset;
+                    },
+                    async syncSessionMetadata({
+                        sessionId,
+                        metadata,
+                        sender,
+                        recipient,
+                        assetCode,
+                        assetIssuer,
+                        txHash,
+                        fundingTxHash,
+                    }) {
+                        store.session = {
+                            id: Number(sessionId),
+                            sender,
+                            recipient,
+                            totalAmount: "10000000",
+                            flowRate: "1000",
+                            durationSeconds: 3600,
+                            startTime: Math.floor(Date.now() / 1000) - 60,
+                            stopTime: Math.floor(Date.now() / 1000) + 3540,
+                            amountWithdrawn: "0",
+                            isActive: true,
+                            isFrozen: false,
+                            metadata,
+                            txHash,
+                            fundingTxHash,
+                            assetCode,
+                            assetIssuer,
+                            refundableAmount: "0",
+                        };
+                        return {
+                            ...store.session,
+                            sessionStatus: "active",
+                            sessionStatusLabel: "Active",
+                            claimableInitial: "60000",
+                            claimableAmount: "60000",
+                            refundableAmount: "9940000",
+                            consumedAmount: "60000",
+                            linkedAssetTokenId: 7,
+                            linkedAssetName: "Lagos Rental Asset",
+                            linkedAssetType: "real_estate",
+                        };
                     },
                 },
                 store,
@@ -452,6 +515,8 @@ describe("RWA API Integration", function () {
         expect(response.body.evidenceSummary.missingRequiredDocuments).to.deep.equal([]);
         expect(response.body.attestationRequirements).to.have.length(2);
         expect(response.body.asset.tokenId).to.equal(7);
+        expect(response.body.asset.rentalReady).to.equal(true);
+        expect(response.body.asset.rentalReadiness.label).to.equal("Stellar Rental Ready");
         expect(app.locals.services.chainService.ensuredIssuerApprovals).to.deep.equal([]);
     });
 
@@ -839,5 +904,30 @@ describe("RWA API Integration", function () {
         expect(response.body.action).to.equal("revoke");
         expect(response.body.attestationId).to.equal(1);
         expect(store.asset.attestations[0].revoked).to.equal(true);
+    });
+
+    it("syncs live session metadata and returns renter-facing session state", async function () {
+        const response = await request(app)
+            .post("/api/sessions/11/metadata")
+            .send({
+                metadata: JSON.stringify({
+                    assetTokenId: 7,
+                    assetName: "Lagos Rental Asset",
+                    assetType: "real_estate",
+                }),
+                txHash: "stellar-tx-11",
+                fundingTxHash: "stellar-tx-11",
+                sender: issuerWallet.address,
+                recipient: backendSigner.address,
+                assetCode: "USDC",
+                assetIssuer: "GISSUER111111111111111111111111111111111111111111111111",
+            });
+
+        expect(response.status).to.equal(200);
+        expect(response.body.code).to.equal("session_metadata_synced");
+        expect(response.body.session.sessionStatus).to.equal("active");
+        expect(response.body.session.linkedAssetTokenId).to.equal(7);
+        expect(response.body.session.refundableAmount).to.equal("9940000");
+        expect(response.body.session.consumedAmount).to.equal("60000");
     });
 });

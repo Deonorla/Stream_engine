@@ -638,6 +638,7 @@ export function mapApiAssetToUiAsset(asset = {}) {
   const verificationStatus = asset.verificationStatusLabel || 'pending_attestation';
   const statusLabel = VERIFICATION_STATUS_LABELS[verificationStatus] || verificationStatus;
   const evidenceSummary = asset.evidenceSummary || asset.evidenceBundle?.evidenceSummary || null;
+  const rentalReadiness = asset.rentalReadiness || null;
 
   return {
     id: String(asset.tokenId),
@@ -684,6 +685,11 @@ export function mapApiAssetToUiAsset(asset = {}) {
     attestationPolicies: asset.attestationPolicies || [],
     attestations: asset.attestations || [],
     assetPolicy: asset.assetPolicy || null,
+    rentalReady: Boolean(asset.rentalReady ?? rentalReadiness?.ready),
+    rentalReadiness,
+    readinessCode: asset.readinessCode || rentalReadiness?.code || '',
+    readinessLabel: asset.readinessLabel || rentalReadiness?.label || '',
+    readinessReason: asset.readinessReason || rentalReadiness?.reason || '',
     propertyRefHash: asset.propertyRefHash || '',
     publicMetadataHash: asset.publicMetadataHash || '',
     attestationRequirements: asset.attestationRequirements || [],

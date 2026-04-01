@@ -140,3 +140,11 @@ export async function fetchPaymentSession(sessionId) {
   const response = await request(`/api/sessions/${sessionId}`, { method: 'GET' });
   return response.session || null;
 }
+
+export async function syncPaymentSessionMetadata(sessionId, payload) {
+  const response = await request(`/api/sessions/${sessionId}/metadata`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  return response.session || null;
+}

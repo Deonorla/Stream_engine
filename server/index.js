@@ -392,6 +392,7 @@ function createApp(config = defaultConfig) {
         const assets = await Promise.all(rawAssets.map((asset) => hydrateAssetMetadata(services, asset)));
         res.json({
             assets,
+            code: "assets_listed",
             syncing: Boolean(app.locals.indexerSyncPromise || app.locals.assetPrimePromise),
         });
     }));
@@ -778,6 +779,39 @@ function createApp(config = defaultConfig) {
         });
     }));
 
+    app.post("/api/sessions/:sessionId/metadata", asyncHandler(async (req, res) => {
+        const services = await app.locals.ready;
+        const {
+            metadata = "{}",
+            txHash = "",
+            fundingTxHash = "",
+            sender = "",
+            recipient = "",
+            assetCode = "",
+            assetIssuer = "",
+        } = req.body || {};
+
+        const session = await services.chainService.syncSessionMetadata({
+            sessionId: Number(req.params.sessionId),
+            metadata,
+            txHash,
+            fundingTxHash,
+            sender,
+            recipient,
+            assetCode,
+            assetIssuer,
+        });
+
+        res.status(200).json({
+            code: "session_metadata_synced",
+            action: "syncSessionMetadata",
+            session,
+            details: {
+                runtime: runtimeConfig.kind,
+            },
+        });
+    }));
+
     app.get("/api/sessions/:sessionId", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
         const session = await services.chainService.getSessionSnapshot(req.params.sessionId);
@@ -802,6 +836,8 @@ function createApp(config = defaultConfig) {
             code: "session_cancelled",
             action: "cancelSession",
             txHash: result.txHash,
+            refundableAmount: result.refundableAmount,
+            claimableAmount: result.claimableAmount,
             session,
             details: {
                 runtime: runtimeConfig.kind,

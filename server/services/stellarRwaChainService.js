@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { StrKey } = require("@stellar/stellar-sdk");
 const {
     ATTESTATION_ROLE_LABELS,
     VERIFICATION_STATUS_CODES,
@@ -209,6 +210,111 @@ function deriveAssetPolicy(verificationStatus, statusReason = "") {
     };
 }
 
+function deriveRentalReadiness(asset) {
+    const ownerAddress = String(asset?.currentOwner || asset?.ownerAddress || asset?.assetAddress || "").trim();
+    const verificationStatus = String(asset?.verificationStatusLabel || "").trim();
+    const statusReason = String(asset?.statusReason || asset?.assetPolicy?.reason || "").trim();
+    const policy = asset?.assetPolicy || {};
+
+    if (!ownerAddress) {
+        return {
+            ready: false,
+            code: "owner_missing",
+            label: "Needs Owner Sync",
+            reason: "This asset does not have a Stellar owner account yet.",
+            severity: "warning",
+        };
+    }
+
+    if (!StrKey.isValidEd25519PublicKey(ownerAddress)) {
+        return {
+            ready: false,
+            code: "owner_sync_required",
+            label: "Needs Owner Sync",
+            reason: "The asset owner is still using a legacy non-Stellar address.",
+            severity: "warning",
+        };
+    }
+
+    if (policy.revoked || verificationStatus === "revoked") {
+        return {
+            ready: false,
+            code: "revoked",
+            label: "Rental Disabled",
+            reason: statusReason || "This asset has been revoked and cannot open new rental sessions.",
+            severity: "error",
+        };
+    }
+
+    if (policy.disputed || verificationStatus === "disputed") {
+        return {
+            ready: false,
+            code: "disputed",
+            label: "Rental Blocked",
+            reason: statusReason || "This asset is under dispute and cannot open new rental sessions.",
+            severity: "error",
+        };
+    }
+
+    if (policy.frozen || verificationStatus === "frozen") {
+        return {
+            ready: false,
+            code: "frozen",
+            label: "Rental Paused",
+            reason: statusReason || "This asset is frozen and cannot open new rental sessions.",
+            severity: "error",
+        };
+    }
+
+    if (verificationStatus === "stale") {
+        return {
+            ready: false,
+            code: "stale",
+            label: "Refresh Required",
+            reason: statusReason || "Evidence freshness has lapsed and the asset needs compliance refresh.",
+            severity: "warning",
+        };
+    }
+
+    if (verificationStatus === "incomplete" || verificationStatus === "legacy_incomplete" || verificationStatus === "mismatch") {
+        return {
+            ready: false,
+            code: verificationStatus || "incomplete",
+            label: "Verification Incomplete",
+            reason: statusReason || "This asset still needs verification work before rentals can start.",
+            severity: "warning",
+        };
+    }
+
+    if (verificationStatus === "pending_attestation") {
+        return {
+            ready: true,
+            code: "ready_pending_attestation",
+            label: "Stellar Rental Ready",
+            reason: "The asset can open rental sessions while attestation review is still pending.",
+            severity: "info",
+        };
+    }
+
+    if (verificationStatus === "verified_with_warnings") {
+        return {
+            ready: true,
+            code: "ready_with_warnings",
+            label: "Stellar Rental Ready",
+            reason: statusReason || "The asset is rentable, but there are verification warnings to review.",
+            severity: "info",
+        };
+    }
+
+    return {
+        ready: true,
+        code: "ready",
+        label: "Stellar Rental Ready",
+        reason: statusReason || "The asset owner and policy state are ready for live Stellar rental sessions.",
+        severity: "success",
+    };
+}
+
 function normalizeChainAsset(asset, extras = {}) {
     if (!asset) {
         return null;
@@ -216,7 +322,7 @@ function normalizeChainAsset(asset, extras = {}) {
 
     const verificationStatus = Number(asset.verification_status || asset.verificationStatus || 0);
     const statusReason = asset.status_reason || asset.statusReason || "";
-    return {
+    const normalizedAsset = {
         tokenId: Number(asset.token_id || asset.tokenId || 0),
         schemaVersion: Number(asset.schema_version || asset.schemaVersion || 2),
         assetType: Number(asset.asset_type || asset.assetType || 0),
@@ -252,6 +358,41 @@ function normalizeChainAsset(asset, extras = {}) {
         attestations: extras.attestations || [],
         txHash: "",
     };
+
+    const rentalReadiness = deriveRentalReadiness(normalizedAsset);
+    normalizedAsset.rentalReady = rentalReadiness.ready;
+    normalizedAsset.rentalReadiness = rentalReadiness;
+    normalizedAsset.readinessCode = rentalReadiness.code;
+    normalizedAsset.readinessLabel = rentalReadiness.label;
+    normalizedAsset.readinessReason = rentalReadiness.reason;
+
+    return normalizedAsset;
+}
+
+function applyRentalReadiness(asset) {
+    const rentalReadiness = deriveRentalReadiness(asset);
+    asset.rentalReady = rentalReadiness.ready;
+    asset.rentalReadiness = rentalReadiness;
+    asset.readinessCode = rentalReadiness.code;
+    asset.readinessLabel = rentalReadiness.label;
+    asset.readinessReason = rentalReadiness.reason;
+    return asset;
+}
+
+function deriveSessionStatus(session, claimable, refundableAmount, consumedAmount) {
+    if (session?.isFrozen) {
+        return { code: "frozen", label: "Frozen" };
+    }
+    if (session?.isActive) {
+        return { code: "active", label: "Active" };
+    }
+    if (refundableAmount > 0n) {
+        return { code: "cancelled", label: "Cancelled" };
+    }
+    if (claimable > 0n || consumedAmount > 0n) {
+        return { code: "settled", label: "Settled" };
+    }
+    return { code: "ended", label: "Ended" };
 }
 
 class StellarRWAChainService {
@@ -1789,6 +1930,7 @@ class StellarRWAChainService {
             });
             asset.activeStreamId = latestYieldStreamId;
             this.recomputeAssetStatus(asset);
+            applyRentalReadiness(asset);
             await this.store.upsertAsset(asset);
             return asset;
         } catch (error) {
@@ -1802,6 +1944,7 @@ class StellarRWAChainService {
                 attestationPolicies: await this.getAttestationPolicies(asset.assetType),
             };
             this.recomputeAssetStatus(cloned);
+            applyRentalReadiness(cloned);
             return cloned;
         }
     }
@@ -1873,6 +2016,10 @@ class StellarRWAChainService {
         const now = nowSeconds();
         const claimable = computeSessionClaimable(session, now);
         const refundableAmount = computeSessionRefundable(session, now);
+        const totalAmount = normalizeSessionAmount(session.totalAmount);
+        const consumedAmount = totalAmount > refundableAmount ? totalAmount - refundableAmount : 0n;
+        const status = deriveSessionStatus(session, claimable, refundableAmount, consumedAmount);
+        const metadata = parseMetadata(session.metadata);
         return {
             ...session,
             totalAmount: String(session.totalAmount || "0"),
@@ -1880,7 +2027,14 @@ class StellarRWAChainService {
             durationSeconds: Number(session.durationSeconds || Math.max(1, Number(session.stopTime) - Number(session.startTime))),
             amountWithdrawn: String(session.amountWithdrawn || "0"),
             claimableInitial: claimable.toString(),
+            claimableAmount: claimable.toString(),
             refundableAmount: refundableAmount.toString(),
+            consumedAmount: consumedAmount.toString(),
+            sessionStatus: status.code,
+            sessionStatusLabel: status.label,
+            linkedAssetTokenId: metadata.assetTokenId ? Number(metadata.assetTokenId) : 0,
+            linkedAssetName: metadata.assetName || metadata.name || "",
+            linkedAssetType: metadata.assetType || "",
         };
     }
 
@@ -1890,18 +2044,21 @@ class StellarRWAChainService {
             asset.verificationStatus = VERIFICATION_STATUS_CODES.revoked;
             asset.verificationStatusLabel = "revoked";
             asset.statusReason = policy.reason || asset.statusReason;
+            applyRentalReadiness(asset);
             return;
         }
         if (policy.disputed) {
             asset.verificationStatus = VERIFICATION_STATUS_CODES.disputed;
             asset.verificationStatusLabel = "disputed";
             asset.statusReason = policy.reason || asset.statusReason;
+            applyRentalReadiness(asset);
             return;
         }
         if (policy.frozen) {
             asset.verificationStatus = VERIFICATION_STATUS_CODES.frozen;
             asset.verificationStatusLabel = "frozen";
             asset.statusReason = policy.reason || asset.statusReason;
+            applyRentalReadiness(asset);
             return;
         }
 
@@ -1932,18 +2089,50 @@ class StellarRWAChainService {
             asset.verificationStatus = VERIFICATION_STATUS_CODES.pending_attestation;
             asset.verificationStatusLabel = "pending_attestation";
             asset.statusReason = "Awaiting required attestations";
+            applyRentalReadiness(asset);
             return;
         }
         if (staleRoles.length > 0) {
             asset.verificationStatus = VERIFICATION_STATUS_CODES.stale;
             asset.verificationStatusLabel = "stale";
             asset.statusReason = "One or more attestations have expired";
+            applyRentalReadiness(asset);
             return;
         }
 
         asset.verificationStatus = VERIFICATION_STATUS_CODES.verified;
         asset.verificationStatusLabel = "verified";
         asset.statusReason = asset.statusReason || "Verified productive rental twin";
+        applyRentalReadiness(asset);
+    }
+
+    async syncSessionMetadata({
+        sessionId,
+        metadata,
+        txHash = "",
+        fundingTxHash = "",
+        sender = "",
+        recipient = "",
+        assetCode = "",
+        assetIssuer = "",
+    }) {
+        const existing = await this.getSessionSnapshot(sessionId);
+        const serializedMetadata = typeof metadata === "string"
+            ? metadata
+            : JSON.stringify(metadata || {});
+        const nextSession = {
+            ...(existing || {}),
+            id: Number(sessionId),
+            metadata: serializedMetadata,
+            txHash: txHash || existing?.txHash || "",
+            fundingTxHash: fundingTxHash || existing?.fundingTxHash || txHash || existing?.txHash || "",
+            sender: sender || existing?.sender || "",
+            recipient: recipient || existing?.recipient || "",
+            assetCode: assetCode || existing?.assetCode || this.runtime.paymentAssetCode || "",
+            assetIssuer: assetIssuer || existing?.assetIssuer || this.runtime.paymentAssetIssuer || "",
+        };
+        await this.store.upsertSession(nextSession);
+        return this.decorateSession(nextSession);
     }
 }
 
