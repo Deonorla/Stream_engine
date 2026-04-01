@@ -3,6 +3,7 @@ import { ArrowRight, ArrowUpRight, ArrowDownLeft, Plus, Wallet, Shield, Zap, Ref
 import { useWallet } from '../context/WalletContext';
 import StreamList from '../components/StreamList';
 import { supportedPaymentAssets } from '../contactInfo.js';
+import Select from '../components/ui/Select';
 
 const DURATION_OPTIONS = [
   { label: '1 Hour',   seconds: 3600 },
@@ -119,64 +120,63 @@ export default function Streams() {
             </div>
           </div>
           <form onSubmit={handleCreate} className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              {/* 1. Recipient */}
+              <div className="md:col-span-1 space-y-3">
                 <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">1. Recipient</label>
                 <input
                   type="text"
-                  className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-blue-200 text-sm"
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm"
                   placeholder="G... Stellar address"
                   value={recipient}
                   onChange={e => setRecipient(e.target.value)}
                   required
                 />
               </div>
+
+              {/* 2. Asset */}
               <div className="space-y-3">
-                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">2. Asset & Amount</label>
-                <select
-                  className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-blue-200 text-sm appearance-none mb-3"
+                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">2. Asset</label>
+                <Select
+                  options={supportedPaymentAssets.map((a) => ({ value: a.symbol, label: a.symbol, sub: a.name }))}
                   value={selectedAssetSymbol}
-                  onChange={e => setSelectedAssetSymbol(e.target.value)}
-                >
-                  {supportedPaymentAssets.map((asset) => (
-                    <option key={asset.symbol} value={asset.symbol}>
-                      {asset.symbol} · {asset.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setSelectedAssetSymbol(String(v))}
+                />
+              </div>
+
+              {/* 3. Amount */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">3. Amount</label>
                 <div className="relative">
                   <input
                     type="number"
                     min="0.01"
                     step="0.01"
-                    className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-blue-200 text-sm pr-16"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-5 py-4 focus:outline-none focus:ring-2 focus:ring-blue-200 text-sm pr-16"
                     placeholder="0.00"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     required
                   />
-                  <span className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
+                  <span className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">
                     {selectedAsset?.symbol || 'USDC'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400 ml-1">
-                  Available:{' '}
-                  {selectedAsset?.symbol === 'XLM'
-                    ? `${parseFloat(xlmBalance || '0').toFixed(4)} XLM`
-                    : `${parseFloat(paymentBalance || '0').toFixed(4)} ${selectedAsset?.symbol || 'USDC'}`}
+                  Bal: {selectedAsset?.symbol === 'XLM'
+                    ? `${parseFloat(xlmBalance || '0').toFixed(2)} XLM`
+                    : `${parseFloat(paymentBalance || '0').toFixed(2)} ${selectedAsset?.symbol || 'USDC'}`}
                 </p>
               </div>
+
+              {/* 4. Duration */}
               <div className="space-y-3">
-                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">3. Duration</label>
-                <select
-                  className="w-full bg-slate-50 border-none rounded-2xl px-6 py-4 focus:ring-2 focus:ring-blue-200 text-sm appearance-none"
+                <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 ml-1">4. Duration</label>
+                <Select
+                  options={DURATION_OPTIONS.map((o) => ({ value: o.seconds, label: o.label }))}
                   value={duration}
-                  onChange={e => setDuration(Number(e.target.value))}
-                >
-                  {DURATION_OPTIONS.map(opt => (
-                    <option key={opt.seconds} value={opt.seconds}>{opt.label}</option>
-                  ))}
-                </select>
+                  onChange={(v) => setDuration(Number(v))}
+                />
               </div>
             </div>
             <button

@@ -86,9 +86,9 @@ const ProgressRing = ({ progress, size = 80, strokeWidth = 6, status = 'active' 
 const StatusBadge = ({ status }) => {
   const badges = {
     active: { label: 'Active', Icon: CheckCircle, class: 'inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5', animate: true },
-    low: { label: 'Low Balance', Icon: AlertTriangle, class: 'chip-warning', animate: false },
-    expired: { label: 'Completed', Icon: CheckCircle, class: 'chip', animate: false },
-    cancelled: { label: 'Cancelled', Icon: XCircle, class: 'chip-error', animate: false },
+    low: { label: 'Ending Soon', Icon: AlertTriangle, class: 'inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 rounded-full px-2.5 py-0.5', animate: false },
+    expired: { label: 'Finished', Icon: CheckCircle, class: 'inline-flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 rounded-full px-2.5 py-0.5', animate: false },
+    cancelled: { label: 'Cancelled', Icon: XCircle, class: 'inline-flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-50 rounded-full px-2.5 py-0.5', animate: false },
   };
 
   const badge = badges[status] || badges.active;
@@ -136,7 +136,8 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
   const progressPct = Math.min(100, (elapsed / duration) * 100);
 
   const getStatus = () => {
-    if (!stream.isActive) return progressPct >= 100 ? 'expired' : 'cancelled';
+    if (!stream.isActive || progressPct >= 100) return 'expired';
+    if (stream.isFrozen) return 'cancelled';
     const remainingPct = 100 - progressPct;
     if (remainingPct < 10) return 'low';
     return 'active';
@@ -202,6 +203,16 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
               <div className="text-xs text-slate-400">{stream.paymentTokenSymbol}</div>
             </div>
           )}
+          {/* Unclaimed balance for finished/cancelled streams */}
+          {variant === 'incoming' && (status === 'expired' || status === 'cancelled') && parseFloat(stream.claimableInitial) > 0 && (
+            <div className="text-right shrink-0">
+              <div className="text-[10px] font-label uppercase tracking-widest text-amber-500 mb-0.5">Unclaimed</div>
+              <div className="text-xl font-headline font-black text-amber-600">
+                {formatEth(stream.claimableInitial)}
+              </div>
+              <div className="text-xs text-slate-400">{stream.paymentTokenSymbol}</div>
+            </div>
+          )}
         </div>
 
         {/* Progress bar */}
@@ -243,7 +254,7 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
             {isExpanded ? '▲ Less details' : '▼ More details'}
           </button>
           <div className="flex gap-2">
-            {variant === 'incoming' && status === 'active' && (
+            {variant === 'incoming' && (status === 'active' || ((status === 'expired' || status === 'cancelled') && parseFloat(stream.claimableInitial) > 0)) && (
               <button
                 className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50"
                 onClick={() => handleAction('withdraw')}
@@ -251,7 +262,7 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
               >
                 {isWithdrawing
                   ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Claiming...</>
-                  : <><Coins className="w-3.5 h-3.5" /> Withdraw</>}
+                  : <><Coins className="w-3.5 h-3.5" /> {status === 'active' ? 'Withdraw' : 'Claim'}</>}
               </button>
             )}
             {status === 'active' && (
