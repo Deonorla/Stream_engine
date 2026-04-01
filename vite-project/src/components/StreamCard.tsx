@@ -85,7 +85,7 @@ const ProgressRing = ({ progress, size = 80, strokeWidth = 6, status = 'active' 
 // Status Badge
 const StatusBadge = ({ status }) => {
   const badges = {
-    active: { label: 'Active', Icon: CheckCircle, class: 'chip-success', animate: true },
+    active: { label: 'Active', Icon: CheckCircle, class: 'inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5', animate: true },
     low: { label: 'Low Balance', Icon: AlertTriangle, class: 'chip-warning', animate: false },
     expired: { label: 'Completed', Icon: CheckCircle, class: 'chip', animate: false },
     cancelled: { label: 'Cancelled', Icon: XCircle, class: 'chip-error', animate: false },
@@ -95,7 +95,7 @@ const StatusBadge = ({ status }) => {
   const IconComponent = badge.Icon;
 
   return (
-    <span className={`${badge.class} flex items-center gap-1`}>
+    <span className={badge.class}>
       <IconComponent className={`w-3 h-3 ${badge.animate ? 'animate-pulse' : ''}`} />
       {badge.label}
     </span>
@@ -105,16 +105,15 @@ const StatusBadge = ({ status }) => {
 // Confirmation Modal
 const ConfirmModal = ({ isOpen, title, message, onConfirm, onCancel, variant = 'danger' }) => {
   if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-sm glass rounded-2xl p-6 animate-scale-in">
-        <h3 className="text-lg font-bold text-white">{title}</h3>
-        <p className="mt-2 text-sm text-white/70">{message}</p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/30 backdrop-blur-sm">
+      <div className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-xl">
+        <h3 className="text-lg font-headline font-black text-slate-900">{title}</h3>
+        <p className="mt-2 text-sm text-slate-500">{message}</p>
         <div className="mt-6 flex gap-3">
-          <button className="btn-outline flex-1" onClick={onCancel}>Cancel</button>
+          <button className="flex-1 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-sm transition-colors" onClick={onCancel}>Cancel</button>
           <button
-            className={`flex-1 ${variant === 'danger' ? 'btn-danger' : 'btn-primary'}`}
+            className={`flex-1 px-4 py-2.5 font-semibold rounded-xl text-sm text-white transition-colors ${variant === 'danger' ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-500 hover:bg-blue-600'}`}
             onClick={onConfirm}
           >
             Confirm
@@ -136,7 +135,6 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
   const duration = Math.max(1, stream.stopTime - stream.startTime);
   const progressPct = Math.min(100, (elapsed / duration) * 100);
 
-  // Determine status
   const getStatus = () => {
     if (!stream.isActive) return progressPct >= 100 ? 'expired' : 'cancelled';
     const remainingPct = 100 - progressPct;
@@ -145,12 +143,9 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
   };
 
   const status = getStatus();
-  const streamTokenSymbol = stream.paymentTokenSymbol || stream.assetCode || paymentTokenSymbol;
 
-  // Real-time claimable balance simulation — offset by already-withdrawn amount
   useEffect(() => {
     if (status !== 'active') return;
-
     const flowRate = parseFloat(formatEth(stream.flowRate)) || 0;
     const withdrawn = parseFloat(formatEth(stream.amountWithdrawn ?? 0n)) || 0;
     const interval = setInterval(() => {
@@ -158,13 +153,10 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
       const streamed = Math.min(now - stream.startTime, duration) * flowRate;
       setLiveClaimable(Math.max(0, streamed - withdrawn));
     }, 100);
-
     return () => clearInterval(interval);
   }, [stream, status, formatEth, duration]);
 
-  const handleAction = (action) => {
-    setShowConfirm(action);
-  };
+  const handleAction = (action) => setShowConfirm(action);
 
   const confirmAction = async () => {
     const action = showConfirm;
@@ -176,89 +168,95 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
     if (action === 'cancel') onCancel?.(stream.id);
   };
 
+  const timeRemaining = Math.max(0, duration - elapsed);
+  const hoursLeft = Math.floor(timeRemaining / 3600);
+  const minsLeft = Math.floor((timeRemaining % 3600) / 60);
+
   return (
     <>
-      <div className={`
-        card-glass relative overflow-hidden p-5 transition-all duration-300
-        ${isExpanded ? 'ring-1 ring-flowpay-500/30' : ''}
-        ${status === 'active' ? 'hover-lift' : 'opacity-80'}
-      `}>
-        {/* Background glow */}
-        {status === 'active' && (
-          <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-flowpay-500/10 blur-2xl" />
-        )}
-
-        {/* Main Content */}
-        <div className="relative flex items-start gap-4">
-          {/* Progress Ring */}
-          <ProgressRing progress={progressPct} status={status} />
-
-          {/* Stream Info */}
-          <div className="flex-1 min-w-0">
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-4 mb-5">
+          <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-mono text-sm text-white/60">#{stream.id}</span>
+              <span className="text-xs font-label font-bold uppercase tracking-widest text-slate-400">
+                {variant === 'incoming' ? 'Incoming' : 'Outgoing'}
+              </span>
+              <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 rounded-lg px-2 py-0.5">ID: {stream.id}</span>
               <StatusBadge status={status} />
             </div>
-
-            <div className="text-sm text-white/60 truncate">
-              {variant === 'incoming' ? (
-                <span>From: <span className="font-mono text-white/80">{stream.sender?.slice(0, 8)}...{stream.sender?.slice(-6)}</span></span>
-              ) : (
-                <span>To: <span className="font-mono text-white/80">{stream.recipient?.slice(0, 8)}...{stream.recipient?.slice(-6)}</span></span>
-              )}
-            </div>
-
-            <div className="mt-2 flex items-baseline gap-2">
-              <span className="text-xl font-bold text-white">{formatEth(stream.totalAmount)}</span>
-              <span className="text-sm text-white/50">{streamTokenSymbol}</span>
-            </div>
-
-            <div className="text-xs font-mono text-white/50">
-              Rate: {formatEth(stream.flowRate)} {streamTokenSymbol}/sec
+            <div className="text-sm text-slate-500 font-mono truncate max-w-[220px]">
+              {variant === 'incoming'
+                ? `From: ${stream.sender?.slice(0, 8)}…${stream.sender?.slice(-6)}`
+                : `To: ${stream.recipient?.slice(0, 8)}…${stream.recipient?.slice(-6)}`}
             </div>
           </div>
 
-          {/* Claimable Balance (for incoming) */}
+          {/* Claimable (incoming only) */}
           {variant === 'incoming' && status === 'active' && (
-            <div className="text-right">
-              <div className="text-xs text-white/50">Claimable</div>
-              <div className="text-lg font-bold text-success-400">
+            <div className="text-right shrink-0">
+              <div className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-0.5">Claimable</div>
+              <div className="text-xl font-headline font-black text-emerald-600">
                 <AnimatedBalance value={liveClaimable} />
               </div>
-              <div className="text-xs text-white/50">{streamTokenSymbol}</div>
-              {stream.amountWithdrawn > 0n && (
-                <div className="text-xs text-white/35 mt-0.5">
-                  {formatEth(stream.amountWithdrawn)} claimed
-                </div>
-              )}
+              <div className="text-xs text-slate-400">{paymentTokenSymbol}</div>
             </div>
           )}
         </div>
 
-        {/* Quick Actions */}
-        <div className="mt-4 flex items-center justify-between">
+        {/* Progress bar */}
+        <div className="mb-4">
+          <div className="flex justify-between text-xs text-slate-400 mb-1.5">
+            <span>{Math.round(progressPct)}% streamed</span>
+            <span>{hoursLeft}h {minsLeft}m left</span>
+          </div>
+          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                status === 'active' ? 'bg-gradient-to-r from-blue-500 to-purple-500' :
+                status === 'low' ? 'bg-amber-400' : 'bg-slate-300'
+              }`}
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Amount + rate */}
+        <div className="flex items-end justify-between mb-5">
+          <div>
+            <div className="text-2xl font-headline font-black text-slate-900">
+              {formatEth(stream.totalAmount)}
+              <span className="text-base font-body font-normal text-slate-400 ml-1">{paymentTokenSymbol}</span>
+            </div>
+            <div className="text-xs text-slate-400 font-mono mt-0.5">
+              {formatEth(stream.flowRate)} {paymentTokenSymbol}/sec
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-between">
           <button
-            className="text-sm text-white/50 hover:text-white flex items-center gap-1"
+            className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
             onClick={() => setIsExpanded(!isExpanded)}
           >
-            {isExpanded ? '▲ Less' : '▼ More'}
+            {isExpanded ? '▲ Less details' : '▼ More details'}
           </button>
-
           <div className="flex gap-2">
             {variant === 'incoming' && status === 'active' && (
               <button
-                className="btn-success text-sm px-3 py-1.5 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50"
                 onClick={() => handleAction('withdraw')}
                 disabled={isWithdrawing}
               >
                 {isWithdrawing
-                  ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Claiming...</>
-                  : <><Coins className="w-4 h-4" /> Withdraw</>}
+                  ? <><span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Claiming...</>
+                  : <><Coins className="w-3.5 h-3.5" /> Withdraw</>}
               </button>
             )}
             {status === 'active' && (
               <button
-                className="btn-danger text-sm px-3 py-1.5"
+                className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors"
                 onClick={() => handleAction('cancel')}
               >
                 Cancel
@@ -267,40 +265,27 @@ export default function StreamCard({ stream, variant, formatEth, onWithdraw, onC
           </div>
         </div>
 
-        {/* Expanded Details */}
+        {/* Expanded details */}
         {isExpanded && (
-          <div className="mt-4 pt-4 border-t border-white/10 animate-slide-down">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <div className="text-white/50">Start Time</div>
-                <div className="font-mono text-white/80">
-                  {new Date(stream.startTime * 1000).toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div className="text-white/50">End Time</div>
-                <div className="font-mono text-white/80">
-                  {new Date(stream.stopTime * 1000).toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div className="text-white/50">Elapsed</div>
-                <div className="font-mono text-white/80">
-                  {Math.floor(elapsed / 3600)}h {Math.floor((elapsed % 3600) / 60)}m
-                </div>
-              </div>
-              <div>
-                <div className="text-white/50">Remaining</div>
-                <div className="font-mono text-white/80">
-                  {Math.floor((duration - elapsed) / 3600)}h {Math.floor(((duration - elapsed) % 3600) / 60)}m
-                </div>
-              </div>
+          <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-0.5">Start</div>
+              <div className="font-mono text-slate-600 text-xs">{new Date(stream.startTime * 1000).toLocaleString()}</div>
             </div>
+            <div>
+              <div className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-0.5">End</div>
+              <div className="font-mono text-slate-600 text-xs">{new Date(stream.stopTime * 1000).toLocaleString()}</div>
+            </div>
+            {stream.amountWithdrawn > 0n && (
+              <div className="col-span-2">
+                <div className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-0.5">Already Claimed</div>
+                <div className="font-mono text-slate-600 text-xs">{formatEth(stream.amountWithdrawn)} {paymentTokenSymbol}</div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Confirmation Modal */}
       <ConfirmModal
         isOpen={showConfirm !== null}
         title={showConfirm === 'withdraw' ? 'Confirm Withdrawal' : 'Cancel Stream'}

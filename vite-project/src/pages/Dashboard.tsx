@@ -3,9 +3,39 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/cn';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
+import { paymentTokenSymbol } from '../contactInfo';
+
+function MiniStreamRow({ stream, variant, formatEth }) {
+  const now = Math.floor(Date.now() / 1000);
+  const duration = Math.max(1, stream.stopTime - stream.startTime);
+  const elapsed = Math.max(0, Math.min(now, stream.stopTime) - stream.startTime);
+  const progress = Math.min(100, (elapsed / duration) * 100);
+  const isActive = stream.isActive && now < stream.stopTime;
+
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-mono font-bold text-slate-700 bg-slate-100 rounded px-1.5 py-0.5">ID: {stream.id}</span>
+          <span className={`text-[10px] font-semibold ${isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
+            {isActive ? '● Active' : '○ Ended'}
+          </span>
+        </div>
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full" style={{ width: `${progress}%` }} />
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className="text-sm font-bold text-slate-900">{formatEth(stream.totalAmount)}</div>
+        <div className="text-[10px] text-slate-400">{paymentTokenSymbol}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
-  const { paymentBalance, xlmBalance, incomingStreams, outgoingStreams } = useWallet();
+  const { paymentBalance, xlmBalance, incomingStreams, outgoingStreams, formatEth } = useWallet();
+  const allStreams = [...outgoingStreams, ...incomingStreams].slice(0, 4);
 
   const fmt = (val) => parseFloat(val || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -39,7 +69,7 @@ export default function Dashboard() {
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-8 rounded-xl border border-slate-100 shadow-sm flex flex-col h-[320px]">
-          <div className="flex justify-between items-center mb-12">
+          <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
               <TrendingUp className="text-primary" size={20} />
               <h3 className="text-sm font-bold uppercase tracking-widest">Payment Streams</h3>
@@ -48,12 +78,25 @@ export default function Dashboard() {
               View all <ArrowUpRight size={12} />
             </Link>
           </div>
-          <div className="flex-1 flex flex-col items-center justify-center text-center">
-            <p className="text-slate-400 text-sm mb-6">No active streams</p>
-            <Link to="/app/streams" className="bg-primary text-white px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">
-              <Plus size={16} /> Create Stream
-            </Link>
-          </div>
+          {allStreams.length > 0 ? (
+            <div className="flex-1 overflow-auto">
+              {allStreams.map((s) => (
+                <MiniStreamRow
+                  key={s.id}
+                  stream={s}
+                  variant={outgoingStreams.includes(s) ? 'outgoing' : 'incoming'}
+                  formatEth={formatEth}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <p className="text-slate-400 text-sm mb-6">No active streams</p>
+              <Link to="/app/streams" className="bg-primary text-white px-6 py-2.5 rounded-lg text-xs font-bold uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">
+                <Plus size={16} /> Create Stream
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="bg-white p-8 rounded-xl border border-slate-100 shadow-sm flex flex-col h-[320px]">

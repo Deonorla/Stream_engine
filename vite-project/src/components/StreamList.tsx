@@ -6,16 +6,17 @@ import { Calendar, Coins, Zap, Search, Inbox, Pause, CheckCircle, Ban, Plus, Loa
 const FilterTab = ({ label, count, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`
-      px-4 py-2 rounded-lg text-sm font-medium transition-all
-      ${active
-        ? 'bg-flowpay-500/20 text-flowpay-300 border border-flowpay-500/30'
-        : 'text-white/60 hover:text-white hover:bg-white/5'}
-    `}
+    className={`px-4 py-2 rounded-2xl text-sm font-semibold transition-all ${
+      active
+        ? 'bg-blue-600 text-white shadow-sm'
+        : 'bg-white text-slate-500 hover:text-slate-700 border border-slate-200'
+    }`}
   >
     {label}
     {count > 0 && (
-      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${active ? 'bg-flowpay-500/30' : 'bg-white/10'}`}>
+      <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs font-bold ${
+        active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
+      }`}>
         {count}
       </span>
     )}
@@ -36,7 +37,7 @@ const SortDropdown = ({ value, onChange }) => {
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 focus:outline-none focus:border-flowpay-500"
+      className="bg-white border border-slate-200 rounded-2xl px-4 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-200"
     >
       {options.map(opt => (
         <option key={opt.value} value={opt.value} className="bg-surface-800">
@@ -50,13 +51,13 @@ const SortDropdown = ({ value, onChange }) => {
 // Search Input
 const SearchInput = ({ value, onChange }) => (
   <div className="relative">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
     <input
       type="text"
       placeholder="Search by ID or address..."
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="input-default pl-10 py-2"
+      className="w-full bg-white border-none rounded-2xl pl-12 pr-6 py-4 focus:ring-2 focus:ring-blue-200 focus:outline-none text-sm text-slate-700 placeholder:text-slate-400"
     />
   </div>
 );
@@ -129,7 +130,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
 export default function StreamList({
   title,
-  emptyText,
+  emptyText = 'No streams found.',
   isLoading,
   streams,
   variant,
