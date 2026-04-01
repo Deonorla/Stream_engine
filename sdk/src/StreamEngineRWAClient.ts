@@ -127,6 +127,25 @@ export class StreamEngineRWAClient {
         return response.assets || [];
     }
 
+    async listPaymentSessions(owner?: string) {
+        const suffix = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+        const response = await this.request(`/api/sessions${suffix}`);
+        return response.sessions || [];
+    }
+
+    async getPaymentSession(sessionId: number | string) {
+        const response = await this.request(`/api/sessions/${encodeURIComponent(String(sessionId))}`);
+        return response.session || null;
+    }
+
+    async syncPaymentSessionMetadata(sessionId: number | string, payload: Record<string, unknown>) {
+        const response = await this.request(`/api/sessions/${encodeURIComponent(String(sessionId))}/metadata`, {
+            method: "POST",
+            body: JSON.stringify(payload),
+        });
+        return response.session || null;
+    }
+
     async getAsset(tokenId: number) {
         const response = await this.request(`/api/rwa/assets/${tokenId}`);
         return response.asset;

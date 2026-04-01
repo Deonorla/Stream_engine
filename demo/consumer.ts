@@ -59,12 +59,29 @@ async function runDemo() {
   console.log('Request succeeded.');
   console.log(JSON.stringify(firstResponse.data, null, 2));
 
+  const firstSessions = await sdk.listSessions(senderAddress);
+  const latestSession = Array.isArray(firstSessions) && firstSessions.length > 0
+    ? firstSessions[firstSessions.length - 1]
+    : null;
+  if (latestSession) {
+    console.log('\nLive session snapshot after first request:');
+    console.log(JSON.stringify(latestSession, null, 2));
+  }
+
   console.log('\n[Step 2] Follow-up paid request');
   console.log('This should reuse the active session instead of opening a new one.\n');
 
   const secondResponse = await sdk.makeRequest(targetUrl);
   console.log('Second request succeeded.');
   console.log(JSON.stringify(secondResponse.data, null, 2));
+
+  if (latestSession && (latestSession as any).id) {
+    const refreshedSession = await sdk.getSession(String((latestSession as any).id));
+    console.log('\nRefreshed session snapshot after reuse:');
+    console.log(JSON.stringify(refreshedSession, null, 2));
+    console.log('\nCached SDK view of the same session:');
+    console.log(JSON.stringify(sdk.getStreamDetails(String((latestSession as any).id)), null, 2));
+  }
 
   console.log('\nDemo complete.');
 }

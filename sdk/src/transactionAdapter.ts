@@ -3,6 +3,8 @@ import { InterfaceAbi } from "ethers";
 export interface StreamCreationResult {
     streamId: string;
     startTime: bigint;
+    txHash?: string;
+    session?: unknown;
 }
 
 export interface StreamEngineTransactionAdapter {
@@ -28,4 +30,6 @@ export interface StreamEngineTransactionAdapter {
         functionName: string,
         args: unknown[]
     ): Promise<T>;
+    listSessions?<T = unknown>(owner: string): Promise<T[]>;
+    getSession?<T = unknown>(sessionId: string): Promise<T | null>;
 }

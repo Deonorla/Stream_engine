@@ -7,6 +7,28 @@ export interface StreamEngineStellarAdapterConfig {
     senderAddress: string;
 }
 
+export interface StellarSessionSnapshot {
+    id: number | string;
+    sender: string;
+    recipient: string;
+    totalAmount: string;
+    flowRate: string;
+    durationSeconds: number;
+    startTime: number;
+    stopTime: number;
+    amountWithdrawn: string;
+    claimableAmount?: string;
+    refundableAmount?: string;
+    consumedAmount?: string;
+    sessionStatus?: string;
+    sessionStatusLabel?: string;
+    linkedAssetTokenId?: number;
+    linkedAssetName?: string;
+    linkedAssetType?: string;
+    assetCode?: string;
+    assetIssuer?: string;
+}
+
 export class StreamEngineStellarAdapter implements StreamEngineTransactionAdapter {
     private apiBaseUrl: string;
     private senderAddress: string;
@@ -49,12 +71,30 @@ export class StreamEngineStellarAdapter implements StreamEngineTransactionAdapte
 
         const streamId = String(response.data?.streamId || response.data?.session?.id || "");
         const startTime = BigInt(response.data?.session?.startTime || response.data?.startTime || Math.floor(Date.now() / 1000));
+        const txHash = String(response.data?.txHash || response.data?.session?.txHash || "");
 
         if (!streamId) {
             throw new Error("Session open response did not include a stream/session id.");
         }
 
-        return { streamId, startTime };
+        let session = response.data?.session;
+        try {
+            const parsedMetadata = JSON.parse(String(metadata || "{}"));
+            const syncResponse = await axios.post(`${this.apiBaseUrl}/api/sessions/${encodeURIComponent(streamId)}/metadata`, {
+                metadata,
+                txHash,
+                fundingTxHash: txHash,
+                sender: this.senderAddress,
+                recipient,
+                assetCode: parsedMetadata?.paymentAssetCode || parsedMetadata?.assetCode || "",
+                assetIssuer: parsedMetadata?.paymentAssetIssuer || parsedMetadata?.assetIssuer || "",
+            });
+            session = syncResponse.data?.session || session;
+        } catch (error) {
+            console.warn("[StreamEngineStellarAdapter] Session metadata sync failed:", error);
+        }
+
+        return { streamId, startTime, txHash, session };
     }
 
     async callContract(
@@ -83,5 +123,17 @@ export class StreamEngineStellarAdapter implements StreamEngineTransactionAdapte
         }
 
         throw new Error(`StreamEngineStellarAdapter does not support readContract(${functionName})`);
+    }
+
+    async listSessions<T = StellarSessionSnapshot>(owner: string): Promise<T[]> {
+        const response = await axios.get(`${this.apiBaseUrl}/api/sessions`, {
+            params: { owner },
+        });
+        return response.data?.sessions || [];
+    }
+
+    async getSession<T = StellarSessionSnapshot>(sessionId: string): Promise<T | null> {
+        const response = await axios.get(`${this.apiBaseUrl}/api/sessions/${encodeURIComponent(String(sessionId))}`);
+        return response.data?.session || null;
     }
 }

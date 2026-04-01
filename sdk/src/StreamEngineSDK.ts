@@ -23,6 +23,12 @@ export interface StreamMetadata {
     startTime: number;
     rate: bigint;
     amount: bigint;
+    txHash?: string;
+    sessionStatus?: string;
+    sessionStatusLabel?: string;
+    refundableAmount?: string;
+    consumedAmount?: string;
+    linkedAssetTokenId?: number;
 }
 
 export class StreamEngineSDK {
@@ -278,7 +284,13 @@ export class StreamEngineSDK {
             streamId: streamData.streamId,
             startTime: Number(streamData.startTime),
             rate: rateBn,
-            amount: totalAmount
+            amount: totalAmount,
+            txHash: (streamData as any).txHash || "",
+            sessionStatus: (streamData as any).session?.sessionStatus || "",
+            sessionStatusLabel: (streamData as any).session?.sessionStatusLabel || "",
+            refundableAmount: (streamData as any).session?.refundableAmount || "0",
+            consumedAmount: (streamData as any).session?.consumedAmount || "0",
+            linkedAssetTokenId: (streamData as any).session?.linkedAssetTokenId || 0,
         });
 
         // 2. Retry Request with Header
@@ -310,17 +322,6 @@ export class StreamEngineSDK {
         const resolvedRecipient = normalizeRecipientAddress(recipient);
         const streamContract = this.adapter ? null : new Contract(contractAddress, this.MIN_ABI, this.wallet || this.provider);
 
-        // Metadata Construction
-        const enrichedMetadata = {
-            ...metadata,
-            agentId: this.agentId || "anonymous",
-            timestamp: Date.now(),
-            client: "StreamEngineSDK/1.0",
-            recipientInput: recipient,
-            resolvedRecipient,
-        };
-        const metadataString = JSON.stringify(enrichedMetadata);
-
         // If token address is not provided in header, try fetching from contract
         let paymentTokenAddress = tokenAddress;
         if (!paymentTokenAddress) {
@@ -339,6 +340,19 @@ export class StreamEngineSDK {
                 }
             }
         }
+
+        const enrichedMetadata = {
+            ...metadata,
+            agentId: this.agentId || "anonymous",
+            timestamp: Date.now(),
+            client: "StreamEngineSDK/1.0",
+            recipientInput: recipient,
+            resolvedRecipient,
+            paymentTokenAddress,
+            paymentTokenSymbol: this.tokenSymbol,
+            paymentAssetCode: this.tokenSymbol,
+        };
+        const metadataString = JSON.stringify(enrichedMetadata);
 
         if (this.adapter) {
             console.log(`[StreamEngineSDK] Approving ${this.tokenSymbol} through adapter...`);
@@ -464,14 +478,31 @@ export class StreamEngineSDK {
         return await axios(url, retryOptions);
     }
     public getStreamDetails(streamId: string): any {
-        // In a real implementation this would fetch from Contract
-        // For MVP SDK, we rely on the creation logs or cached metadata if we stored it deeper.
-        // Currently we only store simple metadata in cache (StreamMetadata interface doesn't have the JSON blob).
-        // Let's assume this helper is future-proof or we can parse the cache if we expand it.
+        const cached = Array.from(this.activeStreams.values()).find((stream) => stream.streamId === streamId);
         return {
             streamId,
             agentId: this.agentId || "unknown",
-            client: "StreamEngineSDK/1.0"
+            client: "StreamEngineSDK/1.0",
+            txHash: cached?.txHash || "",
+            sessionStatus: cached?.sessionStatus || "",
+            sessionStatusLabel: cached?.sessionStatusLabel || "",
+            refundableAmount: cached?.refundableAmount || "0",
+            consumedAmount: cached?.consumedAmount || "0",
+            linkedAssetTokenId: cached?.linkedAssetTokenId || 0,
         };
+    }
+
+    public async listSessions(owner: string): Promise<unknown[]> {
+        if (!this.adapter?.listSessions) {
+            throw new Error("The active adapter does not support listing payment sessions.");
+        }
+        return this.adapter.listSessions(owner);
+    }
+
+    public async getSession(streamId: string): Promise<unknown | null> {
+        if (!this.adapter?.getSession) {
+            throw new Error("The active adapter does not support loading payment sessions.");
+        }
+        return this.adapter.getSession(streamId);
     }
 }
