@@ -1,40 +1,26 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Bot, Activity, Zap, Store, TrendingUp, RefreshCw, Play, Pause, Settings, AlertTriangle, CheckCircle, Clock, ArrowUpRight, ArrowDownLeft, Target } from 'lucide-react';
+import { Bot, Activity, Zap, Store, TrendingUp, RefreshCw, Play, Pause, Settings, AlertTriangle, Target, Wallet, ArrowUpRight, ArrowDownLeft, BarChart2, Link as LinkIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import { fetchRwaAssets } from '../services/rwaApi.js';
 import { mapApiAssetToUiAsset } from './rwa/rwaData';
 import { cn } from '../lib/cn';
+import { getStoredAgentWallet } from '../lib/agentWallet';
+import AgentWalletPanel from '../components/AgentWalletPanel';
+import { useAgentBalances } from '../hooks/useAgentBalances';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AgentStatus = 'running' | 'paused' | 'idle';
-
 type LogEntry = {
-  id: number;
-  ts: number;
+  id: number; ts: number;
   type: 'action' | 'decision' | 'info' | 'error' | 'profit';
-  message: string;
-  detail?: string;
-  amount?: string;
-  asset?: string;
+  message: string; detail?: string; amount?: string; asset?: string;
 };
+type AgentRule = { id: string; label: string; enabled: boolean; value: string; unit: string };
 
-type ChatMessage = {
-  role: 'human' | 'agent';
-  text: string;
-  ts: number;
-};
-
-type AgentRule = {
-  id: string;
-  label: string;
-  enabled: boolean;
-  value: string;
-  unit: string;
-};
-
-// ─── Mock autonomous log generator ───────────────────────────────────────────
+// ─── Mock log ─────────────────────────────────────────────────────────────────
 
 let logId = 0;
 const MOCK_ACTIONS: Omit<LogEntry, 'id' | 'ts'>[] = [
@@ -47,7 +33,6 @@ const MOCK_ACTIONS: Omit<LogEntry, 'id' | 'ts'>[] = [
   { type: 'action',   message: 'Deployed payment stream to equipment provider', detail: 'Session #13 · 7 days · 5 USDC', amount: '-5.0 USDC' },
   { type: 'profit',   message: 'Flash advance executed on yield vault', detail: 'Advance: 18.3 USDC', amount: '+18.3 USDC' },
 ];
-
 function makeLog(override?: Partial<LogEntry>): LogEntry {
   const base = MOCK_ACTIONS[logId % MOCK_ACTIONS.length];
   return { ...base, ...override, id: ++logId, ts: Date.now() };
@@ -57,21 +42,17 @@ function makeLog(override?: Partial<LogEntry>): LogEntry {
 
 function LogRow({ entry }: { entry: LogEntry }) {
   const icons = {
-    action:   { Icon: Zap,          color: 'text-primary',    bg: 'bg-blue-50' },
-    decision: { Icon: Target,       color: 'text-purple-600', bg: 'bg-purple-50' },
-    info:     { Icon: Activity,     color: 'text-slate-500',  bg: 'bg-slate-100' },
-    error:    { Icon: AlertTriangle,color: 'text-red-500',    bg: 'bg-red-50' },
-    profit:   { Icon: TrendingUp,   color: 'text-secondary',  bg: 'bg-teal-50' },
+    action:   { Icon: Zap,           color: 'text-primary',    bg: 'bg-blue-50' },
+    decision: { Icon: Target,        color: 'text-purple-600', bg: 'bg-purple-50' },
+    info:     { Icon: Activity,      color: 'text-slate-500',  bg: 'bg-slate-100' },
+    error:    { Icon: AlertTriangle, color: 'text-red-500',    bg: 'bg-red-50' },
+    profit:   { Icon: TrendingUp,    color: 'text-secondary',  bg: 'bg-teal-50' },
   };
   const { Icon, color, bg } = icons[entry.type];
   const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -10 }}
-      animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0"
-    >
+    <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
+      className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0">
       <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${bg}`}>
         <Icon size={13} className={color} />
       </div>
@@ -81,9 +62,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
       </div>
       <div className="text-right shrink-0">
         {entry.amount && (
-          <p className={`text-xs font-bold ${entry.amount.startsWith('+') ? 'text-secondary' : 'text-red-500'}`}>
-            {entry.amount}
-          </p>
+          <p className={`text-xs font-bold ${entry.amount.startsWith('+') ? 'text-secondary' : 'text-red-500'}`}>{entry.amount}</p>
         )}
         <p className="text-[10px] text-slate-300 mt-0.5">{time}</p>
       </div>
@@ -91,23 +70,12 @@ function LogRow({ entry }: { entry: LogEntry }) {
   );
 }
 
-function StatPill({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
-  return (
-    <div className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-4 py-2.5 shadow-sm">
-      <Icon size={14} className={color} />
-      <div>
-        <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{label}</p>
-        <p className={`text-sm font-headline font-bold ${color}`}>{value}</p>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function AgentConsolePage() {
-  const { walletAddress, paymentBalance, xlmBalance, outgoingStreams, incomingStreams, formatEth, withdraw, cancel, refreshStreams } = useWallet();
-  const shortAddress = walletAddress ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}` : 'Not connected';
+  const { walletAddress, paymentBalance, xlmBalance, outgoingStreams, incomingStreams, refreshStreams } = useWallet();
+  const agentWallet = getStoredAgentWallet();
+  const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentWallet?.publicKey);
   const isConnected = Boolean(walletAddress);
 
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
@@ -115,42 +83,37 @@ export default function AgentConsolePage() {
   const [totalProfit, setTotalProfit] = useState(0);
   const [actionsCount, setActionsCount] = useState(0);
   const [rules, setRules] = useState<AgentRule[]>([
-    { id: 'min_yield',    label: 'Min yield target',     enabled: true,  value: '5',   unit: '%' },
-    { id: 'max_budget',   label: 'Max budget per trade',  enabled: true,  value: '50',  unit: 'USDC' },
-    { id: 'auto_claim',   label: 'Auto-claim threshold',  enabled: true,  value: '1',   unit: 'USDC' },
-    { id: 'auto_renew',   label: 'Auto-renew sessions',   enabled: false, value: '24',  unit: 'hrs before' },
+    { id: 'min_yield',  label: 'Min yield target',    enabled: true,  value: '5',  unit: '%' },
+    { id: 'max_budget', label: 'Max budget per trade', enabled: true,  value: '50', unit: 'USDC' },
+    { id: 'auto_claim', label: 'Auto-claim threshold', enabled: true,  value: '1',  unit: 'USDC' },
+    { id: 'auto_renew', label: 'Auto-renew sessions',  enabled: false, value: '24', unit: 'hrs before' },
   ]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([{
-    role: 'agent',
-    text: 'Agent ready. Press Run to start autonomous trading, or ask me anything.',
-    ts: Date.now(),
-  }]);
-  const [chatInput, setChatInput] = useState('');
-  const [isThinking, setIsThinking] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [marketAssets, setMarketAssets] = useState<any[]>([]);
 
   const loopRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logBottomRef = useRef<HTMLDivElement>(null);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
-  useEffect(() => { chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages]);
+
+  useEffect(() => {
+    fetchRwaAssets().then(raw => setMarketAssets(raw.slice(0, 4).map(mapApiAssetToUiAsset))).catch(() => {});
+  }, []);
 
   const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'ts'>) => {
-    setLogs((l) => [...l.slice(-99), makeLog(entry)]);
+    setLogs(l => [...l.slice(-99), makeLog(entry)]);
     if (entry.type === 'profit' && entry.amount) {
       const val = parseFloat(entry.amount.replace('+', '')) || 0;
-      setTotalProfit((p) => Math.round((p + val) * 100) / 100);
+      setTotalProfit(p => Math.round((p + val) * 100) / 100);
     }
-    if (entry.type === 'action') setActionsCount((c) => c + 1);
+    if (entry.type === 'action') setActionsCount(c => c + 1);
   }, []);
 
   const startAgent = useCallback(() => {
     setAgentStatus('running');
     addLog({ type: 'info', message: 'Autonomous agent started', detail: `Rules active: ${rules.filter(r => r.enabled).length}` });
     loopRef.current = setInterval(() => {
-      const pick = MOCK_ACTIONS[Math.floor(Math.random() * MOCK_ACTIONS.length)];
-      addLog(pick);
+      addLog(MOCK_ACTIONS[Math.floor(Math.random() * MOCK_ACTIONS.length)]);
     }, 4000);
   }, [addLog, rules]);
 
@@ -168,45 +131,30 @@ export default function AgentConsolePage() {
 
   useEffect(() => () => { if (loopRef.current) clearInterval(loopRef.current); }, []);
 
-  const sendChat = useCallback(async () => {
-    const text = chatInput.trim();
-    if (!text || isThinking) return;
-    setChatInput('');
-    setChatMessages((m) => [...m, { role: 'human', text, ts: Date.now() }]);
-    setIsThinking(true);
-    try {
-      const context = { walletAddress, usdcBalance: paymentBalance, xlmBalance, outgoingStreams: outgoingStreams.length, incomingStreams: incomingStreams.length, agentStatus, actionsCount, totalProfit, network: 'Stellar Testnet' };
-      const res = await fetch('http://localhost:3001/api/agent/chat', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, context }),
-      });
-      const data = await res.json();
-      setChatMessages((m) => [...m, { role: 'agent', text: data.reply || 'No response.', ts: Date.now() }]);
-    } catch {
-      setChatMessages((m) => [...m, { role: 'agent', text: 'Could not reach agent backend.', ts: Date.now() }]);
-    } finally {
-      setIsThinking(false);
-    }
-  }, [chatInput, isThinking, walletAddress, paymentBalance, xlmBalance, outgoingStreams, incomingStreams, agentStatus, actionsCount, totalProfit]);
-
   const statusConfig = {
-    running: { label: 'Running',  color: 'text-secondary',    bg: 'bg-emerald-50',  dot: 'bg-secondary animate-pulse' },
-    paused:  { label: 'Paused',   color: 'text-amber-600',    bg: 'bg-amber-50',    dot: 'bg-amber-400' },
-    idle:    { label: 'Idle',     color: 'text-slate-500',    bg: 'bg-slate-100',   dot: 'bg-slate-300' },
+    running: { label: 'Running', color: 'text-secondary',  bg: 'bg-emerald-50', dot: 'bg-secondary animate-pulse' },
+    paused:  { label: 'Paused',  color: 'text-amber-600',  bg: 'bg-amber-50',   dot: 'bg-amber-400' },
+    idle:    { label: 'Idle',    color: 'text-slate-500',  bg: 'bg-slate-100',  dot: 'bg-slate-300' },
   }[agentStatus];
+
+  const activeStreams = outgoingStreams.filter(s => !['ended','cancelled','completed'].includes(s.sessionStatus)).length;
+  const earningStreams = incomingStreams.filter(s => !['ended','cancelled','completed'].includes(s.sessionStatus)).length;
+  const fmt = (v: any) => parseFloat(v || 0).toFixed(2);
 
   return (
     <div className="flex flex-col h-[calc(100vh-65px)] bg-slate-50/50">
 
-      {/* ── Top control bar ── */}
+      {/* ── Top bar ── */}
       <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shrink-0 gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl ethereal-gradient flex items-center justify-center shadow-md shadow-blue-500/20">
             <Bot size={16} className="text-white" />
           </div>
           <div>
-            <p className="text-sm font-bold font-headline text-slate-900">Autonomous Agent</p>
-            <p className="text-[10px] font-mono text-slate-400">{shortAddress}</p>
+            <p className="text-sm font-bold font-headline text-slate-900">My Agent</p>
+            <p className="text-[10px] font-mono text-slate-400">
+              {agentWallet ? `${agentWallet.publicKey.slice(0,6)}…${agentWallet.publicKey.slice(-4)}` : 'No agent wallet'}
+            </p>
           </div>
           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold ${statusConfig.bg} ${statusConfig.color}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${statusConfig.dot}`} />
@@ -214,11 +162,21 @@ export default function AgentConsolePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <StatPill icon={TrendingUp}    label="Total Profit"  value={`+${totalProfit.toFixed(2)} USDC`} color="text-secondary" />
-          <StatPill icon={Zap}           label="Actions"       value={String(actionsCount)}               color="text-primary" />
-          <StatPill icon={ArrowUpRight}  label="Spending"      value={String(outgoingStreams.length)}      color="text-primary" />
-          <StatPill icon={ArrowDownLeft} label="Earning"       value={String(incomingStreams.length)}      color="text-secondary" />
+        <div className="flex items-center gap-2 flex-wrap">
+          {[
+            { icon: TrendingUp,    label: 'P&L',      value: `+${totalProfit.toFixed(2)} USDC`, color: 'text-secondary' },
+            { icon: Zap,           label: 'Actions',  value: String(actionsCount),               color: 'text-primary' },
+            { icon: ArrowUpRight,  label: 'Spending', value: String(activeStreams),               color: 'text-primary' },
+            { icon: ArrowDownLeft, label: 'Earning',  value: String(earningStreams),              color: 'text-secondary' },
+          ].map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
+              <Icon size={13} className={color} />
+              <div>
+                <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{label}</p>
+                <p className={`text-sm font-headline font-bold ${color}`}>{value}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="flex items-center gap-2">
@@ -243,12 +201,10 @@ export default function AgentConsolePage() {
           )}
           {agentStatus === 'paused' && (
             <div className="flex gap-2">
-              <button onClick={startAgent}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:scale-105 transition-all">
+              <button onClick={startAgent} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold hover:scale-105 transition-all">
                 <Play size={14} /> Resume
               </button>
-              <button onClick={stopAgent}
-                className="px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-bold hover:bg-red-50 transition-all">
+              <button onClick={stopAgent} className="px-4 py-2.5 rounded-xl border border-red-200 text-red-500 text-sm font-bold hover:bg-red-50 transition-all">
                 Stop
               </button>
             </div>
@@ -256,13 +212,13 @@ export default function AgentConsolePage() {
         </div>
       </div>
 
-      {/* ── Settings panel ── */}
+      {/* ── Rules panel ── */}
       <AnimatePresence>
         {showSettings && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
             className="bg-white border-b border-slate-100 overflow-hidden shrink-0">
             <div className="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-              {rules.map((rule) => (
+              {rules.map(rule => (
                 <div key={rule.id} className="flex items-center gap-3 bg-slate-50 rounded-2xl p-4 border border-slate-100">
                   <button onClick={() => setRules(r => r.map(x => x.id === rule.id ? { ...x, enabled: !x.enabled } : x))}
                     className={cn('w-9 h-5 rounded-full transition-colors relative shrink-0 flex items-center', rule.enabled ? 'bg-primary' : 'bg-slate-200')}>
@@ -271,12 +227,9 @@ export default function AgentConsolePage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 truncate">{rule.label}</p>
                     <div className="flex items-center gap-1 mt-1">
-                      <input
-                        type="number"
-                        value={rule.value}
-                        onChange={(e) => setRules(r => r.map(x => x.id === rule.id ? { ...x, value: e.target.value } : x))}
-                        className="w-16 bg-white border border-slate-100 rounded-lg px-2 py-1 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      />
+                      <input type="number" value={rule.value}
+                        onChange={e => setRules(r => r.map(x => x.id === rule.id ? { ...x, value: e.target.value } : x))}
+                        className="w-16 bg-white border border-slate-100 rounded-lg px-2 py-1 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-200" />
                       <span className="text-xs text-slate-400">{rule.unit}</span>
                     </div>
                   </div>
@@ -287,15 +240,15 @@ export default function AgentConsolePage() {
         )}
       </AnimatePresence>
 
-      {/* ── Main content: Activity log + Chat ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_380px] overflow-hidden">
+      {/* ── Main 3-column layout ── */}
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_1fr_320px] overflow-hidden">
 
-        {/* Activity log */}
+        {/* Col 1: Activity feed */}
         <div className="flex flex-col overflow-hidden border-r border-slate-100">
           <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-2">
               <Activity size={15} className="text-primary" />
-              <span className="text-xs font-label uppercase tracking-widest text-slate-500 font-bold">Live Activity Feed</span>
+              <span className="text-xs font-label uppercase tracking-widest text-slate-500 font-bold">Live Activity</span>
             </div>
             {agentStatus === 'running' && (
               <span className="flex items-center gap-1.5 text-[10px] text-secondary font-bold">
@@ -304,121 +257,134 @@ export default function AgentConsolePage() {
             )}
           </div>
           <div className="flex-1 overflow-y-auto px-6 py-2">
-            {logs.map((entry) => <LogRow key={entry.id} entry={entry} />)}
+            {logs.map(entry => <LogRow key={entry.id} entry={entry} />)}
             <div ref={logBottomRef} />
           </div>
-
-          {/* Marketplace preview strip */}
-          <MarketplaceStrip agentStatus={agentStatus} addLog={addLog} />
         </div>
 
-        {/* Chat panel */}
-        <div className="flex flex-col overflow-hidden bg-white">
-          <div className="px-5 py-3 border-b border-slate-100 shrink-0">
-            <p className="text-xs font-label uppercase tracking-widest text-slate-400 font-bold">Instruct Agent</p>
+        {/* Col 2: Marketplace opportunities */}
+        <div className="flex flex-col overflow-hidden border-r border-slate-100">
+          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2">
+              <Store size={15} className="text-purple-600" />
+              <span className="text-xs font-label uppercase tracking-widest text-slate-500 font-bold">Opportunities</span>
+            </div>
+            <Link to="/app/marketplace" className="text-[10px] font-bold text-slate-400 hover:text-primary flex items-center gap-1 transition-colors">
+              Full market <ArrowUpRight size={11} />
+            </Link>
           </div>
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={cn('flex gap-2', msg.role === 'human' ? 'justify-end' : 'justify-start')}>
-                {msg.role === 'agent' && (
-                  <div className="w-7 h-7 rounded-lg ethereal-gradient flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-                    <Bot size={12} className="text-white" />
-                  </div>
-                )}
-                <div className={cn(
-                  'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
-                  msg.role === 'human'
-                    ? 'bg-primary text-white rounded-tr-sm'
-                    : 'bg-slate-50 border border-slate-100 text-slate-800 rounded-tl-sm'
-                )}>
-                  {msg.text}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {marketAssets.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-12">
+                <Store size={32} className="text-slate-200 mb-3" />
+                <p className="text-sm text-slate-400">No assets available yet.</p>
+                <Link to="/app/marketplace" className="mt-4 text-xs font-bold text-primary hover:underline">Browse marketplace</Link>
+              </div>
+            ) : marketAssets.map(asset => (
+              <div key={asset.id} className="bg-white rounded-2xl border border-slate-100 p-4 flex items-center gap-4 hover:shadow-md transition-shadow">
+                <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden shrink-0">
+                  <img src={`https://picsum.photos/seed/${asset.type}${asset.id}/100/100`} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                 </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{asset.name}</p>
+                  <p className="text-xs text-slate-400 truncate">{asset.location}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] font-bold text-secondary">${asset.pricePerHour.toFixed(4)}/hr</span>
+                    <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-full',
+                      asset.verificationStatus === 'verified' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
+                      {asset.verificationStatusLabel || 'Pending'}
+                    </span>
+                  </div>
+                </div>
+                <Link to="/app/marketplace"
+                  className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shrink-0">
+                  <BarChart2 size={14} />
+                </Link>
               </div>
             ))}
-            {isThinking && (
-              <div className="flex gap-2">
-                <div className="w-7 h-7 rounded-lg ethereal-gradient flex items-center justify-center shrink-0">
-                  <Bot size={12} className="text-white animate-pulse" />
+          </div>
+
+          {/* P&L summary */}
+          <div className="border-t border-slate-100 bg-white p-4 shrink-0">
+            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Session P&L</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { label: 'Profit',   value: `+${totalProfit.toFixed(2)}`, color: 'text-secondary' },
+                { label: 'Actions',  value: String(actionsCount),          color: 'text-primary' },
+                { label: 'Streams',  value: String(activeStreams),          color: 'text-purple-600' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
+                  <p className={`text-base font-headline font-black ${color}`}>{value}</p>
+                  <p className="text-[9px] font-label uppercase tracking-widest text-slate-400 mt-0.5">{label}</p>
                 </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl rounded-tl-sm px-4 py-3">
-                  <span className="flex gap-1">
-                    {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 bg-slate-300 rounded-full animate-bounce" style={{ animationDelay: `${i*0.15}s` }} />)}
-                  </span>
-                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Col 3: Agent wallet + quick links */}
+        <div className="flex flex-col overflow-hidden bg-white">
+          <div className="px-5 py-4 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Wallet size={14} className="text-primary" />
+              <p className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-500">Agent Wallet</p>
+            </div>
+            <AgentWalletPanel />
+          </div>
+
+          {/* Agent wallet balances */}
+          {agentWallet && (
+            <div className="px-5 py-4 border-b border-slate-100 shrink-0">
+              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Agent Balances</p>
+              <div className="space-y-2">
+                {[
+                  { label: 'XLM',  value: `${agentXlm} XLM`,  color: 'text-secondary' },
+                  { label: 'USDC', value: `${agentUsdc} USDC`, color: 'text-primary' },
+                ].map(({ label, value, color }) => (
+                  <div key={label} className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                    <span className="text-[10px] font-label uppercase tracking-widest text-slate-400">{label}</span>
+                    <span className={`text-sm font-bold ${color}`}>{value}</span>
+                  </div>
+                ))}
               </div>
-            )}
-            <div ref={chatBottomRef} />
-          </div>
-          <div className="px-4 py-3 border-t border-slate-100 shrink-0">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && sendChat()}
-                placeholder="Instruct your agent..."
-                className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-              />
-              <button onClick={sendChat} disabled={!chatInput.trim() || isThinking}
-                className="w-10 h-10 rounded-xl ethereal-gradient flex items-center justify-center text-white shadow-md shadow-blue-500/20 disabled:opacity-40 hover:scale-105 transition-all">
-                <Send size={14} />
-              </button>
             </div>
+          )}
+
+          {/* Owner wallet context */}
+          {/* <div className="px-5 py-4 border-b border-slate-100 shrink-0">
+            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Owner Wallet (Freighter)</p>
+            <div className="space-y-2">
+              {[
+                { label: 'XLM',  value: `${fmt(xlmBalance)} XLM`,         color: 'text-slate-700' },
+                { label: 'USDC', value: `${fmt(paymentBalance)} USDC`,     color: 'text-primary' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                  <span className="text-[10px] font-label uppercase tracking-widest text-slate-400">{label}</span>
+                  <span className={`text-sm font-bold ${color}`}>{value}</span>
+                </div>
+              ))}
+            </div>
+          </div> */}
+
+          {/* Quick links */}
+          <div className="px-5 py-4 space-y-2 flex-1">
+            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Quick Actions</p>
+            {[
+              { label: 'Browse Marketplace',  sub: 'Find yield opportunities',  href: '/app/marketplace', color: 'text-purple-600', bg: 'bg-purple-50' },
+              { label: 'Payment Streams',     sub: 'Deploy agent payments',      href: '/app/streams',     color: 'text-primary',    bg: 'bg-blue-50' },
+              { label: 'RWA Studio',          sub: 'Owner tools — mint & manage',href: '/app/rwa',         color: 'text-slate-600',  bg: 'bg-slate-50' },
+            ].map(({ label, sub, href, color, bg }) => (
+              <Link key={href} to={href}
+                className={cn('flex items-center justify-between p-3 rounded-2xl border border-slate-100 hover:shadow-sm transition-all group', bg)}>
+                <div>
+                  <p className={`text-xs font-bold ${color}`}>{label}</p>
+                  <p className="text-[10px] text-slate-400">{sub}</p>
+                </div>
+                <LinkIcon size={13} className="text-slate-300 group-hover:text-primary transition-colors" />
+              </Link>
+            ))}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Marketplace strip ────────────────────────────────────────────────────────
-
-function MarketplaceStrip({ agentStatus, addLog }: { agentStatus: AgentStatus; addLog: (e: any) => void }) {
-  const [assets, setAssets] = useState<any[]>([]);
-
-  useEffect(() => {
-    fetchRwaAssets().then(raw => setAssets(raw.slice(0, 6).map(mapApiAssetToUiAsset))).catch(() => {});
-  }, []);
-
-  const handleTrade = (asset: any) => {
-    if (agentStatus !== 'running') return;
-    addLog({ type: 'action', message: `Agent initiated rental on ${asset.name || 'asset'}`, detail: 'Awaiting Freighter signature', amount: '-5.0 USDC', asset: asset.type });
-  };
-
-  if (!assets.length) return null;
-
-  return (
-    <div className="border-t border-slate-100 bg-white shrink-0">
-      <div className="flex items-center justify-between px-6 py-3">
-        <div className="flex items-center gap-2">
-          <Store size={14} className="text-purple-600" />
-          <span className="text-xs font-label uppercase tracking-widest text-slate-400 font-bold">Marketplace · Agent View</span>
-        </div>
-        <span className="text-[10px] text-slate-400">{assets.length} assets available</span>
-      </div>
-      <div className="flex gap-4 px-6 pb-4 overflow-x-auto">
-        {assets.map((asset) => (
-          <div key={asset.id} className="shrink-0 w-56 rounded-2xl border border-slate-100 bg-slate-50 p-4 flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-label uppercase tracking-widest text-slate-400">{asset.type || 'Asset'}</span>
-              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', asset.verificationStatusLabel === 'verified' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600')}>
-                {asset.verificationStatusLabel || 'Pending'}
-              </span>
-            </div>
-            <p className="text-sm font-bold text-slate-900 truncate">{asset.name || `Asset #${asset.tokenId}`}</p>
-            <p className="text-xs text-slate-400 truncate">{asset.location || 'Location unknown'}</p>
-            <div className="flex items-center justify-between mt-1">
-              <span className="text-xs font-bold text-secondary">{asset.yieldTarget || '—'} APY</span>
-              <button
-                onClick={() => handleTrade(asset)}
-                disabled={agentStatus !== 'running'}
-                className="text-[10px] font-bold px-3 py-1.5 rounded-lg bg-primary text-white disabled:opacity-30 hover:scale-105 transition-all"
-              >
-                Trade
-              </button>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );

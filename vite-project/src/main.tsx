@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import './index.css'
 import { ToastProvider } from './components/ui'
 import { WalletProvider } from './context/WalletContext'
+import { AppModeProvider } from './context/AppModeContext'
 import Layout from './components/Layout'
 import LandingPage from './pages/LandingPage'
 import Dashboard from './pages/Dashboard'
@@ -26,7 +27,6 @@ function AppRoutes() {
       <Route path="/app/marketplace" element={<Layout><Marketplace /></Layout>} />
       <Route path="/app/docs" element={<Layout><Docs /></Layout>} />
       <Route path="/app/docs/:section" element={<Layout><Docs /></Layout>} />
-      {/* Legacy redirects */}
       <Route path="/streams" element={<Navigate to="/app/streams" replace />} />
       <Route path="/agent" element={<Navigate to="/app/agent" replace />} />
       <Route path="/docs" element={<Navigate to="/app/docs" replace />} />
@@ -38,12 +38,14 @@ function AppRoutes() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
-      <ToastProvider>
-        <WalletProvider>
-          <AppRoutes />
-        </WalletProvider>
-      </ToastProvider>
-    </BrowserRouter>
+    <AppModeProvider>
+      <BrowserRouter>
+        <ToastProvider>
+          <WalletProvider>
+            <AppRoutes />
+          </WalletProvider>
+        </ToastProvider>
+      </BrowserRouter>
+    </AppModeProvider>
   </StrictMode>,
 )

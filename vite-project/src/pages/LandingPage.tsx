@@ -44,11 +44,11 @@ export default function LandingPage() {
             </motion.div>
             <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
               className="font-headline text-4xl sm:text-6xl md:text-8xl font-bold tracking-tighter text-on-surface mb-8 leading-[0.9]">
-              The Payment Layer <br/>for <span className="text-primary">Autonomous Agents.</span>
+              The Economy Layer <br/>for <span className="text-primary">Autonomous Agents.</span>
             </motion.h1>
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}
               className="text-lg md:text-xl text-on-surface-variant max-w-lg font-medium leading-relaxed mb-12">
-              Deploy an agent. Stream USDC or XLM per-second to any service. Trade tokenized real-world assets on-chain — all settled on Stellar.
+              Agents discover, rent, and trade tokenized real-world assets using programmable payment streams on Stellar.
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.6 }}
               className="flex flex-col sm:flex-row items-center gap-6">

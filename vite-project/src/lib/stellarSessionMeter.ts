@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
 import { signTransaction as signFreighterTransaction } from '@stellar/freighter-api';
 import { ACTIVE_NETWORK } from '../networkConfig.js';
 import {
@@ -12,7 +13,16 @@ function getSessionMeterContractId() {
   return String(ACTIVE_NETWORK.contractAddress || '').trim();
 }
 
-function createSessionMeterClient(publicKey?: string) {
+/** Sign with a raw Stellar Keypair (agent wallet) instead of Freighter */
+function makeKeypairSigner(keypair: Keypair) {
+  return async (xdr: string) => {
+    const tx = TransactionBuilder.fromXDR(xdr, ACTIVE_NETWORK.passphrase);
+    tx.sign(keypair);
+    return tx.toXDR();
+  };
+}
+
+function createSessionMeterClient(publicKey?: string, keypair?: Keypair) {
   const contractId = getSessionMeterContractId();
   if (!contractId || !contractId.startsWith('C')) {
     throw new Error('Session meter contract ID is not configured for Stellar.');
@@ -23,7 +33,7 @@ function createSessionMeterClient(publicKey?: string) {
     rpcUrl: ACTIVE_NETWORK.rpcUrl,
     networkPassphrase: ACTIVE_NETWORK.passphrase,
     publicKey,
-    signTransaction: signFreighterTransaction,
+    signTransaction: keypair ? makeKeypairSigner(keypair) : signFreighterTransaction,
   });
 }
 
@@ -135,6 +145,7 @@ export async function openStellarSession({
   totalAmount,
   durationSeconds,
   metadata,
+  keypair,
 }: {
   payer: string;
   recipient: string;
@@ -144,8 +155,9 @@ export async function openStellarSession({
   totalAmount: bigint;
   durationSeconds: number;
   metadata: string;
+  keypair?: Keypair;
 }) {
-  const client = createSessionMeterClient(payer);
+  const client = createSessionMeterClient(payer, keypair);
   const startTime = BigInt(Math.floor(Date.now() / 1000));
   const stopTime = startTime + BigInt(Math.max(1, Number(durationSeconds || 0)));
   const metadataHash = await sha256Buffer(metadata);
@@ -190,11 +202,13 @@ export async function claimStellarSession({
 export async function cancelStellarSession({
   payer,
   sessionId,
+  keypair,
 }: {
   payer: string;
   sessionId: number | string;
+  keypair?: Keypair;
 }) {
-  const client = createSessionMeterClient(payer);
+  const client = createSessionMeterClient(payer, keypair);
   const assembled = await client.cancel({
     payer,
     session_id: BigInt(bigintToNumber(sessionId)),

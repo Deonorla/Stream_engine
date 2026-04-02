@@ -3,19 +3,34 @@ import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Zap, Store, Bot, FileText, X, ChevronRight, Layers } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
+import { useAppMode } from '../context/AppModeContext';
+import { getStoredAgentWallet } from '../lib/agentWallet';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Agent Hub',       href: '/app',              sub: 'Overview & balances' },
-  { icon: Zap,             label: 'Payment Streams', href: '/app/streams',      sub: 'Stream USDC · XLM' },
-  { icon: Store,           label: 'Marketplace',     href: '/app/marketplace',  sub: 'Browse · Rent · Trade' },
-  { icon: Layers,          label: 'RWA Studio',      href: '/app/rwa',          sub: 'Mint · Manage · Attest' },
-  { icon: Bot,             label: 'My Agent',        href: '/app/agent',        sub: 'Config · Decisions' },
+const ownerNavItems = [
+  { icon: LayoutDashboard, label: 'Owner Hub',        href: '/app',              sub: 'Balances · assets · overview' },
+  { icon: Zap,             label: 'Payment Streams',  href: '/app/streams',      sub: 'Stream USDC · XLM' },
+  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Discover · Rent · Bid' },
+  { icon: Layers,          label: 'RWA Studio',       href: '/app/rwa',          sub: 'Mint · Manage · Attest' },
+  { icon: Bot,             label: 'My Agent',         href: '/app/agent',        sub: 'Wallet · Rules · P&L' },
+];
+
+const agentNavItems = [
+  { icon: LayoutDashboard, label: 'Agent Hub',        href: '/app',              sub: 'Balances · activity · P&L' },
+  { icon: Zap,             label: 'Payment Streams',  href: '/app/streams',      sub: 'Autonomous streams' },
+  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Discover · Rent · Bid' },
+  { icon: Bot,             label: 'My Agent',         href: '/app/agent',        sub: 'Wallet · Rules · P&L' },
 ];
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const { walletAddress } = useWallet();
+  const { mode, setMode } = useAppMode();
+  const agentWallet = getStoredAgentWallet();
+  const navItems = mode === 'agent' ? agentNavItems : ownerNavItems;
   const shortAddress = walletAddress
     ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
+    : null;
+  const agentShort = agentWallet
+    ? `${agentWallet.publicKey.slice(0, 6)}…${agentWallet.publicKey.slice(-4)}`
     : null;
 
   return (
@@ -72,16 +87,43 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
 
       {/* Bottom */}
       <div className="px-3 mt-4 space-y-2">
-        {walletAddress && (
-          <div className="mx-1 bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl p-4 border border-blue-100">
-            <p className="text-[9px] font-label uppercase tracking-widest text-slate-400 mb-1">Agent Wallet</p>
-            <p className="text-xs font-mono font-bold text-slate-700">{shortAddress}</p>
-            <div className="flex items-center gap-1 mt-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
-              <span className="text-[9px] text-secondary font-bold">Connected · Stellar Testnet</span>
-            </div>
+        {/* Mode toggle */}
+        <div className="mx-1 rounded-2xl border border-slate-100 overflow-hidden">
+          <button
+            onClick={() => setMode('owner')}
+            className={cn('w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors',
+              mode === 'owner' ? 'bg-blue-50 text-primary' : 'bg-white text-slate-400 hover:text-slate-700')}
+          >
+            <Layers size={13} />
+            <span>Owner Mode</span>
+          </button>
+          <button
+            onClick={() => setMode('agent')}
+            className={cn('w-full flex items-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors border-t border-slate-100',
+              mode === 'agent' ? 'bg-blue-50 text-primary' : 'bg-white text-slate-400 hover:text-slate-700')}
+          >
+            <Bot size={13} />
+            <span>Agent Mode</span>
+            {mode === 'agent' && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />}
+          </button>
+        </div>
+
+        {/* Active wallet */}
+        <div className="mx-1 bg-slate-50 rounded-2xl p-4 border border-slate-100">
+          <p className="text-[9px] font-label uppercase tracking-widest text-slate-400 mb-1">
+            {mode === 'owner' ? 'Owner Wallet' : 'Agent Wallet'}
+          </p>
+          <p className="text-xs font-mono font-bold text-slate-700">
+            {mode === 'owner' ? (shortAddress || 'Not connected') : (agentShort || 'No agent wallet')}
+          </p>
+          <div className="flex items-center gap-1 mt-1.5">
+            <span className={cn('w-1.5 h-1.5 rounded-full', mode === 'owner' ? 'bg-secondary' : 'bg-primary')} />
+            <span className={cn('text-[9px] font-bold', mode === 'owner' ? 'text-secondary' : 'text-primary')}>
+              {mode === 'owner' ? 'Freighter · Stellar Testnet' : 'Keypair · Autonomous'}
+            </span>
           </div>
-        )}
+        </div>
+
         <NavLink
           to="/app/docs"
           onClick={onNavClick}
