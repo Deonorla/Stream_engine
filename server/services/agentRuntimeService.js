@@ -193,41 +193,32 @@ class AgentRuntimeService {
         opportunities,
         mandate,
         activeAuctions = null,
+        screenSignals = [],
+        watchlistSignals = [],
     }) {
         if (!this.auctionEngine?.listAuctions || !this.auctionEngine?.placeBid) {
             return [];
         }
 
-        const opportunityByTokenId = new Map(
-            opportunities.map((entry) => [Number(entry.tokenId), entry])
-        );
         const auctions = Array.isArray(activeAuctions)
             ? activeAuctions
             : await this.auctionEngine.listAuctions({ status: "active" });
-        const approvalThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
-        const bidIncrement = 10_000_000n;
-        const now = nowSeconds();
         const placedBids = [];
 
-        const rankedAuctions = auctions
-            .filter((auction) => Number(auction?.startTime || 0) <= now && Number(auction?.endTime || 0) > now)
-            .filter((auction) => opportunityByTokenId.has(Number(auction.assetId)))
-            .filter((auction) => String(auction.seller || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
-            .filter((auction) => String(auction.highestBid?.bidder || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
-            .sort((left, right) => {
-                const leftOpportunity = opportunityByTokenId.get(Number(left.assetId));
-                const rightOpportunity = opportunityByTokenId.get(Number(right.assetId));
-                return Number(rightOpportunity?.score || 0) - Number(leftOpportunity?.score || 0);
-            });
+        const rankedAuctions = this.buildBidFocus({
+            auctions,
+            opportunities,
+            walletPublicKey,
+            mandate,
+            screenSignals,
+            watchlistSignals,
+        });
 
-        for (const auction of rankedAuctions.slice(0, 1)) {
-            const opportunity = opportunityByTokenId.get(Number(auction.assetId));
-            const reserve = BigInt(auction.reservePrice || "0");
-            const highest = BigInt(auction.highestBid?.amountStroops || "0");
-            const nextBid = highest > 0n ? highest + bidIncrement : reserve;
-            if (nextBid <= 0n || nextBid > approvalThreshold) {
+        for (const candidate of rankedAuctions.slice(0, 1)) {
+            if (!candidate.eligible) {
                 continue;
             }
+            const { auction, opportunity, nextBid, prioritySource } = candidate;
 
             try {
                 const result = await this.auctionEngine.placeBid({
@@ -244,9 +235,12 @@ class AgentRuntimeService {
                 await this.agentState.appendDecision(agentId, {
                     type: "decision",
                     message: `Autonomous runtime selected auction #${Number(auction.auctionId)}`,
-                    detail: `Twin #${Number(auction.assetId)} scored ${Number(opportunity?.score || 0)} with bid ${result.bid.amountDisplay} USDC.`,
+                    detail: `Twin #${Number(auction.assetId)} scored ${Number(opportunity?.score || 0)} with bid ${result.bid.amountDisplay} USDC${prioritySource.length ? ` · focus ${prioritySource.join(" + ")}` : ""}.`,
                 });
-                placedBids.push(result.bid);
+                placedBids.push({
+                    ...result.bid,
+                    prioritySource,
+                });
             } catch (error) {
                 await this.agentState.appendDecision(agentId, {
                     type: "error",
@@ -278,6 +272,7 @@ class AgentRuntimeService {
                 screenId: screen.screenId,
                 name: screen.name || "Saved Screen",
                 matches: ranked.length,
+                matchedTokenIds: ranked.slice(0, 5).map((entry) => Number(entry.tokenId)),
                 topTokenId: top ? Number(top.tokenId) : null,
                 topName: top?.name || "",
                 topScore: Number(top?.score || 0),
@@ -326,6 +321,71 @@ class AgentRuntimeService {
                 riskScore,
             };
         }).filter(Boolean);
+    }
+
+    buildBidFocus({ auctions = [], opportunities = [], walletPublicKey = "", mandate = {}, screenSignals = [], watchlistSignals = [] }) {
+        const opportunityByTokenId = new Map(
+            opportunities.map((entry) => [Number(entry.tokenId), entry])
+        );
+        const watchlistByTokenId = new Map(
+            watchlistSignals
+                .filter((entry) => entry?.hasLiveAuction)
+                .map((entry) => [Number(entry.tokenId), entry])
+        );
+        const screenTokenIds = new Set(
+            screenSignals
+                .flatMap((entry) => (
+                    Array.isArray(entry?.matchedTokenIds) && entry.matchedTokenIds.length > 0
+                        ? entry.matchedTokenIds
+                        : entry?.topTokenId
+                            ? [entry.topTokenId]
+                            : []
+                ))
+                .map((tokenId) => Number(tokenId))
+        );
+        const approvalThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
+        const bidIncrement = 10_000_000n;
+        const now = nowSeconds();
+
+        return auctions
+            .filter((auction) => Number(auction?.startTime || 0) <= now && Number(auction?.endTime || 0) > now)
+            .filter((auction) => opportunityByTokenId.has(Number(auction.assetId)))
+            .filter((auction) => String(auction.seller || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
+            .filter((auction) => String(auction.highestBid?.bidder || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
+            .map((auction) => {
+                const tokenId = Number(auction.assetId);
+                const opportunity = opportunityByTokenId.get(tokenId);
+                const watchSignal = watchlistByTokenId.get(tokenId) || null;
+                const screenMatched = screenTokenIds.has(tokenId);
+                const reserve = BigInt(auction.reservePrice || "0");
+                const highest = BigInt(auction.highestBid?.amountStroops || "0");
+                const nextBid = highest > 0n ? highest + bidIncrement : reserve;
+                const prioritySource = [];
+                let preferenceBoost = 0;
+
+                if (watchSignal) {
+                    prioritySource.push("watchlist");
+                    preferenceBoost += 100;
+                }
+                if (screenMatched) {
+                    prioritySource.push("saved_screen");
+                    preferenceBoost += 40;
+                }
+                if (watchSignal?.reasons?.includes("yield_floor_met")) {
+                    preferenceBoost += 10;
+                }
+
+                return {
+                    auction,
+                    tokenId,
+                    opportunity,
+                    nextBid,
+                    eligible: nextBid > 0n && nextBid <= approvalThreshold,
+                    prioritySource,
+                    preferenceScore: Number(opportunity?.score || 0) + preferenceBoost,
+                };
+            })
+            .sort((left, right) => right.preferenceScore - left.preferenceScore);
     }
 
     async tick({ agentId, ownerPublicKey, reason = "manual" }) {
@@ -432,14 +492,27 @@ class AgentRuntimeService {
                 }
             }
 
-            const autoBids = await this.maybePlaceAuctionBid({
-                agentId: normalizedAgentId,
-                ownerPublicKey,
-                walletPublicKey: wallet.publicKey,
+            const prioritizedAuctions = this.buildBidFocus({
+                auctions: activeAuctions,
                 opportunities,
+                walletPublicKey: wallet.publicKey,
                 mandate,
-                activeAuctions,
+                screenSignals,
+                watchlistSignals,
             });
+            const topBidFocus = prioritizedAuctions.find((entry) => entry.eligible) || prioritizedAuctions[0] || null;
+            const autoBids = settledAuctions.length > 0
+                ? []
+                : await this.maybePlaceAuctionBid({
+                    agentId: normalizedAgentId,
+                    ownerPublicKey,
+                    walletPublicKey: wallet.publicKey,
+                    opportunities,
+                    mandate,
+                    activeAuctions,
+                    screenSignals,
+                    watchlistSignals,
+                });
 
             let treasury = null;
             let treasuryExecuted = false;
@@ -581,6 +654,13 @@ class AgentRuntimeService {
                     watchlistSignals: watchlistSignals.length,
                     screenHighlights: screenSignals.filter((entry) => entry.matches > 0).slice(0, 3),
                     watchlistHighlights: watchlistSignals.slice(0, 3),
+                    bidFocus: topBidFocus ? {
+                        auctionId: Number(topBidFocus.auction.auctionId),
+                        assetId: Number(topBidFocus.auction.assetId),
+                        prioritySource: topBidFocus.prioritySource,
+                        preferenceScore: Number(topBidFocus.preferenceScore || 0),
+                        eligible: Boolean(topBidFocus.eligible),
+                    } : null,
                 },
                 fingerprints: {
                     opportunities: opportunityFingerprint,

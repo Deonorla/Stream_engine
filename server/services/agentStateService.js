@@ -36,6 +36,7 @@ function defaultRuntime(agentId = "") {
             watchlistSignals: 0,
             screenHighlights: [],
             watchlistHighlights: [],
+            bidFocus: null,
         },
         fingerprints: {
             opportunities: "",

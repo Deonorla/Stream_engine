@@ -257,6 +257,7 @@ export default function AgentConsolePage() {
   const walletState = state?.wallet || { balances: [] };
   const screenHighlights = Array.isArray(runtime.lastSummary?.screenHighlights) ? runtime.lastSummary.screenHighlights : [];
   const watchlistHighlights = Array.isArray(runtime.lastSummary?.watchlistHighlights) ? runtime.lastSummary.watchlistHighlights : [];
+  const bidFocus = runtime.lastSummary?.bidFocus || null;
   const runtimeStatusLabel = agentStatus === 'running'
     ? 'Running'
     : agentStatus === 'paused'
@@ -772,6 +773,24 @@ export default function AgentConsolePage() {
               </div>
             </div>
             <div className="space-y-3">
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-3">
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-1">Current Bid Focus</p>
+                {bidFocus ? (
+                  <>
+                    <p className="text-sm font-bold text-slate-800">
+                      Auction #{bidFocus.auctionId} · twin #{bidFocus.assetId}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {Array.isArray(bidFocus.prioritySource) && bidFocus.prioritySource.length > 0
+                        ? `Prioritized from ${bidFocus.prioritySource.join(' + ')}`
+                        : 'No shortlist bias applied on the last loop'}
+                      {typeof bidFocus.preferenceScore === 'number' ? ` · score ${bidFocus.preferenceScore.toFixed(0)}` : ''}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-slate-400">No eligible live auction candidate was selected on the last runtime loop.</p>
+                )}
+              </div>
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Saved Screen Matches</p>
                 <div className="space-y-2">
