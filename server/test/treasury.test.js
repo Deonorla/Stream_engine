@@ -114,10 +114,17 @@ describe("TreasuryManager", function () {
             "blend_lending",
             "stellar_amm",
         ]);
+        expect(first.optimization.objective).to.equal("highest_approved_return_first");
+        expect(first.optimization.reason).to.equal("rebalanced");
+        expect(first.optimization.candidates).to.have.length(3);
+        expect(first.optimization.execution.deploymentCount).to.equal(3);
+        expect(first.optimization.execution.deployedAmount).to.equal("8000000000");
 
         const second = await manager.rebalance({ ownerPublicKey, agentId });
         expect(second.positions).to.have.length(3);
         expect(second.summary.deployed).to.equal("8000000000");
         expect(second.summary.openPositions).to.equal(3);
+        expect(second.optimization.reason).to.equal("capital_base_exhausted");
+        expect(second.optimization.execution.deploymentCount).to.equal(0);
     });
 });

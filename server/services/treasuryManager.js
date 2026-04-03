@@ -97,6 +97,10 @@ function projectedAnnualReturnForPosition(position) {
     return (amount * bps) / 10000n;
 }
 
+function venueIdentifier(venue = {}, fallback = "unknown") {
+    return venue.id || venue.label || venue.contractId || venue.liquidityPoolId || fallback;
+}
+
 class TreasuryManager {
     constructor(config = {}) {
         this.chainService = config.chainService;
@@ -207,6 +211,92 @@ class TreasuryManager {
         };
     }
 
+    buildOptimizationReport({
+        reason = "rebalanced",
+        mandate = {},
+        capitalBase = "0",
+        deployable = "0",
+        liquidBalance = "0",
+        reserved = "0",
+        targetReserve = "0",
+        currentPositions = [],
+        nextPositions = [],
+        familyPlans = [],
+        executedPositions = [],
+    }) {
+        const before = this.buildSummary({
+            positions: currentPositions,
+            liquidBalance,
+            reserved,
+            targetReserve,
+            capitalBase,
+        });
+        const after = this.buildSummary({
+            positions: nextPositions,
+            liquidBalance,
+            reserved,
+            targetReserve,
+            capitalBase,
+        });
+        const executedByKey = new Map(
+            executedPositions.map((position) => [
+                `${position.strategyFamily}:${position.venueId}`,
+                position,
+            ]),
+        );
+        return {
+            evaluatedAt: nowSeconds(),
+            objective: "highest_approved_return_first",
+            reason,
+            capitalBase: String(capitalBase),
+            deployableAmount: String(deployable),
+            reservedAmount: String(reserved),
+            targetReserve: String(targetReserve),
+            allowedStrategies: mandate.allowedTreasuryStrategies || [],
+            reservePolicy: mandate.reservePolicy || {
+                minLiquidPct: 10,
+                targetLiquidPct: 20,
+                maxLiquidPct: 30,
+            },
+            familyCaps: {
+                safe_yield: DEFAULT_CAPS.safe_yield,
+                blend_lending: DEFAULT_CAPS.blend_lending,
+                stellar_amm: DEFAULT_CAPS.stellar_amm,
+            },
+            recallOrder: ["stellar_amm", "blend_lending", "safe_yield"],
+            candidates: familyPlans.map((plan) => {
+                const venueId = venueIdentifier(plan.venue, plan.family);
+                const selected = executedByKey.get(`${plan.family}:${venueId}`) || null;
+                return {
+                    strategyFamily: plan.family,
+                    venueId,
+                    label: plan.venue.label || venueId,
+                    projectedNetApy: Number(plan.projectedNetApy || 0),
+                    remainingCap: String(plan.remainingCap || "0"),
+                    selected: Boolean(selected),
+                    allocatedAmount: selected?.allocatedAmount || "0",
+                    recallPriority: DEFAULT_RECALL_PRIORITY[plan.family] || 99,
+                };
+            }),
+            execution: {
+                deploymentCount: executedPositions.length,
+                deployedAmount: executedPositions.reduce(
+                    (sum, position) => sum + BigInt(position?.allocatedAmount || "0"),
+                    0n,
+                ).toString(),
+                deployedVenues: executedPositions.map((position) => ({
+                    strategyFamily: position.strategyFamily,
+                    venueId: position.venueId,
+                    allocatedAmount: position.allocatedAmount,
+                    projectedNetApy: Number(position.projectedNetApy || 0),
+                    txHash: position.txHash || "",
+                })),
+            },
+            before,
+            after,
+        };
+    }
+
     async rebalance({ ownerPublicKey, agentId }) {
         const mandate = await this.agentState.getMandate(agentId);
         const treasury = await this.agentState.getTreasury(agentId);
@@ -237,6 +327,9 @@ class TreasuryManager {
             : capitalDeployable;
 
         if (deployable <= 0n) {
+            const reason = liquidBalance <= reserved + targetReserve
+                ? "reserve_floor_blocked"
+                : "capital_base_exhausted";
             return this.agentState.setTreasury(agentId, {
                 positions: treasury.positions || [],
                 reservePolicy: mandate.reservePolicy,
@@ -246,6 +339,19 @@ class TreasuryManager {
                     reserved: reserved.toString(),
                     targetReserve: targetReserve.toString(),
                     capitalBase: capitalBase.toString(),
+                }),
+                optimization: this.buildOptimizationReport({
+                    reason,
+                    mandate,
+                    capitalBase: capitalBase.toString(),
+                    deployable: "0",
+                    liquidBalance: liquidBalance.toString(),
+                    reserved: reserved.toString(),
+                    targetReserve: targetReserve.toString(),
+                    currentPositions,
+                    nextPositions: treasury.positions || [],
+                    familyPlans: [],
+                    executedPositions: [],
                 }),
             });
         }
@@ -309,6 +415,19 @@ class TreasuryManager {
                 reserved: reserved.toString(),
                 targetReserve: targetReserve.toString(),
                 capitalBase: capitalBase.toString(),
+            }),
+            optimization: this.buildOptimizationReport({
+                reason: nextPositions.length > 0 ? "rebalanced" : "no_eligible_venues",
+                mandate,
+                capitalBase: capitalBase.toString(),
+                deployable: deployable.toString(),
+                liquidBalance: liquidBalance.toString(),
+                reserved: reserved.toString(),
+                targetReserve: targetReserve.toString(),
+                currentPositions,
+                nextPositions: allPositions,
+                familyPlans,
+                executedPositions: nextPositions,
             }),
         });
     }

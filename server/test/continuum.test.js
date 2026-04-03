@@ -228,6 +228,44 @@ describe("Continuum API Integration", function () {
                             liquidPct: 20,
                             deployedPct: 80,
                         },
+                        optimization: {
+                            objective: "highest_approved_return_first",
+                            reason: "rebalanced",
+                            deployableAmount: "180000000",
+                            recallOrder: ["stellar_amm", "blend_lending", "safe_yield"],
+                            execution: {
+                                deploymentCount: 1,
+                                deployedAmount: "180000000",
+                                deployedVenues: [
+                                    {
+                                        strategyFamily: "safe_yield",
+                                        venueId: "yield-vault",
+                                        allocatedAmount: "180000000",
+                                        projectedNetApy: "11.20",
+                                    },
+                                ],
+                            },
+                            candidates: [
+                                {
+                                    strategyFamily: "safe_yield",
+                                    venueId: "yield-vault",
+                                    label: "Yield Vault",
+                                    projectedNetApy: "11.20",
+                                    remainingCap: "600000000",
+                                    selected: true,
+                                    allocatedAmount: "180000000",
+                                    recallPriority: 3,
+                                },
+                            ],
+                            before: {
+                                liquidBalance: "4250000000",
+                                deployed: "0",
+                            },
+                            after: {
+                                liquidBalance: "4250000000",
+                                deployed: "180000000",
+                            },
+                        },
                     };
                     await agentState.setTreasury(currentAgentId, treasury);
                     return treasury;
@@ -422,6 +460,26 @@ describe("Continuum API Integration", function () {
         expect(response.body.analytics.marketContext.verifiedSharePct).to.equal(100);
         expect(response.body.analytics.auctionContext.activeAuction.auctionId).to.equal(3);
         expect(response.body.analytics.recentActivity).to.have.length(1);
+        expect(response.body.paidVia.mode).to.equal("streaming");
+        expect(response.body.paidVia.streamId).to.equal("77");
+    });
+
+    it("returns treasury optimization details for a paid rebalance", async () => {
+        const response = await request(app)
+            .post("/api/market/treasury/rebalance")
+            .set("Authorization", `Bearer ${token}`)
+            .set("x-stream-stream-id", "77")
+            .send({})
+            .expect(200);
+
+        expect(response.body.code).to.equal("treasury_rebalanced");
+        expect(response.body.optimization.objective).to.equal("highest_approved_return_first");
+        expect(response.body.optimization.execution.deploymentCount).to.equal(1);
+        expect(response.body.optimization.recallOrder).to.deep.equal([
+            "stellar_amm",
+            "blend_lending",
+            "safe_yield",
+        ]);
         expect(response.body.paidVia.mode).to.equal("streaming");
         expect(response.body.paidVia.streamId).to.equal("77");
     });

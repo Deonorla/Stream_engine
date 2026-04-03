@@ -298,6 +298,7 @@ class AgentStateService {
         return record || {
             positions: [],
             reservePolicy: (await this.getMandate(agentId)).reservePolicy,
+            optimization: null,
             updatedAt: nowSeconds(),
         };
     }
@@ -307,6 +308,7 @@ class AgentStateService {
             positions: Array.isArray(treasury?.positions) ? treasury.positions : [],
             reservePolicy: treasury?.reservePolicy || (await this.getMandate(agentId)).reservePolicy,
             summary: treasury?.summary || {},
+            optimization: treasury?.optimization || null,
             updatedAt: nowSeconds(),
         };
         await this.store.upsertRecord(agentKey(agentId, "treasury"), next);

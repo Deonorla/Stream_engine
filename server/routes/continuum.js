@@ -421,6 +421,7 @@ router.post("/market/yield/route", requireJwt, asyncHandler(async (req, res) => 
         action: "routeYield",
         claim,
         treasury,
+        optimization: treasury.optimization || null,
     });
 }));
 
@@ -434,6 +435,7 @@ router.post("/market/treasury/rebalance", requirePaidAction("0.02", "Treasury op
         code: "treasury_rebalanced",
         action: "rebalanceTreasury",
         treasury,
+        optimization: treasury.optimization || null,
         paidVia: req.streamEngine || null,
     });
 }));
