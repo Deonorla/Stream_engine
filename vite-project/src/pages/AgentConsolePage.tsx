@@ -20,14 +20,12 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
 import { useAgentWallet } from '../hooks/useAgentWallet';
+import { useAgentLoopContext } from '../context/AgentLoopContext';
 import {
   fetchAgentMandate,
-  fetchAgentState,
   fetchMarketAssets,
-  pauseAgentRuntime,
   rebalanceMarketTreasury,
   saveAgentMandate,
-  startAgentRuntime,
   tickAgentRuntime,
 } from '../services/rwaApi.js';
 
@@ -100,6 +98,7 @@ function StatCard({ label, value, color = 'text-slate-900' }: { label: string; v
 export default function AgentConsolePage() {
   const { walletAddress } = useWallet();
   const { agentPublicKey, loading, error, activate } = useAgentWallet(walletAddress);
+  const { logs: contextLogs, agentStatus: contextStatus, agentState: contextState, refreshState, startAgent: ctxStart, pauseAgent: ctxPause } = useAgentLoopContext();
 
   const [showSettings, setShowSettings] = useState(false);
   const [showFundModal, setShowFundModal] = useState(false);
@@ -116,25 +115,22 @@ export default function AgentConsolePage() {
   const [treasurySessionId, setTreasurySessionId] = useState('');
   const [treasuryActionStatus, setTreasuryActionStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
   const [treasuryActionError, setTreasuryActionError] = useState('');
-  const runtime = state?.runtime || {};
-  const agentStatus: AgentStatus = runtime?.running
-    ? 'running'
-    : runtime?.status === 'paused'
-      ? 'paused'
-      : 'idle';
 
-  const refreshState = useCallback(async () => {
-    if (!agentPublicKey) {
-      setState(null);
-      return;
-    }
+  // Use shared context state when available, fall back to local
+  const activeState = contextState || state;
+  const runtime = activeState?.runtime || {};
+  const agentStatus: AgentStatus = contextStatus !== 'idle' ? contextStatus : (
+    runtime?.running ? 'running' : runtime?.status === 'paused' ? 'paused' : 'idle'
+  );
+
+  const doRefreshState = useCallback(async () => {
+    if (!agentPublicKey) { setState(null); return; }
+    await refreshState(agentPublicKey);
     try {
-      const [agentState, assets, mandate] = await Promise.all([
-        fetchAgentState(agentPublicKey),
+      const [assets, mandate] = await Promise.all([
         fetchMarketAssets(),
         fetchAgentMandate(agentPublicKey),
       ]);
-      setState(agentState);
       setMarketAssets(assets || []);
       if (mandate) {
         setMandateDraft({
@@ -144,58 +140,41 @@ export default function AgentConsolePage() {
           rebalanceCadenceMinutes: String(mandate.rebalanceCadenceMinutes ?? 60),
         });
       }
-    } catch (loadError) {
-      console.error(loadError);
-    }
-  }, [agentPublicKey]);
+    } catch (loadError) { console.error(loadError); }
+  }, [agentPublicKey, refreshState]);
 
-  useEffect(() => {
-    void refreshState();
-  }, [refreshState]);
-
-  useEffect(() => {
-    if (!agentPublicKey || agentStatus !== 'running') return undefined;
-    const interval = setInterval(() => {
-      void refreshState();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [agentPublicKey, agentStatus, refreshState]);
+  useEffect(() => { void doRefreshState(); }, [doRefreshState]);
 
   const startAgent = useCallback(async () => {
     if (!agentPublicKey) return;
     setRuntimeActionError('');
     try {
-      await startAgentRuntime(agentPublicKey, {
-        executeTreasury: true,
-        executeClaims: true,
-      });
-      await refreshState();
+      await ctxStart(agentPublicKey);
     } catch (runtimeError: any) {
       setRuntimeActionError(runtimeError.message || 'Failed to start the managed runtime.');
     }
-  }, [agentPublicKey, mandateDraft, refreshState]);
+  }, [agentPublicKey, ctxStart]);
 
   const pauseAgent = useCallback(async () => {
     if (!agentPublicKey) return;
     setRuntimeActionError('');
     try {
-      await pauseAgentRuntime(agentPublicKey);
-      await refreshState();
+      await ctxPause(agentPublicKey);
     } catch (runtimeError: any) {
       setRuntimeActionError(runtimeError.message || 'Failed to pause the managed runtime.');
     }
-  }, [agentPublicKey, refreshState]);
+  }, [agentPublicKey, ctxPause]);
 
   const runSingleTick = useCallback(async () => {
     if (!agentPublicKey) return;
     setRuntimeActionError('');
     try {
       await tickAgentRuntime(agentPublicKey);
-      await refreshState();
+      await doRefreshState();
     } catch (runtimeError: any) {
       setRuntimeActionError(runtimeError.message || 'Failed to run a managed tick.');
     }
-  }, [agentPublicKey, refreshState]);
+  }, [agentPublicKey, doRefreshState]);
 
   const saveMandate = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -207,11 +186,11 @@ export default function AgentConsolePage() {
         liquidityFloorPct: Number(mandateDraft.liquidityFloorPct || 10),
         rebalanceCadenceMinutes: Number(mandateDraft.rebalanceCadenceMinutes || 60),
       });
-      await refreshState();
+      await doRefreshState();
     } finally {
       setSavingMandate(false);
     }
-  }, [agentPublicKey, mandateDraft, refreshState]);
+  }, [agentPublicKey, mandateDraft, doRefreshState]);
 
   const runTreasuryOptimization = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -220,7 +199,7 @@ export default function AgentConsolePage() {
     try {
       await rebalanceMarketTreasury(treasurySessionId || undefined);
       setTreasuryActionStatus('ok');
-      await refreshState();
+      await doRefreshState();
     } catch (rebalanceError: any) {
       const message = rebalanceError?.message || 'Treasury optimization failed.';
       setTreasuryActionError(message);
@@ -230,29 +209,27 @@ export default function AgentConsolePage() {
         setTreasuryActionStatus('err');
       }
     }
-  }, [agentPublicKey, refreshState, treasurySessionId]);
+  }, [agentPublicKey, doRefreshState, treasurySessionId]);
 
-  const mergedLogs = useMemo<LogEntry[]>(() => (
-    Array.isArray(state?.decisionLog) ? state.decisionLog.map((entry: any) => ({
-      id: entry.id,
-      ts: entry.ts,
-      type: entry.type,
-      message: entry.message,
-      detail: entry.detail,
-      amount: entry.amount,
-    })) : []
-  ), [state?.decisionLog]);
+  // Use shared context logs (sourced from server decisionLog) — fall back to local state
+  const mergedLogs = useMemo<LogEntry[]>(() => {
+    if (contextLogs.length > 0) return contextLogs;
+    return Array.isArray(activeState?.decisionLog) ? activeState.decisionLog.map((entry: any) => ({
+      id: entry.id, ts: entry.ts, type: entry.type,
+      message: entry.message, detail: entry.detail, amount: entry.amount,
+    })) : [];
+  }, [contextLogs, activeState?.decisionLog]);
 
-  const performance = state?.performance || {};
+  const performance = activeState?.performance || {};
   const performanceAttribution = performance.attribution || {};
   const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
-  const treasury = state?.treasury || { positions: [], summary: {} };
+  const treasury = activeState?.treasury || { positions: [], summary: {} };
   const treasurySummary = treasury.summary || {};
   const treasuryHealth = treasurySummary.health || {};
   const treasuryOptimization = treasury.optimization || null;
-  const reservations = state?.reservations || [];
-  const positions = state?.positions || { assets: [], sessions: [] };
-  const walletState = state?.wallet || { balances: [] };
+  const reservations = activeState?.reservations || [];
+  const positions = activeState?.positions || { assets: [], sessions: [] };
+  const walletState = activeState?.wallet || { balances: [] };
   const runtimeStatusLabel = agentStatus === 'running'
     ? 'Running'
     : agentStatus === 'paused'
@@ -273,7 +250,7 @@ export default function AgentConsolePage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => void refreshState()}
+            onClick={() => void doRefreshState()}
             className="p-2.5 rounded-xl border border-slate-100 text-slate-400 hover:text-primary hover:bg-slate-50 transition-all"
           >
             <RefreshCw size={16} />
@@ -491,10 +468,10 @@ export default function AgentConsolePage() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-[10px] uppercase tracking-widest text-slate-400">Last Optimization</p>
-                        <p className="text-sm font-bold text-slate-800">{treasuryOptimization.objective?.replaceAll('_', ' ') || 'highest approved return first'}</p>
+                        <p className="text-sm font-bold text-slate-800">{(treasuryOptimization.objective || 'highest approved return first').replace(/_/g, ' ')}</p>
                       </div>
                       <span className="rounded-full bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1">
-                        {String(treasuryOptimization.reason || 'rebalanced').replaceAll('_', ' ')}
+                        {String(treasuryOptimization.reason || 'rebalanced').replace(/_/g, ' ')}
                       </span>
                     </div>
 

@@ -5,6 +5,7 @@ import './index.css'
 import { ToastProvider } from './components/ui'
 import { WalletProvider } from './context/WalletContext'
 import { AppModeProvider } from './context/AppModeContext'
+import { AgentLoopProvider } from './context/AgentLoopContext'
 import Layout from './components/Layout'
 import LandingPage from './pages/LandingPage'
 import Dashboard from './pages/Dashboard'
@@ -42,7 +43,9 @@ createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <ToastProvider>
           <WalletProvider>
-            <AppRoutes />
+            <AgentLoopProvider>
+              <AppRoutes />
+            </AgentLoopProvider>
           </WalletProvider>
         </ToastProvider>
       </BrowserRouter>

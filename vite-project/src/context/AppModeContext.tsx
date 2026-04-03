@@ -30,7 +30,13 @@ const AppModeContext = createContext<AppModeContextValue>({
 });
 
 export function AppModeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<AppMode>('owner');
+  const [mode, setModeState] = useState<AppMode>(() =>
+    (localStorage.getItem('app_mode') as AppMode) || 'owner'
+  );
+  const setMode = useCallback((m: AppMode) => {
+    localStorage.setItem('app_mode', m);
+    setModeState(m);
+  }, []);
   const [agentPublicKey, setAgentPublicKey] = useState<string | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState('');

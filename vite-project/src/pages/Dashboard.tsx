@@ -11,7 +11,7 @@ import { useAgentWallet } from '../hooks/useAgentWallet';
 import AgentWalletPanel from '../components/AgentWalletPanel';
 import { useAgentBalances } from '../hooks/useAgentBalances';
 import { fetchRwaAssets } from '../services/rwaApi.js';
-import { mapApiAssetToUiAsset } from './rwa/rwaData';
+import { useAgentLoopContext } from '../context/AgentLoopContext';
 
 // ─── Shared ───────────────────────────────────────────────────────────────────
 
@@ -43,20 +43,6 @@ function MiniStreamRow({ stream, formatEth }) {
 }
 
 // ─── Agent mode log ───────────────────────────────────────────────────────────
-
-let _logId = 0;
-const AGENT_ACTIONS = [
-  { type: 'decision', message: 'Scanning marketplace for yield opportunities', detail: 'Evaluating 3 assets' },
-  { type: 'action',   message: 'Opened rental stream on Azure Heights Residence', detail: 'Session #12 · 30 days', amount: '+8.2% APY' },
-  { type: 'profit',   message: 'Claimed yield from Skyline Logistics Hub', detail: 'Session #9 settled', amount: '+2.4 USDC' },
-  { type: 'decision', message: 'Holding — vehicle asset yield below threshold', detail: 'Min yield: 5% · Current: 3.1%' },
-  { type: 'action',   message: 'Deployed payment stream to equipment provider', detail: 'Session #13 · 7 days · 5 USDC', amount: '-5.0 USDC' },
-  { type: 'profit',   message: 'Flash advance executed on yield vault', detail: 'Advance: 18.3 USDC', amount: '+18.3 USDC' },
-];
-function makeAgentLog(override?: any) {
-  const base = AGENT_ACTIONS[_logId % AGENT_ACTIONS.length];
-  return { ...base, ...override, id: ++_logId, ts: Date.now() };
-}
 
 function AgentLogRow({ entry }: { entry: any }) {
   const icons: any = {
@@ -93,7 +79,8 @@ export default function Dashboard() {
   const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentPublicKey);
 
   // Agent mode state
-  const [agentRunning, setAgentRunning] = useState(false);
+  const { logs: agentLogs, agentStatus: ctxStatus, startAgent: ctxStart, pauseAgent: ctxPause, refreshState: ctxRefresh } = useAgentLoopContext();
+  const agentRunning = ctxStatus === 'running';
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showFundModal, setShowFundModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -124,41 +111,29 @@ export default function Dashboard() {
     } catch { setWithdrawMsg('Request failed'); }
     setWithdrawBusy(false);
   };
-  const [agentLogs, setAgentLogs] = useState<any[]>([makeAgentLog({ type: 'info', message: 'Agent ready. Switch to Agent mode and press Run.', detail: 'Stellar Testnet' })]);
-  const [agentProfit, setAgentProfit] = useState(0);
-  const [agentActions, setAgentActions] = useState(0);
+
+  const agentProfit = agentLogs.filter(e => e.type === 'profit' && e.amount)
+    .reduce((sum, e) => sum + (parseFloat(e.amount!.replace('+', '')) || 0), 0);
+  const agentActions = agentLogs.filter(e => e.type === 'action').length;
   const [marketAssets, setMarketAssets] = useState<any[]>([]);
-  const loopRef = useRef<any>(null);
   const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [agentLogs]);
   useEffect(() => {
-    fetchRwaAssets().then(r => setMarketAssets(r.slice(0, 3).map(mapApiAssetToUiAsset))).catch(() => {});
+    fetchRwaAssets().then(r => setMarketAssets(r.slice(0, 3))).catch(() => {});
   }, []);
+  // Sync shared agent state when wallet is known
+  useEffect(() => { if (agentPublicKey) ctxRefresh(agentPublicKey); }, [agentPublicKey, ctxRefresh]);
 
-  const addAgentLog = useCallback((entry: any) => {
-    setAgentLogs(l => [...l.slice(-49), makeAgentLog(entry)]);
-    if (entry.type === 'profit' && entry.amount) {
-      setAgentProfit(p => Math.round((p + (parseFloat(entry.amount.replace('+','')) || 0)) * 100) / 100);
-    }
-    if (entry.type === 'action') setAgentActions(c => c + 1);
-  }, []);
+  const startAgent = useCallback(async () => {
+    if (!agentPublicKey) return;
+    await ctxStart(agentPublicKey);
+  }, [agentPublicKey, ctxStart]);
 
-  const startAgent = () => {
-    setAgentRunning(true);
-    addAgentLog({ type: 'info', message: 'Autonomous agent started', detail: 'Scanning marketplace…' });
-    loopRef.current = setInterval(() => {
-      addAgentLog(AGENT_ACTIONS[Math.floor(Math.random() * AGENT_ACTIONS.length)]);
-    }, 3500);
-  };
-
-  const stopAgent = () => {
-    setAgentRunning(false);
-    if (loopRef.current) clearInterval(loopRef.current);
-    addAgentLog({ type: 'info', message: 'Agent stopped', detail: `${agentActions} actions this session` });
-  };
-
-  useEffect(() => () => { if (loopRef.current) clearInterval(loopRef.current); }, []);
+  const stopAgent = useCallback(async () => {
+    if (!agentPublicKey) return;
+    await ctxPause(agentPublicKey);
+  }, [agentPublicKey, ctxPause]);
 
   const fmt = (v: any) => parseFloat(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const INACTIVE = ['ended', 'cancelled', 'completed'];
@@ -175,7 +150,7 @@ export default function Dashboard() {
           mode === 'owner' ? 'ethereal-gradient shadow-blue-500/20' : 'ethereal-gradient bg-blue-500/20')}>
           {mode === 'owner'
             ? <Layers size={18} className="text-white" />
-            : <Bot size={18} className={agentRunning ? 'text-secondary animate-pulse' : 'text-blue-300'} />}
+            : <Bot size={18} className={agentRunning ? 'text-white animate-pulse' : 'text-white'} />}
         </div>
         <div className="flex-1 min-w-0">
           {mode === 'owner' ? (
