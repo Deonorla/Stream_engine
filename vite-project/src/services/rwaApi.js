@@ -32,6 +32,19 @@ async function request(path, options = {}, query) {
   return payload;
 }
 
+function getAgentToken() {
+  try {
+    return localStorage.getItem('agent_session_token');
+  } catch {
+    return null;
+  }
+}
+
+function agentHeaders() {
+  const token = getAgentToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export async function fetchRwaAssets(owner) {
   const response = await request('/api/rwa/assets', { method: 'GET' }, { owner });
   return response.assets || [];
@@ -161,4 +174,133 @@ export async function syncPaymentSessionMetadata(sessionId, payload) {
     body: JSON.stringify(payload),
   });
   return response.session || null;
+}
+
+export async function fetchMarketAssets() {
+  const response = await request('/api/market/assets', { method: 'GET' });
+  return response.assets || [];
+}
+
+export async function fetchMarketAsset(assetId) {
+  return request(`/api/market/assets/${assetId}`, { method: 'GET' });
+}
+
+export async function fetchMarketAnalytics(assetId, sessionId) {
+  return request(`/api/market/assets/${assetId}/analytics`, {
+    method: 'GET',
+    headers: sessionId ? { 'x-stream-stream-id': String(sessionId) } : {},
+  });
+}
+
+export async function createMarketAuction(assetId, payload) {
+  return request(`/api/market/assets/${assetId}/auctions`, {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchAuction(auctionId) {
+  return request(`/api/market/auctions/${auctionId}`, { method: 'GET' });
+}
+
+export async function placeAuctionBid(auctionId, payload) {
+  return request(`/api/market/auctions/${auctionId}/bids`, {
+    method: 'POST',
+    headers: {
+      ...agentHeaders(),
+      ...(payload?.sessionId ? { 'x-stream-stream-id': String(payload.sessionId) } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function settleAuction(auctionId) {
+  return request(`/api/market/auctions/${auctionId}/settle`, {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify({}),
+  });
+}
+
+export async function fetchMarketPositions() {
+  return request('/api/market/positions', {
+    method: 'GET',
+    headers: agentHeaders(),
+  });
+}
+
+export async function claimMarketYield(tokenId) {
+  return request('/api/market/yield/claim', {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify({ tokenId }),
+  });
+}
+
+export async function routeMarketYield(payload = {}) {
+  return request('/api/market/yield/route', {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function rebalanceMarketTreasury(sessionId) {
+  return request('/api/market/treasury/rebalance', {
+    method: 'POST',
+    headers: {
+      ...agentHeaders(),
+      ...(sessionId ? { 'x-stream-stream-id': String(sessionId) } : {}),
+    },
+    body: JSON.stringify({}),
+  });
+}
+
+export async function ensureManagedAgent(ownerPublicKey) {
+  return request('/api/agents', {
+    method: 'POST',
+    body: JSON.stringify({ ownerPublicKey }),
+  });
+}
+
+export async function fetchAgentState(agentId) {
+  const response = await request(`/api/agents/${agentId}/state`, {
+    method: 'GET',
+    headers: agentHeaders(),
+  });
+  return response.state || null;
+}
+
+export async function fetchAgentPerformance(agentId) {
+  const response = await request(`/api/agents/${agentId}/performance`, {
+    method: 'GET',
+    headers: agentHeaders(),
+  });
+  return response.performance || null;
+}
+
+export async function fetchAgentMandate(agentId) {
+  const response = await request(`/api/agents/${agentId}/mandate`, {
+    method: 'GET',
+    headers: agentHeaders(),
+  });
+  return response.mandate || null;
+}
+
+export async function saveAgentMandate(agentId, payload) {
+  const response = await request(`/api/agents/${agentId}/mandate`, {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return response.mandate || null;
+}
+
+export async function fetchAgentWalletState(agentId) {
+  const response = await request(`/api/agents/${agentId}/wallet`, {
+    method: 'GET',
+    headers: agentHeaders(),
+  });
+  return response.wallet || null;
 }

@@ -55,8 +55,14 @@ router.post("/wallet-restore", asyncHandler(async (req, res) => {
     const agent = getAgent(req);
     const wallet = await agent.getWallet(ownerPublicKey);
     if (!wallet) return res.status(404).json({ error: "No agent wallet found." });
+    if (req.app.locals.services?.agentState) {
+        await req.app.locals.services.agentState.ensureAgentProfile({
+            ownerPublicKey,
+            agentPublicKey: wallet.publicKey,
+        });
+    }
     const token = jwt.sign({ ownerPublicKey }, JWT_SECRET, { expiresIn: JWT_TTL });
-    res.json({ token, agentPublicKey: wallet.publicKey });
+    res.json({ token, agentPublicKey: wallet.publicKey, agentId: wallet.publicKey });
 }));
 
 // POST /api/agent/activate
@@ -70,12 +76,18 @@ router.post("/activate", asyncHandler(async (req, res) => {
         return res.status(503).json({ error: "Agent wallet not configured. Set AGENT_ENCRYPTION_KEY in .env." });
     }
     const wallet = await agent.getOrCreateWallet(ownerPublicKey);
+    if (req.app.locals.services?.agentState) {
+        await req.app.locals.services.agentState.ensureAgentProfile({
+            ownerPublicKey,
+            agentPublicKey: wallet.publicKey,
+        });
+    }
 
     // Trustline is set up separately via POST /api/agent/trustline
     // (requires XLM on the account first — can't be done at creation time)
 
     const token = jwt.sign({ ownerPublicKey }, JWT_SECRET, { expiresIn: JWT_TTL });
-    res.json({ token, agentPublicKey: wallet.publicKey });
+    res.json({ token, agentPublicKey: wallet.publicKey, agentId: wallet.publicKey });
 }));
 
 // GET /api/agent/wallet — fetch agent public key (requires JWT)
@@ -83,7 +95,7 @@ router.get("/wallet", requireJwt, asyncHandler(async (req, res) => {
     const agent = getAgent(req);
     const wallet = await agent.getWallet(req.agentSession.ownerPublicKey);
     if (!wallet) return res.status(404).json({ error: "No agent wallet found." });
-    res.json({ publicKey: wallet.publicKey });
+    res.json({ publicKey: wallet.publicKey, agentId: wallet.publicKey });
 }));
 
 // ── All action routes require JWT only — no Freighter ────────────────────────

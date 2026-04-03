@@ -7,18 +7,18 @@ import { useAppMode } from '../context/AppModeContext';
 import { useAgentWallet } from '../hooks/useAgentWallet';
 
 const ownerNavItems = [
-  { icon: LayoutDashboard, label: 'Owner Hub',        href: '/app',              sub: 'Balances · assets · overview' },
-  { icon: Bot,             label: 'My Agent',         href: '/app/agent',        sub: 'Wallet · Rules · P&L' },
-  { icon: Zap,             label: 'Payment Streams',  href: '/app/streams',      sub: 'Stream USDC · XLM' },
-  // { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Discover · Rent · Bid' },
-  { icon: Layers,          label: 'RWA Studio',       href: '/app/rwa',          sub: 'Mint · Manage · Attest' },
+  { icon: LayoutDashboard, label: 'Owner Hub',        href: '/app',              sub: 'Capital · assets · overview' },
+  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Browse · Analyze · Bid' },
+  { icon: Bot,             label: 'Agent Console',    href: '/app/agent',        sub: 'Mandate · Treasury · P&L' },
+  { icon: Layers,          label: 'RWA Studio',       href: '/app/rwa',          sub: 'Admit · Verify · Manage' },
+  { icon: Zap,             label: 'Payment Sessions', href: '/app/streams',      sub: 'Stream Engine rail' },
 ];
 
 const agentNavItems = [
-  { icon: LayoutDashboard, label: 'Agent Hub',        href: '/app',              sub: 'Balances · activity · P&L' },
-  { icon: Bot,             label: 'My Agent',         href: '/app/agent',        sub: 'Wallet · Rules · P&L' },
-  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Discover · Rent · Bid' },
-  { icon: Zap,             label: 'Payment Streams',  href: '/app/streams',      sub: 'Autonomous streams' },
+  { icon: LayoutDashboard, label: 'Agent Hub',        href: '/app',              sub: 'Positions · activity · P&L' },
+  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Browse · Analyze · Bid' },
+  { icon: Bot,             label: 'Agent Console',    href: '/app/agent',        sub: 'Wallet · Mandate · Treasury' },
+  { icon: Zap,             label: 'Payment Sessions', href: '/app/streams',      sub: 'Stream Engine rail' },
 ];
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
@@ -42,10 +42,10 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
             <Bot size={18} className="text-white" />
           </div>
           <div>
-            <h1 className="text-sm font-black text-slate-900 font-headline leading-tight tracking-tight">Stream Engine</h1>
+            <h1 className="text-sm font-black text-slate-900 font-headline leading-tight tracking-tight">Continuum</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
-              <span className="text-[9px] font-label uppercase tracking-widest text-slate-400">Agent Network</span>
+              <span className="text-[9px] font-label uppercase tracking-widest text-slate-400">Powered by Stream Engine</span>
             </div>
           </div>
         </div>

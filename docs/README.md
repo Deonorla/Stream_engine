@@ -1,6 +1,6 @@
-# Stella's Stream Engine Documentation
+# Continuum Documentation
 
-Stella's Stream Engine is an x402-compatible payment and settlement stack for AI agents and rental RWAs on **Stellar testnet**.
+Continuum is the public agent marketplace product. **Stream Engine** is the settlement, session, and RWA runtime underneath it on **Stellar testnet**.
 
 ## Current Runtime
 
@@ -15,11 +15,11 @@ Stella's Stream Engine is an x402-compatible payment and settlement stack for AI
 
 ## What This Docs Set Covers
 
-- how x402 signaling works in Stella's Stream Engine
-- how reusable payment sessions reduce agent payment overhead
+- how Continuum turns paid analysis, auctions, yield, and treasury into one agent market loop
+- how Stream Engine handles x402 signaling, reusable payment sessions, and settlement
 - how the Stellar deployment is configured
 - how the SDK, middleware, Soroban contracts, and runtime services fit together
-- how rental RWA minting, evidence anchoring, attestation, verification, and yield behavior work
+- how productive RWA minting, evidence anchoring, attestation, verification, auctions, and yield behavior work
 
 ## Recommended Reading Order
 
