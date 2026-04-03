@@ -6,7 +6,7 @@ import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
 import { paymentTokenSymbol } from '../contactInfo';
-import { getStoredAgentWallet } from '../lib/agentWallet';
+import { useAgentWallet } from '../hooks/useAgentWallet';
 import AgentWalletPanel from '../components/AgentWalletPanel';
 import { useAgentBalances } from '../hooks/useAgentBalances';
 import { fetchRwaAssets } from '../services/rwaApi.js';
@@ -88,8 +88,8 @@ function AgentLogRow({ entry }: { entry: any }) {
 export default function Dashboard() {
   const { paymentBalance, xlmBalance, incomingStreams, outgoingStreams, formatEth, walletAddress, refreshStreams } = useWallet();
   const { mode, setMode } = useAppMode();
-  const agentWallet = getStoredAgentWallet();
-  const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentWallet?.publicKey);
+  const { agentPublicKey } = useAgentWallet(walletAddress);
+  const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentPublicKey);
 
   // Agent mode state
   const [agentRunning, setAgentRunning] = useState(false);
@@ -157,7 +157,7 @@ export default function Dashboard() {
             <>
               <p className="text-xs font-label uppercase tracking-widest text-slate-400">Autonomous Agent Mode</p>
               <p className="text-sm font-mono font-bold text-slate-800 truncate">
-                {agentWallet ? `${agentWallet.publicKey.slice(0,8)}…${agentWallet.publicKey.slice(-4)}` : 'No agent wallet — create one in My Agent'}
+                {agentPublicKey ? `${agentPublicKey.slice(0,8)}…${agentPublicKey.slice(-4)}` : 'No agent wallet — create one in My Agent'}
               </p>
             </>
           )}
@@ -176,7 +176,7 @@ export default function Dashboard() {
                   <Pause size={12} /> Pause
                 </button>
               ) : (
-                <button onClick={startAgent} disabled={!agentWallet}
+                <button onClick={startAgent} disabled={!agentPublicKey}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500 text-white text-xs font-bold hover:opacity-90 transition-all disabled:opacity-40">
                   <Play size={12} /> Run Agent
                 </button>
@@ -278,8 +278,8 @@ export default function Dashboard() {
             {/* Agent stats */}
             <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Agent XLM',   value: agentWallet ? agentXlm : '—',                sub: 'Fund agent wallet',    color: 'text-secondary' },
-                { label: 'Agent USDC',  value: agentWallet ? agentUsdc : '—',                sub: 'Spending balance',     color: 'text-primary' },
+                { label: 'Agent XLM',   value: agentPublicKey ? agentXlm : '—',                sub: 'Fund agent wallet',    color: 'text-secondary' },
+                { label: 'Agent USDC',  value: agentPublicKey ? agentUsdc : '—',                sub: 'Spending balance',     color: 'text-primary' },
                 { label: 'Session P&L', value: `+${agentProfit.toFixed(2)}`,                 sub: 'USDC profit',          color: 'text-secondary' },
                 { label: 'Actions',     value: String(agentActions),                          sub: 'Autonomous decisions', color: 'text-purple-600' },
               ].map((s, i) => (
@@ -313,7 +313,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <div className="flex-1 overflow-y-auto px-5 py-2">
-                  {!agentWallet ? (
+                  {!agentPublicKey ? (
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4 py-8">
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300">
                         <KeyRound size={20} />

@@ -24,6 +24,8 @@ const {
     normalizeRightsModel,
 } = require("./services/rwaModel");
 const { createRuntimeConfig } = require("../utils/runtimeConfig");
+const { AgentWalletService } = require("./services/agentWalletService");
+const agentRoutes = require("./routes/agent");
 
 require("dotenv").config({ path: "../.env" });
 
@@ -178,6 +180,15 @@ async function buildServices(config) {
         });
     }
 
+    if (!services.agentWallet) {
+        services.agentWallet = new AgentWalletService({
+            agentSecret: process.env.AGENT_SECRET_KEY || "",
+            encryptionKey: process.env.AGENT_ENCRYPTION_KEY || "",
+            store: services.store,
+            chainService: services.chainService,
+        });
+    }
+
     return services;
 }
 
@@ -285,8 +296,11 @@ function createApp(config = defaultConfig) {
     app.locals.assetPrimePromise = null;
     app.locals.ready = buildServices(resolvedConfig).then((services) => {
         app.locals.services = services;
+        app.locals.agentWallet = services.agentWallet;
         return services;
     });
+
+    app.use("/api/agent", agentRoutes);
 
     app.use(streamEngineMiddleware({
         ...resolvedConfig,

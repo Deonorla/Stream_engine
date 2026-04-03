@@ -113,6 +113,14 @@ class MemoryIndexerStore {
     async upsertRecord(key, payload) {
         this.records.set(String(key), { ...payload });
     }
+
+    async getAgentWallet(ownerPublicKey) {
+        return this.records.get(`agent_wallet:${ownerPublicKey.toUpperCase()}`) || null;
+    }
+
+    async upsertAgentWallet(record) {
+        this.records.set(`agent_wallet:${record.ownerPublicKey.toUpperCase()}`, { ...record });
+    }
 }
 
 class PostgresIndexerStore {
@@ -168,6 +176,14 @@ class PostgresIndexerStore {
             CREATE TABLE IF NOT EXISTS rwa_records (
                 record_key TEXT PRIMARY KEY,
                 payload JSONB NOT NULL
+            );
+        `);
+        await this.pool.query(`
+            CREATE TABLE IF NOT EXISTS agent_wallets (
+                owner_public_key TEXT PRIMARY KEY,
+                agent_public_key TEXT NOT NULL,
+                encrypted_secret TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         `);
     }
@@ -377,6 +393,27 @@ class PostgresIndexerStore {
                 DO UPDATE SET payload = EXCLUDED.payload
             `,
             [String(key), JSON.stringify(payload)]
+        );
+    }
+
+    async getAgentWallet(ownerPublicKey) {
+        const result = await this.pool.query(
+            "SELECT owner_public_key, agent_public_key, encrypted_secret FROM agent_wallets WHERE owner_public_key = upper($1)",
+            [ownerPublicKey]
+        );
+        if (!result.rows[0]) return null;
+        const row = result.rows[0];
+        return { ownerPublicKey: row.owner_public_key, agentPublicKey: row.agent_public_key, encryptedSecret: row.encrypted_secret };
+    }
+
+    async upsertAgentWallet(record) {
+        await this.pool.query(
+            `
+                INSERT INTO agent_wallets (owner_public_key, agent_public_key, encrypted_secret)
+                VALUES (upper($1), $2, $3)
+                ON CONFLICT (owner_public_key) DO NOTHING
+            `,
+            [record.ownerPublicKey, record.agentPublicKey, record.encryptedSecret]
         );
     }
 }

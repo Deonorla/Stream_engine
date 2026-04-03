@@ -4,7 +4,7 @@ import { LayoutDashboard, Zap, Store, Bot, FileText, X, ChevronRight, Layers } f
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
-import { getStoredAgentWallet } from '../lib/agentWallet';
+import { useAgentWallet } from '../hooks/useAgentWallet';
 
 const ownerNavItems = [
   { icon: LayoutDashboard, label: 'Owner Hub',        href: '/app',              sub: 'Balances · assets · overview' },
@@ -24,13 +24,13 @@ const agentNavItems = [
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const { walletAddress } = useWallet();
   const { mode, setMode } = useAppMode();
-  const agentWallet = getStoredAgentWallet();
+  const { agentPublicKey } = useAgentWallet(walletAddress);
   const navItems = mode === 'agent' ? agentNavItems : ownerNavItems;
   const shortAddress = walletAddress
     ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
     : null;
-  const agentShort = agentWallet
-    ? `${agentWallet.publicKey.slice(0, 6)}…${agentWallet.publicKey.slice(-4)}`
+  const agentShort = agentPublicKey
+    ? `${agentPublicKey.slice(0, 6)}…${agentPublicKey.slice(-4)}`
     : null;
 
   return (

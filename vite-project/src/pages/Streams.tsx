@@ -5,7 +5,7 @@ import { useAppMode } from '../context/AppModeContext';
 import StreamList from '../components/StreamList';
 import { supportedPaymentAssets } from '../contactInfo.js';
 import Select from '../components/ui/Select';
-import { getStoredAgentWallet, openAgentStream } from '../lib/agentWallet';
+import { useAgentWallet } from '../hooks/useAgentWallet';
 
 const DURATION_OPTIONS = [
   { label: '1 Hour',   seconds: 3600 },
@@ -32,7 +32,7 @@ export default function Streams() {
     xlmBalance,
   } = useWallet();
   const { mode } = useAppMode();
-  const agentWallet = getStoredAgentWallet();
+  const { agentPublicKey } = useAgentWallet(walletAddress);
 
   const [recipient, setRecipient]   = useState('');
   const [amount, setAmount]         = useState('');
@@ -73,20 +73,20 @@ export default function Streams() {
               <p className="text-sm font-bold font-headline text-slate-900">Autonomous Payment Streams</p>
               <p className="text-xs text-slate-400">Agent wallet signs all transactions — no Freighter required</p>
             </div>
-            <div className={`ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold ${agentWallet ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${agentWallet ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              {agentWallet ? `Agent: ${agentWallet.publicKey.slice(0,6)}…${agentWallet.publicKey.slice(-4)}` : 'No agent wallet'}
+            <div className={`ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold ${agentPublicKey ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${agentPublicKey ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              {agentPublicKey ? `Agent: ${agentPublicKey.slice(0,6)}…${agentPublicKey.slice(-4)}` : 'No agent wallet'}
             </div>
           </div>
 
-          {!agentWallet ? (
+          {!agentPublicKey ? (
             <div className="flex items-center gap-3 bg-amber-50 border border-amber-100 rounded-2xl px-5 py-4">
               <Lock size={16} className="text-amber-500 shrink-0" />
               <p className="text-sm text-amber-700">Create an agent wallet in <strong>My Agent</strong> to enable autonomous stream deployment.</p>
             </div>
           ) : (
             <AgentStreamDeployer
-              agentPublicKey={agentWallet.publicKey}
+              agentPublicKey={agentPublicKey}
               outgoingStreams={outgoingStreams}
               incomingStreams={incomingStreams}
               isLoadingStreams={isLoadingStreams}
@@ -324,7 +324,7 @@ export default function Streams() {
 }
 
 function AgentStreamDeployer({ agentPublicKey, outgoingStreams, incomingStreams, isLoadingStreams, formatEth, withdraw, cancel, refreshStreams }) {
-  const [password, setPassword] = useState('');
+  const { walletAddress } = useWallet();
   const [recipient, setRecipient] = useState('');
   const [amount, setAmount] = useState('');
   const [duration, setDuration] = useState(DURATION_OPTIONS[0].seconds);
@@ -336,19 +336,25 @@ function AgentStreamDeployer({ agentPublicKey, outgoingStreams, incomingStreams,
 
   const handleDeploy = async (e) => {
     e.preventDefault();
-    if (!password || !recipient || !amount) return;
+    if (!recipient || !amount || !walletAddress) return;
     setStatus('deploying'); setErrMsg('');
     try {
-      await openAgentStream(password, {
-        recipient,
-        token: selectedAsset.tokenAddress || selectedAsset.contractAddress || '',
-        assetCode: selectedAsset.symbol,
-        assetIssuer: selectedAsset.issuer || '',
-        totalAmount: BigInt(Math.round(Number(amount) * 10 ** (selectedAsset.decimals || 7))),
-        durationSeconds: duration,
+      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
+      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
+      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/sessions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...agentAuthHeaders() },
+        body: JSON.stringify({
+          recipient,
+          totalAmount: String(Math.round(Number(amount) * 10 ** (selectedAsset.decimals || 7))),
+          durationSeconds: duration,
+          assetCode: selectedAsset.symbol,
+          assetIssuer: selectedAsset.issuer || '',
+        }),
       });
+      if (!res.ok) throw new Error((await res.json()).error || 'Deploy failed');
       setStatus('ok');
-      setRecipient(''); setAmount(''); setPassword('');
+      setRecipient(''); setAmount('');
       refreshStreams();
     } catch (err: any) {
       setErrMsg(err?.message || 'Stream deployment failed.');
@@ -384,12 +390,6 @@ function AgentStreamDeployer({ agentPublicKey, outgoingStreams, incomingStreams,
           <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400">Duration</label>
           <Select options={DURATION_OPTIONS.map(o => ({ value: o.seconds, label: o.label }))}
             value={duration} onChange={v => setDuration(Number(v))} compact />
-        </div>
-        <div className="space-y-2">
-          <label className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400">Agent Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-            placeholder="Unlock agent wallet"
-            className="w-full bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
         </div>
         <button type="submit" disabled={status === 'deploying'}
           className="md:col-span-5 w-full md:w-auto px-10 py-4 bg-primary text-white rounded-2xl font-headline font-black text-sm uppercase tracking-tighter hover:shadow-xl hover:shadow-blue-500/20 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50">

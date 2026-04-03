@@ -6,7 +6,7 @@ import { useWallet } from '../context/WalletContext';
 import { fetchRwaAssets } from '../services/rwaApi.js';
 import { mapApiAssetToUiAsset } from './rwa/rwaData';
 import { cn } from '../lib/cn';
-import { getStoredAgentWallet } from '../lib/agentWallet';
+import { useAgentWallet } from '../hooks/useAgentWallet';
 import AgentWalletPanel from '../components/AgentWalletPanel';
 import { useAgentBalances } from '../hooks/useAgentBalances';
 
@@ -74,8 +74,8 @@ function LogRow({ entry }: { entry: LogEntry }) {
 
 export default function AgentConsolePage() {
   const { walletAddress, paymentBalance, xlmBalance, outgoingStreams, incomingStreams, refreshStreams } = useWallet();
-  const agentWallet = getStoredAgentWallet();
-  const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentWallet?.publicKey);
+  const { agentPublicKey } = useAgentWallet(walletAddress);
+  const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentPublicKey);
   const isConnected = Boolean(walletAddress);
 
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
@@ -153,7 +153,7 @@ export default function AgentConsolePage() {
           <div>
             <p className="text-sm font-bold font-headline text-slate-900">My Agent</p>
             <p className="text-[10px] font-mono text-slate-400">
-              {agentWallet ? `${agentWallet.publicKey.slice(0,6)}…${agentWallet.publicKey.slice(-4)}` : 'No agent wallet'}
+              {agentPublicKey ? `${agentPublicKey.slice(0,6)}…${agentPublicKey.slice(-4)}` : 'No agent wallet'}
             </p>
           </div>
           <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold ${statusConfig.bg} ${statusConfig.color}`}>
@@ -333,7 +333,7 @@ export default function AgentConsolePage() {
           </div>
 
           {/* Agent wallet balances */}
-          {agentWallet && (
+          {agentPublicKey && (
             <div className="px-5 py-4 border-b border-slate-100 shrink-0">
               <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Agent Balances</p>
               <div className="space-y-2">
