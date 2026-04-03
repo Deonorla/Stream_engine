@@ -40,19 +40,34 @@ function getAgent(req) {
 
 // ── Activation (one-time Freighter signature) ────────────────────────────────
 
+// POST /api/agent/wallet-restore — silent restore on login, never creates a new wallet
+router.post("/wallet-restore", asyncHandler(async (req, res) => {
+    const { ownerPublicKey } = req.body || {};
+    if (!ownerPublicKey || !StrKey.isValidEd25519PublicKey(String(ownerPublicKey))) {
+        return res.status(400).json({ error: "Valid ownerPublicKey is required." });
+    }
+    const agent = getAgent(req);
+    const wallet = await agent.getWallet(ownerPublicKey);
+    if (!wallet) return res.status(404).json({ error: "No agent wallet found." });
+    const token = jwt.sign({ ownerPublicKey }, JWT_SECRET, { expiresIn: JWT_TTL });
+    res.json({ token, agentPublicKey: wallet.publicKey });
+}));
+
 // POST /api/agent/activate
-// Body: { ownerPublicKey, signature }
-// Returns: { token, agentPublicKey }
 router.post("/activate", asyncHandler(async (req, res) => {
-    const { ownerPublicKey, signature } = req.body || {};
-    if (!verifyFreighterSignature(ownerPublicKey, signature)) {
-        return res.status(401).json({ error: "Invalid Freighter signature." });
+    const { ownerPublicKey } = req.body || {};
+    if (!ownerPublicKey || !StrKey.isValidEd25519PublicKey(String(ownerPublicKey))) {
+        return res.status(400).json({ error: "Valid ownerPublicKey is required." });
     }
     const agent = getAgent(req);
     if (!agent?.isConfigured()) {
         return res.status(503).json({ error: "Agent wallet not configured. Set AGENT_ENCRYPTION_KEY in .env." });
     }
     const wallet = await agent.getOrCreateWallet(ownerPublicKey);
+
+    // Trustline is set up separately via POST /api/agent/trustline
+    // (requires XLM on the account first — can't be done at creation time)
+
     const token = jwt.sign({ ownerPublicKey }, JWT_SECRET, { expiresIn: JWT_TTL });
     res.json({ token, agentPublicKey: wallet.publicKey });
 }));
@@ -60,7 +75,8 @@ router.post("/activate", asyncHandler(async (req, res) => {
 // GET /api/agent/wallet — fetch agent public key (requires JWT)
 router.get("/wallet", requireJwt, asyncHandler(async (req, res) => {
     const agent = getAgent(req);
-    const wallet = await agent.getOrCreateWallet(req.agentSession.ownerPublicKey);
+    const wallet = await agent.getWallet(req.agentSession.ownerPublicKey);
+    if (!wallet) return res.status(404).json({ error: "No agent wallet found." });
     res.json({ publicKey: wallet.publicKey });
 }));
 
@@ -69,6 +85,24 @@ router.get("/wallet", requireJwt, asyncHandler(async (req, res) => {
 router.use(requireJwt);
 
 const owner = (req) => req.agentSession.ownerPublicKey;
+
+// POST /api/agent/trustline
+router.post("/trustline", asyncHandler(async (req, res) => {
+    const { assetCode, assetIssuer } = req.body;
+    if (!assetCode || !assetIssuer) return res.status(400).json({ error: "assetCode and assetIssuer are required" });
+    const result = await getAgent(req).setupTrustline({ owner: owner(req), assetCode, assetIssuer });
+    res.json({ code: "trustline_created", ...result });
+}));
+
+// POST /api/agent/withdraw — send funds from agent wallet back to owner
+router.post("/withdraw", asyncHandler(async (req, res) => {
+    const { assetCode, assetIssuer, amount } = req.body;
+    if (!assetCode || !amount) return res.status(400).json({ error: "assetCode and amount are required" });
+    // destination is always the authenticated owner's Freighter address
+    const destination = owner(req);
+    const result = await getAgent(req).withdraw({ owner: destination, destination, assetCode, assetIssuer: assetIssuer || "", amount });
+    res.json({ code: "agent_withdrawal_complete", txHash: result.txHash, destination, amount, assetCode });
+}));
 
 router.post("/sessions", asyncHandler(async (req, res) => {
     const { recipient, totalAmount, durationSeconds, metadata, assetCode, assetIssuer } = req.body;

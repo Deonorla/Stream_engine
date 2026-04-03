@@ -3,6 +3,7 @@ node_modules/
 artifacts/
 artifacts-pvm/
 cache/
+.agent-wallets.json
 cache-pvm/
 coverage/
 typechain/

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TrendingUp, ArrowUpRight, ArrowDownLeft, Store, Plus, Zap, Bot, Activity, Layers, Target, AlertTriangle, RefreshCw, Play, Pause, Wallet, X, KeyRound } from 'lucide-react';
+import { TrendingUp, ArrowUpRight, ArrowDownLeft, Store, Plus, Zap, Bot, Activity, Layers, Target, AlertTriangle, RefreshCw, Play, Pause, Wallet, X, KeyRound, PlusCircle, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/cn';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
 import { paymentTokenSymbol } from '../contactInfo';
+import Select from '../components/ui/Select';
 import { useAgentWallet } from '../hooks/useAgentWallet';
 import AgentWalletPanel from '../components/AgentWalletPanel';
 import { useAgentBalances } from '../hooks/useAgentBalances';
@@ -94,6 +95,35 @@ export default function Dashboard() {
   // Agent mode state
   const [agentRunning, setAgentRunning] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [showFundModal, setShowFundModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAsset, setWithdrawAsset] = useState('USDC');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [withdrawMsg, setWithdrawMsg] = useState('');
+
+  const handleWithdrawToOwner = async () => {
+    if (!withdrawAmount || !walletAddress) return;
+    setWithdrawBusy(true); setWithdrawMsg('');
+    try {
+      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
+      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
+      const { ACTIVE_NETWORK } = await import('../networkConfig.js');
+      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...agentAuthHeaders() },
+        body: JSON.stringify({
+          assetCode: withdrawAsset,
+          assetIssuer: withdrawAsset === 'USDC' ? (ACTIVE_NETWORK.paymentAssetIssuer || '') : '',
+          amount: withdrawAmount,
+        }),
+      });
+      const data = await res.json();
+      setWithdrawMsg(res.ok ? `✓ Sent ${withdrawAmount} ${withdrawAsset} to your wallet` : (data.error || 'Failed'));
+      if (res.ok) setWithdrawAmount('');
+    } catch { setWithdrawMsg('Request failed'); }
+    setWithdrawBusy(false);
+  };
   const [agentLogs, setAgentLogs] = useState<any[]>([makeAgentLog({ type: 'info', message: 'Agent ready. Switch to Agent mode and press Run.', detail: 'Stellar Testnet' })]);
   const [agentProfit, setAgentProfit] = useState(0);
   const [agentActions, setAgentActions] = useState(0);
@@ -181,6 +211,14 @@ export default function Dashboard() {
                   <Play size={12} /> Run Agent
                 </button>
               )}
+              <button onClick={() => setShowFundModal(true)} disabled={!agentPublicKey}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-all disabled:opacity-40">
+                <PlusCircle size={12} /> Fund Wallet
+              </button>
+              <button onClick={() => { setShowWithdrawModal(true); setWithdrawMsg(''); }} disabled={!agentPublicKey}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-xs font-bold hover:bg-amber-100 transition-all disabled:opacity-40">
+                <ArrowUpRight size={12} /> Withdraw
+              </button>
             </>
           )}
           <button
@@ -278,9 +316,9 @@ export default function Dashboard() {
             {/* Agent stats */}
             <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               {[
-                { label: 'Agent XLM',   value: agentPublicKey ? agentXlm : '—',                sub: 'Fund agent wallet',    color: 'text-secondary' },
-                { label: 'Agent USDC',  value: agentPublicKey ? agentUsdc : '—',                sub: 'Spending balance',     color: 'text-primary' },
-                { label: 'Session P&L', value: `+${agentProfit.toFixed(2)}`,                 sub: 'USDC profit',          color: 'text-secondary' },
+                { label: 'Agent XLM',   value: agentPublicKey ? fmt(agentXlm) : '—',                sub: 'token',    color: 'text-secondary' },
+                { label: 'Agent USDC',  value: agentPublicKey ? fmt(agentUsdc) : '—',                sub: 'token',     color: 'text-primary' },
+                { label: 'Session P&L', value: `+${agentProfit.toFixed(2)}`,                 sub: 'profit',          color: 'text-secondary' },
                 { label: 'Actions',     value: String(agentActions),                          sub: 'Autonomous decisions', color: 'text-purple-600' },
               ].map((s, i) => (
                 <motion.div key={i} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}
@@ -413,6 +451,91 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ── Fund Agent Wallet Modal ── */}
+      {showFundModal && agentPublicKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet size={16} className="text-primary" />
+                <p className="text-sm font-bold text-slate-900">Fund Agent Wallet</p>
+              </div>
+              <button onClick={() => setShowFundModal(false)} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-1">
+              <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">Agent Address</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-mono text-slate-700 truncate flex-1">{agentPublicKey}</p>
+                <button onClick={() => navigator.clipboard.writeText(agentPublicKey)} className="text-slate-400 hover:text-primary shrink-0">
+                  <Copy size={13} />
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Fund with XLM</p>
+              <button onClick={() => window.open(`https://friendbot.stellar.org/?addr=${agentPublicKey}`, '_blank', 'noopener')}
+                className="w-full py-3 rounded-xl bg-slate-900 text-white text-sm font-bold hover:opacity-90 transition-all">
+                Get Testnet XLM via Friendbot
+              </button>
+              <p className="text-[10px] text-slate-400">Funds your agent with free testnet XLM instantly.</p>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Fund with USDC</p>
+              <p className="text-xs text-slate-500">Copy the agent address and send USDC from your Freighter wallet.</p>
+              <button onClick={() => navigator.clipboard.writeText(agentPublicKey)}
+                className="w-full py-3 rounded-xl border border-primary text-primary text-sm font-bold hover:bg-blue-50 transition-all flex items-center justify-center gap-2">
+                <Copy size={14} /> Copy Agent Address
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Withdraw Modal ── */}
+      {showWithdrawModal && agentPublicKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ArrowUpRight size={16} className="text-amber-600" />
+                <p className="text-sm font-bold text-slate-900">Withdraw from Agent</p>
+              </div>
+              <button onClick={() => { setShowWithdrawModal(false); setWithdrawMsg(''); setWithdrawAmount(''); }}
+                className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+            </div>
+            <p className="text-xs text-slate-500">Funds will be sent to your connected Freighter wallet.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2 items-start">
+                <div className="w-32 shrink-0">
+                  <Select
+                    compact
+                    options={[
+                      { value: 'USDC', label: 'USDC' },
+                      { value: 'XLM',  label: 'XLM' },
+                    ]}
+                    value={withdrawAsset}
+                    onChange={v => setWithdrawAsset(String(v))}
+                  />
+                </div>
+                <input type="number" placeholder="Amount" value={withdrawAmount}
+                  onChange={e => setWithdrawAmount(e.target.value)}
+                  className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+              </div>
+              {withdrawMsg && <p className={`text-xs ${withdrawMsg.startsWith('✓') ? 'text-secondary' : 'text-red-400'}`}>{withdrawMsg}</p>}
+              <button onClick={handleWithdrawToOwner} disabled={withdrawBusy || !withdrawAmount}
+                className="w-full py-3 rounded-xl bg-amber-500 text-white text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
+                {withdrawBusy
+                  ? <span className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" />
+                  : <><ArrowUpRight size={16} /> Withdraw {withdrawAmount || '0'} {withdrawAsset}</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

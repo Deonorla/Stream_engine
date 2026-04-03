@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Bot, Activity, Zap, Store, TrendingUp, RefreshCw, Play, Pause, Settings, AlertTriangle, Target, Wallet, ArrowUpRight, ArrowDownLeft, BarChart2, Link as LinkIcon } from 'lucide-react';
+import { Bot, Activity, Zap, Store, TrendingUp, RefreshCw, Play, Pause, Settings, AlertTriangle, Target, Wallet, ArrowUpRight, ArrowDownLeft, BarChart2, Link as LinkIcon, PlusCircle, Copy, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '../context/WalletContext';
@@ -9,34 +9,12 @@ import { cn } from '../lib/cn';
 import { useAgentWallet } from '../hooks/useAgentWallet';
 import AgentWalletPanel from '../components/AgentWalletPanel';
 import { useAgentBalances } from '../hooks/useAgentBalances';
+import { useAgentLoop, makeLogEntry, type LogEntry } from '../hooks/useAgentLoop';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AgentStatus = 'running' | 'paused' | 'idle';
-type LogEntry = {
-  id: number; ts: number;
-  type: 'action' | 'decision' | 'info' | 'error' | 'profit';
-  message: string; detail?: string; amount?: string; asset?: string;
-};
 type AgentRule = { id: string; label: string; enabled: boolean; value: string; unit: string };
-
-// ─── Mock log ─────────────────────────────────────────────────────────────────
-
-let logId = 0;
-const MOCK_ACTIONS: Omit<LogEntry, 'id' | 'ts'>[] = [
-  { type: 'decision', message: 'Scanning marketplace for yield opportunities', detail: 'Evaluating 3 assets' },
-  { type: 'action',   message: 'Opened rental stream on Azure Heights Residence', detail: 'Session #12 · 30 days', amount: '+8.2% APY', asset: 'Real Estate' },
-  { type: 'profit',   message: 'Claimed yield from Skyline Logistics Hub', detail: 'Session #9 settled', amount: '+2.4 USDC' },
-  { type: 'decision', message: 'Holding — vehicle asset yield below threshold', detail: 'Min yield: 5% · Current: 3.1%' },
-  { type: 'action',   message: 'Cancelled underperforming stream', detail: 'Session #7 · Refund: 12.5 USDC', amount: '+12.5 USDC' },
-  { type: 'info',     message: 'Portfolio rebalance check complete', detail: '2 active rentals · 1 pending claim' },
-  { type: 'action',   message: 'Deployed payment stream to equipment provider', detail: 'Session #13 · 7 days · 5 USDC', amount: '-5.0 USDC' },
-  { type: 'profit',   message: 'Flash advance executed on yield vault', detail: 'Advance: 18.3 USDC', amount: '+18.3 USDC' },
-];
-function makeLog(override?: Partial<LogEntry>): LogEntry {
-  const base = MOCK_ACTIONS[logId % MOCK_ACTIONS.length];
-  return { ...base, ...override, id: ++logId, ts: Date.now() };
-}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -73,15 +51,16 @@ function LogRow({ entry }: { entry: LogEntry }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function AgentConsolePage() {
-  const { walletAddress, paymentBalance, xlmBalance, outgoingStreams, incomingStreams, refreshStreams } = useWallet();
+  const { walletAddress, outgoingStreams, incomingStreams, refreshStreams } = useWallet();
   const { agentPublicKey } = useAgentWallet(walletAddress);
   const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentPublicKey);
   const isConnected = Boolean(walletAddress);
 
   const [agentStatus, setAgentStatus] = useState<AgentStatus>('idle');
-  const [logs, setLogs] = useState<LogEntry[]>([makeLog({ type: 'info', message: 'Agent initialized. Configure rules and press Run to start.', detail: 'Stellar Testnet · Ready' })]);
+  const [logs, setLogs] = useState<LogEntry[]>([makeLogEntry({ type: 'info', message: 'Agent initialized. Configure rules and press Run to start.', detail: 'Stellar Testnet · Ready' })]);
   const [totalProfit, setTotalProfit] = useState(0);
   const [actionsCount, setActionsCount] = useState(0);
+  const [agentSessions, setAgentSessions] = useState<any[]>([]);
   const [rules, setRules] = useState<AgentRule[]>([
     { id: 'min_yield',  label: 'Min yield target',    enabled: true,  value: '5',  unit: '%' },
     { id: 'max_budget', label: 'Max budget per trade', enabled: true,  value: '50', unit: 'USDC' },
@@ -91,45 +70,43 @@ export default function AgentConsolePage() {
   const [showSettings, setShowSettings] = useState(false);
   const [marketAssets, setMarketAssets] = useState<any[]>([]);
 
-  const loopRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showFundModal, setShowFundModal] = useState(false);
+  const { start: startLoop, stop: stopLoop } = useAgentLoop(agentPublicKey);
   const logBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logBottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [logs]);
-
   useEffect(() => {
     fetchRwaAssets().then(raw => setMarketAssets(raw.slice(0, 4).map(mapApiAssetToUiAsset))).catch(() => {});
   }, []);
 
   const addLog = useCallback((entry: Omit<LogEntry, 'id' | 'ts'>) => {
-    setLogs(l => [...l.slice(-99), makeLog(entry)]);
+    setLogs(l => [...l.slice(-99), makeLogEntry(entry)]);
     if (entry.type === 'profit' && entry.amount) {
-      const val = parseFloat(entry.amount.replace('+', '')) || 0;
-      setTotalProfit(p => Math.round((p + val) * 100) / 100);
+      setTotalProfit(p => Math.round((p + (parseFloat(entry.amount!.replace('+', '')) || 0)) * 100) / 100);
     }
     if (entry.type === 'action') setActionsCount(c => c + 1);
   }, []);
 
   const startAgent = useCallback(() => {
+    if (!agentPublicKey) return;
     setAgentStatus('running');
     addLog({ type: 'info', message: 'Autonomous agent started', detail: `Rules active: ${rules.filter(r => r.enabled).length}` });
-    loopRef.current = setInterval(() => {
-      addLog(MOCK_ACTIONS[Math.floor(Math.random() * MOCK_ACTIONS.length)]);
-    }, 4000);
-  }, [addLog, rules]);
+    startLoop(rules, addLog, setAgentSessions);
+  }, [agentPublicKey, rules, addLog, startLoop]);
 
   const pauseAgent = useCallback(() => {
     setAgentStatus('paused');
-    if (loopRef.current) clearInterval(loopRef.current);
+    stopLoop();
     addLog({ type: 'info', message: 'Agent paused by operator', detail: 'Resume anytime' });
-  }, [addLog]);
+  }, [addLog, stopLoop]);
 
   const stopAgent = useCallback(() => {
     setAgentStatus('idle');
-    if (loopRef.current) clearInterval(loopRef.current);
+    stopLoop();
     addLog({ type: 'info', message: 'Agent stopped', detail: `Session summary: ${actionsCount} actions` });
-  }, [addLog, actionsCount]);
+  }, [addLog, stopLoop, actionsCount]);
 
-  useEffect(() => () => { if (loopRef.current) clearInterval(loopRef.current); }, []);
+  useEffect(() => () => stopLoop(), [stopLoop]);
 
   const statusConfig = {
     running: { label: 'Running', color: 'text-secondary',  bg: 'bg-emerald-50', dot: 'bg-secondary animate-pulse' },
@@ -137,9 +114,8 @@ export default function AgentConsolePage() {
     idle:    { label: 'Idle',    color: 'text-slate-500',  bg: 'bg-slate-100',  dot: 'bg-slate-300' },
   }[agentStatus];
 
-  const activeStreams = outgoingStreams.filter(s => !['ended','cancelled','completed'].includes(s.sessionStatus)).length;
-  const earningStreams = incomingStreams.filter(s => !['ended','cancelled','completed'].includes(s.sessionStatus)).length;
-  const fmt = (v: any) => parseFloat(v || 0).toFixed(2);
+  const activeStreams = agentSessions.filter(s => s.sessionStatus === 'active').length;
+  const totalClaimable = agentSessions.reduce((sum, s) => sum + parseFloat(s.claimableAmount || s.consumedAmount || '0'), 0);
 
   return (
     <div className="flex flex-col h-[calc(100vh-65px)] bg-slate-50/50">
@@ -164,10 +140,10 @@ export default function AgentConsolePage() {
 
         <div className="flex items-center gap-2 flex-wrap">
           {[
-            { icon: TrendingUp,    label: 'P&L',      value: `+${totalProfit.toFixed(2)} USDC`, color: 'text-secondary' },
-            { icon: Zap,           label: 'Actions',  value: String(actionsCount),               color: 'text-primary' },
-            { icon: ArrowUpRight,  label: 'Spending', value: String(activeStreams),               color: 'text-primary' },
-            { icon: ArrowDownLeft, label: 'Earning',  value: String(earningStreams),              color: 'text-secondary' },
+            { icon: TrendingUp,    label: 'P&L',       value: `+${totalProfit.toFixed(2)} USDC`,    color: 'text-secondary' },
+            { icon: Zap,           label: 'Actions',   value: String(actionsCount),                  color: 'text-primary' },
+            { icon: ArrowUpRight,  label: 'Sessions',  value: String(activeStreams),                  color: 'text-primary' },
+            { icon: ArrowDownLeft, label: 'Claimable', value: `${totalClaimable.toFixed(4)} USDC`,   color: 'text-secondary' },
           ].map(({ icon: Icon, label, value, color }) => (
             <div key={label} className="flex items-center gap-2 bg-white border border-slate-100 rounded-xl px-3 py-2 shadow-sm">
               <Icon size={13} className={color} />
@@ -180,6 +156,10 @@ export default function AgentConsolePage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button onClick={() => setShowFundModal(true)} disabled={!agentPublicKey}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-xs font-bold hover:bg-emerald-100 transition-all disabled:opacity-40">
+            <PlusCircle size={14} /> Fund Wallet
+          </button>
           <button onClick={() => setShowSettings(s => !s)}
             className={cn('p-2.5 rounded-xl border transition-all', showSettings ? 'bg-blue-50 border-blue-200 text-primary' : 'border-slate-100 text-slate-400 hover:text-primary hover:bg-slate-50')}>
             <Settings size={16} />
@@ -188,7 +168,7 @@ export default function AgentConsolePage() {
             <RefreshCw size={16} />
           </button>
           {agentStatus === 'idle' && (
-            <button onClick={startAgent} disabled={!isConnected}
+            <button onClick={startAgent} disabled={!isConnected || !agentPublicKey}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all disabled:opacity-40">
               <Play size={14} /> Run Agent
             </button>
@@ -241,7 +221,7 @@ export default function AgentConsolePage() {
       </AnimatePresence>
 
       {/* ── Main 3-column layout ── */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[1fr_1fr_320px] overflow-hidden">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 overflow-hidden">
 
         {/* Col 1: Activity feed */}
         <div className="flex flex-col overflow-hidden border-r border-slate-100">
@@ -309,9 +289,9 @@ export default function AgentConsolePage() {
             <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Session P&L</p>
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: 'Profit',   value: `+${totalProfit.toFixed(2)}`, color: 'text-secondary' },
-                { label: 'Actions',  value: String(actionsCount),          color: 'text-primary' },
-                { label: 'Streams',  value: String(activeStreams),          color: 'text-purple-600' },
+                { label: 'Profit',    value: `+${totalProfit.toFixed(2)}`,  color: 'text-secondary' },
+                { label: 'Actions',   value: String(actionsCount),           color: 'text-primary' },
+                { label: 'Sessions',  value: String(activeStreams),           color: 'text-purple-600' },
               ].map(({ label, value, color }) => (
                 <div key={label} className="bg-slate-50 rounded-xl p-3 border border-slate-100 text-center">
                   <p className={`text-base font-headline font-black ${color}`}>{value}</p>
@@ -322,70 +302,52 @@ export default function AgentConsolePage() {
           </div>
         </div>
 
-        {/* Col 3: Agent wallet + quick links */}
-        <div className="flex flex-col overflow-hidden bg-white">
-          <div className="px-5 py-4 border-b border-slate-100 shrink-0">
-            <div className="flex items-center gap-2 mb-3">
-              <Wallet size={14} className="text-primary" />
-              <p className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-500">Agent Wallet</p>
-            </div>
-            <AgentWalletPanel />
-          </div>
+      </div>
 
-          {/* Agent wallet balances */}
-          {agentPublicKey && (
-            <div className="px-5 py-4 border-b border-slate-100 shrink-0">
-              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Agent Balances</p>
-              <div className="space-y-2">
-                {[
-                  { label: 'XLM',  value: `${agentXlm} XLM`,  color: 'text-secondary' },
-                  { label: 'USDC', value: `${agentUsdc} USDC`, color: 'text-primary' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                    <span className="text-[10px] font-label uppercase tracking-widest text-slate-400">{label}</span>
-                    <span className={`text-sm font-bold ${color}`}>{value}</span>
-                  </div>
-                ))}
+      {/* ── Fund Wallet Modal ── */}
+      {showFundModal && agentPublicKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet size={16} className="text-primary" />
+                <p className="text-sm font-bold text-slate-900">Fund Agent Wallet</p>
+              </div>
+              <button onClick={() => setShowFundModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-1">
+              <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">Agent Address</p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-mono text-slate-700 truncate flex-1">{agentPublicKey}</p>
+                <button onClick={() => navigator.clipboard.writeText(agentPublicKey)}
+                  className="text-slate-400 hover:text-primary shrink-0"><Copy size={13} /></button>
               </div>
             </div>
-          )}
 
-          {/* Owner wallet context */}
-          {/* <div className="px-5 py-4 border-b border-slate-100 shrink-0">
-            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Owner Wallet (Freighter)</p>
             <div className="space-y-2">
-              {[
-                { label: 'XLM',  value: `${fmt(xlmBalance)} XLM`,         color: 'text-slate-700' },
-                { label: 'USDC', value: `${fmt(paymentBalance)} USDC`,     color: 'text-primary' },
-              ].map(({ label, value, color }) => (
-                <div key={label} className="flex justify-between items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                  <span className="text-[10px] font-label uppercase tracking-widest text-slate-400">{label}</span>
-                  <span className={`text-sm font-bold ${color}`}>{value}</span>
-                </div>
-              ))}
+              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Fund with XLM</p>
+              <button
+                onClick={() => window.open(`https://friendbot.stellar.org/?addr=${agentPublicKey}`, '_blank', 'noopener')}
+                className="w-full py-3 rounded-xl bg-slate-900 text-white text-sm font-bold hover:opacity-90 transition-all">
+                Get Testnet XLM via Friendbot
+              </button>
+              <p className="text-[10px] text-slate-400">Opens Stellar Friendbot — funds your agent with free testnet XLM instantly.</p>
             </div>
-          </div> */}
 
-          {/* Quick links */}
-          <div className="px-5 py-4 space-y-2 flex-1">
-            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400 mb-3">Quick Actions</p>
-            {[
-              { label: 'Browse Marketplace',  sub: 'Find yield opportunities',  href: '/app/marketplace', color: 'text-purple-600', bg: 'bg-purple-50' },
-              { label: 'Payment Streams',     sub: 'Deploy agent payments',      href: '/app/streams',     color: 'text-primary',    bg: 'bg-blue-50' },
-              { label: 'RWA Studio',          sub: 'Owner tools — mint & manage',href: '/app/rwa',         color: 'text-slate-600',  bg: 'bg-slate-50' },
-            ].map(({ label, sub, href, color, bg }) => (
-              <Link key={href} to={href}
-                className={cn('flex items-center justify-between p-3 rounded-2xl border border-slate-100 hover:shadow-sm transition-all group', bg)}>
-                <div>
-                  <p className={`text-xs font-bold ${color}`}>{label}</p>
-                  <p className="text-[10px] text-slate-400">{sub}</p>
-                </div>
-                <LinkIcon size={13} className="text-slate-300 group-hover:text-primary transition-colors" />
-              </Link>
-            ))}
+            <div className="space-y-2 pt-1 border-t border-slate-100">
+              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Fund with USDC</p>
+              <p className="text-xs text-slate-500">Copy the agent address above, then send USDC from your Freighter wallet to that address.</p>
+              <button onClick={() => { navigator.clipboard.writeText(agentPublicKey); }}
+                className="w-full py-3 rounded-xl border border-primary text-primary text-sm font-bold hover:bg-blue-50 transition-all flex items-center justify-center gap-2">
+                <Copy size={14} /> Copy Agent Address
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { Copy, Check, Wallet, LogOut, Menu } from 'lucide-react';
+import { Copy, Check, Wallet, LogOut, Menu, Bot } from 'lucide-react';
 import { useWallet } from '../context/WalletContext';
+import { useAppMode } from '../context/AppModeContext';
+import { useAgentWallet } from '../hooks/useAgentWallet';
 
 export default function TopBar({ title, onMenuClick }) {
   const { walletAddress, disconnectWallet, openWalletPicker, isConnectingWallet } = useWallet();
+  const { mode } = useAppMode();
+  const { agentPublicKey } = useAgentWallet(walletAddress);
   const [copied, setCopied] = useState(false);
 
+  const isAgentMode = mode === 'agent' && Boolean(agentPublicKey);
+  const displayAddress = isAgentMode ? agentPublicKey! : walletAddress;
+  const label = isAgentMode ? 'Agent' : 'Owner';
+
   const copy = () => {
-    navigator.clipboard.writeText(walletAddress);
+    navigator.clipboard.writeText(displayAddress);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -31,7 +39,13 @@ export default function TopBar({ title, onMenuClick }) {
           <>
             <button onClick={copy}
               className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-slate-100 bg-slate-50 hover:bg-slate-100 transition-colors group">
-              <span className="font-mono text-xs sm:text-sm font-medium text-slate-700">{short}</span>
+              {isAgentMode
+                ? <Bot size={14} className="text-primary shrink-0" />
+                : <Wallet size={14} className="text-slate-400 shrink-0" />}
+              <span className="text-[10px] font-label uppercase tracking-widest text-slate-400 hidden sm:inline">{label}</span>
+              <span className="font-mono text-xs sm:text-sm font-medium text-slate-700">
+                {displayAddress.slice(0, 6)}…{displayAddress.slice(-4)}
+              </span>
               {copied
                 ? <Check size={14} className="text-secondary" />
                 : <Copy size={14} className="text-slate-300 group-hover:text-slate-500 transition-colors" />}

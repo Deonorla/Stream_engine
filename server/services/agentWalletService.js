@@ -1,5 +1,6 @@
 const crypto = require("crypto");
-const { Keypair } = require("@stellar/stellar-sdk");
+const { Keypair, TransactionBuilder, Operation, Asset, BASE_FEE } = require("@stellar/stellar-sdk");
+const fileStore = require("./agentWalletFileStore");
 
 const ALGORITHM = "aes-256-gcm";
 
@@ -41,24 +42,40 @@ class AgentWalletService {
         if (this._fallbackKeypair) return this._fallbackKeypair;
 
         if (!this.encryptionKey) throw Object.assign(new Error("AGENT_ENCRYPTION_KEY is not configured."), { status: 503 });
-        if (!this.store) throw Object.assign(new Error("Store not available."), { status: 503 });
 
-        const record = await this.store.getAgentWallet(ownerPublicKey);
+        // Try primary store, then file store fallback
+        let record = null;
+        if (this.store && typeof this.store.getAgentWallet === "function") {
+            record = await this.store.getAgentWallet(ownerPublicKey);
+        }
+        if (!record) record = fileStore.getAgentWallet(ownerPublicKey);
         if (record) return Keypair.fromSecret(decrypt(record.encryptedSecret, this.encryptionKey));
-
-        // Auto-create
         const kp = Keypair.random();
-        await this.store.upsertAgentWallet({
+        const newRecord = {
             ownerPublicKey,
             agentPublicKey: kp.publicKey(),
             encryptedSecret: encrypt(kp.secret(), this.encryptionKey),
-        });
+        };
+        await store.upsertAgentWallet(newRecord);
+        fileStore.upsertAgentWallet(newRecord); // always persist to file as backup
         return kp;
     }
 
     async getOrCreateWallet(ownerPublicKey) {
         const kp = await this.resolveKeypair(ownerPublicKey);
         return { publicKey: kp.publicKey() };
+    }
+
+    async getWallet(ownerPublicKey) {
+        if (this._fallbackKeypair) return { publicKey: this._fallbackKeypair.publicKey() };
+        // Try primary store first, then always fall back to file store
+        let record = null;
+        if (this.store && typeof this.store.getAgentWallet === "function") {
+            record = await this.store.getAgentWallet(ownerPublicKey);
+        }
+        if (!record) record = fileStore.getAgentWallet(ownerPublicKey);
+        if (!record) return null;
+        return { publicKey: record.agentPublicKey };
     }
 
     async openSession({ owner, recipient, totalAmount, durationSeconds, metadata, assetCode, assetIssuer }) {
@@ -106,6 +123,45 @@ class AgentWalletService {
             ],
             signerSecret: kp.secret(),
         });
+    }
+
+    async setupTrustline({ owner, assetCode, assetIssuer }) {
+        const kp = await this.resolveKeypair(owner);
+        const cs = this.chainService.contractService;
+        if (!cs.horizonServer || !cs.networkPassphrase) {
+            throw Object.assign(new Error("Horizon not configured."), { status: 503 });
+        }
+        const account = await cs.horizonServer.loadAccount(kp.publicKey());
+        const tx = new TransactionBuilder(account, {
+            fee: String(BASE_FEE),
+            networkPassphrase: cs.networkPassphrase,
+        })
+            .addOperation(Operation.changeTrust({ asset: new Asset(assetCode, assetIssuer) }))
+            .setTimeout(30)
+            .build();
+        tx.sign(kp);
+        const result = await cs.horizonServer.submitTransaction(tx);
+        return { txHash: result.hash };
+    }
+
+    async withdraw({ owner, destination, assetCode, assetIssuer, amount }) {
+        const kp = await this.resolveKeypair(owner);
+        const cs = this.chainService.contractService;
+        if (!cs.horizonServer || !cs.networkPassphrase) {
+            throw Object.assign(new Error("Horizon not configured."), { status: 503 });
+        }
+        const account = await cs.horizonServer.loadAccount(kp.publicKey());
+        const asset = assetCode === "XLM" ? Asset.native() : new Asset(assetCode, assetIssuer);
+        const tx = new TransactionBuilder(account, {
+            fee: String(BASE_FEE),
+            networkPassphrase: cs.networkPassphrase,
+        })
+            .addOperation(Operation.payment({ destination, asset, amount: String(amount) }))
+            .setTimeout(30)
+            .build();
+        tx.sign(kp);
+        const result = await cs.horizonServer.submitTransaction(tx);
+        return { txHash: result.hash };
     }
 }
 
