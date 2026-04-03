@@ -282,6 +282,14 @@ export async function fetchAgentState(agentId) {
   return response.state || null;
 }
 
+export async function openAgentPaymentSession(agentId, payload) {
+  return request(`/api/agents/${agentId}/sessions`, {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchAgentRuntime(agentId) {
   const response = await request(`/api/agents/${agentId}/runtime`, {
     method: 'GET',

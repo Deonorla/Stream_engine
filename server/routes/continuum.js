@@ -889,6 +889,61 @@ router.get("/market/positions", requireJwt, asyncHandler(async (req, res) => {
     });
 }));
 
+router.post("/agents/:agentId/sessions", requireJwt, asyncHandler(async (req, res) => {
+    const { services, agentId, ownerPublicKey } = await resolveAgentContext(req);
+    if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
+        return res.status(403).json({ error: "Cannot open another agent payment session.", code: "agent_scope_forbidden" });
+    }
+
+    const config = req.app.locals.config || {};
+    const recipient = String(req.body?.recipient || config.recipientAddress || "").trim();
+    if (!recipient) {
+        return res.status(503).json({ error: "Continuum payment recipient is not configured.", code: "recipient_not_configured" });
+    }
+
+    const decimals = Number(config.tokenDecimals || 7);
+    const amountInput = String(req.body?.amount || req.body?.budget || "5").trim();
+    const durationSeconds = Math.max(300, Number(req.body?.durationSeconds || 3 * 60 * 60));
+    const metadata = typeof req.body?.metadata === "string"
+        ? req.body.metadata
+        : JSON.stringify({
+            lane: "continuum_marketplace",
+            purpose: "paid_market_actions",
+            scope: "managed_agent",
+            ...(req.body?.metadata || {}),
+        });
+
+    const result = await services.agentWallet.openSession({
+        owner: ownerPublicKey,
+        recipient,
+        totalAmount: ethers.parseUnits(amountInput, decimals).toString(),
+        durationSeconds,
+        metadata,
+        assetCode: services.chainService.runtime?.paymentAssetCode || config.tokenSymbol || "USDC",
+        assetIssuer: services.chainService.runtime?.paymentAssetIssuer || "",
+    });
+
+    await services.agentState.appendDecision(agentId, {
+        type: "action",
+        message: `Managed market session #${result.streamId} opened`,
+        detail: `${amountInput} ${(config.tokenSymbol || "USDC")} reserved for premium analysis, bidding, and treasury actions.`,
+    });
+
+    const session = await services.chainService.getSessionSnapshot(result.streamId);
+    res.status(201).json({
+        code: "agent_session_opened",
+        agentId,
+        action: "openPaymentSession",
+        session: session || {
+            id: Number(result.streamId),
+            sender: "",
+            recipient,
+            isActive: true,
+        },
+        txHash: result.txHash || "",
+    });
+}));
+
 router.post("/market/yield/claim", requirePaidAction("0.01", "Yield claim"), requireJwt, asyncHandler(async (req, res) => {
     const { services, ownerPublicKey, agentId } = await resolveAgentContext(req);
     const result = await services.agentWallet.claimYield({

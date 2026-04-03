@@ -33,6 +33,7 @@ import {
   fetchMarketAnalytics,
   fetchMarketCatalog,
   fetchMarketPositions,
+  openAgentPaymentSession,
   placeAuctionBid,
   removeAgentWatchAsset,
   saveAgentScreen,
@@ -648,7 +649,7 @@ function MarketActions({
 }
 
 export default function Marketplace() {
-  const { walletAddress, createStream, outgoingStreams, refreshStreams } = useWallet();
+  const { walletAddress } = useWallet();
   const { agentPublicKey, activate } = useAgentWallet(walletAddress);
   const [assets, setAssets] = useState<any[]>([]);
   const [agentState, setAgentState] = useState<any>(null);
@@ -726,6 +727,33 @@ export default function Marketplace() {
     void load();
   }, [load]);
 
+  const runtimeSummary = agentState?.runtime?.lastSummary || {};
+  const performance = agentPerformance || agentState?.performance || {};
+  const performanceAttribution = performance.attribution || {};
+  const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
+  const recentDecisionLog = Array.isArray(agentState?.decisionLog) ? [...agentState.decisionLog].reverse() : [];
+  const screenHighlights = Array.isArray(runtimeSummary.screenHighlights) ? runtimeSummary.screenHighlights : [];
+  const watchlistHighlights = Array.isArray(runtimeSummary.watchlistHighlights) ? runtimeSummary.watchlistHighlights : [];
+  const bidFocus = runtimeSummary.bidFocus || null;
+  const ownedMarketAssets = Array.isArray(marketPositions?.ownedAssets) ? marketPositions.ownedAssets : [];
+  const managedSessions = Array.isArray(marketPositions?.sessions) ? marketPositions.sessions : [];
+  const managedReservations = Array.isArray(marketPositions?.reservations) ? marketPositions.reservations : [];
+  const watchedTokenIds = useMemo(
+    () => new Set((watchlist || []).map((entry: any) => Number(entry.tokenId))),
+    [watchlist],
+  );
+  const marketplaceSessions = useMemo(
+    () => (Array.isArray(managedSessions) ? managedSessions : []).filter((session: any) => {
+      const sessionRecipient = String(session?.recipient || '').toUpperCase();
+      const targetRecipient = String(settlementRecipientAddress || '').toUpperCase();
+      return Boolean(targetRecipient) && sessionRecipient === targetRecipient && Boolean(session?.isActive);
+    }),
+    [managedSessions],
+  );
+  const selectedMarketSession = useMemo(
+    () => marketplaceSessions.find((session: any) => String(session.id) === String(marketSessionId)) || null,
+    [marketSessionId, marketplaceSessions],
+  );
   useEffect(() => {
     if (!marketplaceSessions.length) {
       if (marketSessionId) {
@@ -737,31 +765,6 @@ export default function Marketplace() {
       setMarketSessionId(String(marketplaceSessions[0].id));
     }
   }, [marketSessionId, marketplaceSessions]);
-
-  const runtimeSummary = agentState?.runtime?.lastSummary || {};
-  const performance = agentPerformance || agentState?.performance || {};
-  const performanceAttribution = performance.attribution || {};
-  const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
-  const recentDecisionLog = Array.isArray(agentState?.decisionLog) ? [...agentState.decisionLog].reverse() : [];
-  const screenHighlights = Array.isArray(runtimeSummary.screenHighlights) ? runtimeSummary.screenHighlights : [];
-  const watchlistHighlights = Array.isArray(runtimeSummary.watchlistHighlights) ? runtimeSummary.watchlistHighlights : [];
-  const bidFocus = runtimeSummary.bidFocus || null;
-  const watchedTokenIds = useMemo(
-    () => new Set((watchlist || []).map((entry: any) => Number(entry.tokenId))),
-    [watchlist],
-  );
-  const marketplaceSessions = useMemo(
-    () => (Array.isArray(outgoingStreams) ? outgoingStreams : []).filter((session: any) => {
-      const sessionRecipient = String(session?.recipient || '').toUpperCase();
-      const targetRecipient = String(settlementRecipientAddress || '').toUpperCase();
-      return Boolean(targetRecipient) && sessionRecipient === targetRecipient && Boolean(session?.isActive);
-    }),
-    [outgoingStreams],
-  );
-  const selectedMarketSession = useMemo(
-    () => marketplaceSessions.find((session: any) => String(session.id) === String(marketSessionId)) || null,
-    [marketSessionId, marketplaceSessions],
-  );
   const screenHighlightTokenIds = useMemo(
     () => new Set(
       screenHighlights
@@ -816,9 +819,6 @@ export default function Marketplace() {
   };
   const topOpportunities = marketSummary?.highlights?.topOpportunities || [];
   const auctionsClosingSoon = marketSummary?.highlights?.auctionsClosingSoon || [];
-  const ownedMarketAssets = Array.isArray(marketPositions?.ownedAssets) ? marketPositions.ownedAssets : [];
-  const managedSessions = Array.isArray(marketPositions?.sessions) ? marketPositions.sessions : [];
-  const managedReservations = Array.isArray(marketPositions?.reservations) ? marketPositions.reservations : [];
   const marketReservationExposure = Array.isArray(marketPositions?.reservationExposure) ? marketPositions.reservationExposure : [];
   const marketTreasury = marketPositions?.treasury || null;
   const marketLiquidity = marketPositions?.liquidity || null;
@@ -937,6 +937,11 @@ export default function Marketplace() {
   }, [agentPublicKey, load, watchedTokenIds]);
 
   const handleOpenMarketSession = useCallback(async () => {
+    if (!agentPublicKey) {
+      setMarketSessionStatus('err');
+      setMarketSessionError('Activate the managed agent first to open a shared payment session.');
+      return;
+    }
     if (!settlementRecipientAddress) {
       setMarketSessionStatus('err');
       setMarketSessionError('Marketplace payment recipient is not configured for this environment.');
@@ -945,27 +950,23 @@ export default function Marketplace() {
     setMarketSessionStatus('loading');
     setMarketSessionError('');
     try {
-      const streamId = await createStream(
-        settlementRecipientAddress,
-        3 * 60 * 60,
-        marketSessionBudget || '5',
-        {
+      const response = await openAgentPaymentSession(agentPublicKey, {
+        amount: marketSessionBudget || '5',
+        durationSeconds: 3 * 60 * 60,
+        metadata: {
           lane: 'continuum_marketplace',
           purpose: 'paid_market_actions',
           product: 'continuum',
         },
-      );
-      if (!streamId) {
-        throw new Error('Marketplace payment session could not be opened.');
-      }
-      await refreshStreams();
-      setMarketSessionId(String(streamId));
+      });
+      setMarketSessionId(String(response?.session?.id || ''));
+      await load();
       setMarketSessionStatus('ok');
     } catch (sessionError: any) {
       setMarketSessionStatus('err');
       setMarketSessionError(sessionError?.message || 'Could not open the Marketplace payment session.');
     }
-  }, [createStream, marketSessionBudget, refreshStreams]);
+  }, [agentPublicKey, load, marketSessionBudget]);
 
   return (
     <div className="p-4 sm:p-8 max-w-[1600px] mx-auto space-y-8">

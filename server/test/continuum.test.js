@@ -24,6 +24,8 @@ describe("Continuum API Integration", function () {
     let externalAuctionState;
     let secondaryAuctionState;
     let ownerWallets;
+    let managedSessionsState;
+    let nextManagedSessionId;
 
     function createManagedWallet(ownerPublicKey) {
         const normalizedOwner = String(ownerPublicKey || "").toUpperCase();
@@ -111,6 +113,17 @@ describe("Continuum API Integration", function () {
         };
         externalAuctionState = null;
         secondaryAuctionState = null;
+        managedSessionsState = [{
+            id: 77,
+            sender: agentKeypair.publicKey(),
+            recipient: serviceRecipientKeypair.publicKey(),
+            isActive: true,
+            sessionStatus: "active",
+            refundableAmount: "1500000",
+            consumedAmount: "500000",
+            claimableInitial: "500000",
+        }];
+        nextManagedSessionId = 78;
 
         services = {
             store,
@@ -138,15 +151,13 @@ describe("Continuum API Integration", function () {
                     return true;
                 },
                 async getSessionSnapshot(sessionId) {
-                    if (String(sessionId) !== "77") {
+                    const session = managedSessionsState.find((entry) => String(entry.id) === String(sessionId));
+                    if (!session) {
                         return null;
                     }
                     return {
-                        id: 77,
-                        isActive: true,
+                        ...session,
                         isFrozen: false,
-                        sender: agentKeypair.publicKey(),
-                        recipient: serviceRecipientKeypair.publicKey(),
                     };
                 },
                 async getAssetSnapshot(tokenId) {
@@ -159,15 +170,7 @@ describe("Continuum API Integration", function () {
                     if (owner && String(owner).toUpperCase() !== agentKeypair.publicKey().toUpperCase()) {
                         return [];
                     }
-                    return [{
-                        id: 77,
-                        sender: agentKeypair.publicKey(),
-                        recipient: serviceRecipientKeypair.publicKey(),
-                        isActive: true,
-                        sessionStatus: "active",
-                        refundableAmount: "1500000",
-                        consumedAmount: "500000",
-                    }];
+                    return managedSessionsState;
                 },
             },
             agentWallet: {
@@ -193,6 +196,25 @@ describe("Continuum API Integration", function () {
                                 balance: "80.0000000",
                             },
                         ],
+                    };
+                },
+                async openSession({ owner, recipient, totalAmount, durationSeconds }) {
+                    const wallet = createManagedWallet(owner);
+                    const session = {
+                        id: nextManagedSessionId++,
+                        sender: wallet.publicKey,
+                        recipient,
+                        isActive: true,
+                        sessionStatus: "active",
+                        refundableAmount: String(totalAmount),
+                        consumedAmount: "0",
+                        claimableInitial: "0",
+                        durationSeconds: Number(durationSeconds || 0),
+                    };
+                    managedSessionsState = [session, ...managedSessionsState];
+                    return {
+                        streamId: String(session.id),
+                        txHash: `session-open-${session.id}`,
                     };
                 },
                 async claimYield() {
@@ -599,6 +621,30 @@ describe("Continuum API Integration", function () {
         expect(response.body.positions.liquidity.walletBalanceDisplay).to.equal("425");
         expect(response.body.positions.liquidity.immediateBidHeadroomDisplay).to.equal("325");
         expect(response.body.positions.liquidity.status).to.equal("healthy");
+    });
+
+    it("opens a managed market payment session for the server-custodied agent", async () => {
+        const response = await request(app)
+            .post(`/api/agents/${agentId}/sessions`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                amount: "5",
+                durationSeconds: 7200,
+            })
+            .expect(201);
+
+        expect(response.body.code).to.equal("agent_session_opened");
+        expect(response.body.action).to.equal("openPaymentSession");
+        expect(response.body.session.id).to.equal(78);
+        expect(response.body.session.recipient).to.equal(serviceRecipientKeypair.publicKey());
+        expect(response.body.txHash).to.equal("session-open-78");
+
+        const positionsResponse = await request(app)
+            .get("/api/market/positions")
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(positionsResponse.body.positions.sessions.some((session) => session.id === 78)).to.equal(true);
     });
 
     it("returns 402 for paid yield claim without a payment session", async () => {
