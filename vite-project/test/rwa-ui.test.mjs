@@ -13,6 +13,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rwaPagePath = path.resolve(__dirname, "../src/pages/RWA.tsx");
 const docsPagePath = path.resolve(__dirname, "../src/pages/Docs.tsx");
 const marketplacePagePath = path.resolve(__dirname, "../src/pages/Marketplace.tsx");
+const agentConsolePagePath = path.resolve(__dirname, "../src/pages/AgentConsolePage.tsx");
 
 test("mapApiAssetToUiAsset preserves v2 verification fields", () => {
   const mapped = mapApiAssetToUiAsset({
@@ -105,4 +106,12 @@ test("Marketplace source surfaces autonomous attention and bid guardrails", asyn
   assert.match(source, /Bid Guardrails/);
   assert.match(source, /Max Guided Bid/);
   assert.match(source, /Reserve Book/);
+});
+
+test("Agent Console source surfaces the managed session rail", async () => {
+  const source = await fs.readFile(agentConsolePagePath, "utf8");
+
+  assert.match(source, /Managed Session Rail/);
+  assert.match(source, /Open .* Session/);
+  assert.match(source, /Treasury optimization, yield claim, yield routing, and paid rebids reuse this managed Continuum session/i);
 });

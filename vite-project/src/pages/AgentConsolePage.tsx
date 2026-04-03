@@ -20,12 +20,14 @@ import { motion } from 'motion/react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
 import { useAgentWallet } from '../hooks/useAgentWallet';
+import { paymentTokenSymbol, settlementRecipientAddress } from '../contactInfo.js';
 import {
   claimMarketYield,
   fetchAgentMandate,
   fetchAgentState,
   fetchAgentWalletState,
   fetchMarketAssets,
+  openAgentPaymentSession,
   pauseAgentRuntime,
   placeAuctionBid,
   rebalanceMarketTreasury,
@@ -134,6 +136,9 @@ export default function AgentConsolePage() {
   const [reserveActionStatus, setReserveActionStatus] = useState<'idle' | 'ok' | '402' | 'err'>('idle');
   const [reserveActionMessage, setReserveActionMessage] = useState('');
   const [treasurySessionId, setTreasurySessionId] = useState('');
+  const [managedSessionBudget, setManagedSessionBudget] = useState('5');
+  const [managedSessionStatus, setManagedSessionStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
+  const [managedSessionError, setManagedSessionError] = useState('');
   const [treasuryActionStatus, setTreasuryActionStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
   const [treasuryActionError, setTreasuryActionError] = useState('');
   const [yieldRouteTokenId, setYieldRouteTokenId] = useState('');
@@ -346,6 +351,31 @@ export default function AgentConsolePage() {
     }
   }, [agentPublicKey, refreshState, treasurySessionId, yieldRouteTokenId]);
 
+  const openManagedSession = useCallback(async () => {
+    if (!agentPublicKey) return;
+    setManagedSessionStatus('loading');
+    setManagedSessionError('');
+    try {
+      const response = await openAgentPaymentSession(agentPublicKey, {
+        amount: managedSessionBudget || '5',
+        durationSeconds: 3 * 60 * 60,
+        metadata: {
+          lane: 'continuum_console',
+          purpose: 'managed_paid_actions',
+          product: 'continuum',
+        },
+      });
+      setManagedSessionStatus('ok');
+      if (response?.session?.id) {
+        setTreasurySessionId(String(response.session.id));
+      }
+      await refreshState();
+    } catch (sessionError: any) {
+      setManagedSessionStatus('err');
+      setManagedSessionError(sessionError?.message || 'Could not open a managed payment session.');
+    }
+  }, [agentPublicKey, managedSessionBudget, refreshState]);
+
   const mergedLogs = useMemo<LogEntry[]>(() => (
     Array.isArray(state?.decisionLog) ? state.decisionLog.map((entry: any) => ({
       id: entry.id,
@@ -372,6 +402,21 @@ export default function AgentConsolePage() {
   const positions = state?.positions || { assets: [], sessions: [] };
   const walletState = walletSnapshot || state?.wallet || { balances: [] };
   const walletSummary = walletSnapshot?.summary || null;
+  const managedPaymentSessions = useMemo(
+    () => (Array.isArray(positions.sessions) ? positions.sessions : []).filter((session: any) => {
+      const targetRecipient = String(settlementRecipientAddress || '').toUpperCase();
+      const sessionRecipient = String(session?.recipient || '').toUpperCase();
+      if (targetRecipient) {
+        return sessionRecipient === targetRecipient && Boolean(session?.isActive);
+      }
+      return Boolean(session?.isActive);
+    }),
+    [positions.sessions],
+  );
+  const selectedManagedSession = useMemo(
+    () => managedPaymentSessions.find((session: any) => String(session.id) === String(treasurySessionId)) || null,
+    [managedPaymentSessions, treasurySessionId],
+  );
   const screenHighlights = Array.isArray(runtime.lastSummary?.screenHighlights) ? runtime.lastSummary.screenHighlights : [];
   const watchlistHighlights = Array.isArray(runtime.lastSummary?.watchlistHighlights) ? runtime.lastSummary.watchlistHighlights : [];
   const bidFocus = runtime.lastSummary?.bidFocus || null;
@@ -387,6 +432,23 @@ export default function AgentConsolePage() {
     outbid: reservationExposure.filter((entry) => entry.status === 'outbid').length,
     readyToSettle: reservationExposure.filter((entry: any) => entry.readyToSettle && entry.isLeading).length,
   }), [reservationExposure]);
+  const managedSessionSummary = useMemo(() => ({
+    active: managedPaymentSessions.length,
+    refundable: managedPaymentSessions.reduce((sum: number, session: any) => sum + (Number(session?.refundableAmount || 0) / 1e7), 0),
+    claimable: managedPaymentSessions.reduce((sum: number, session: any) => sum + (Number(session?.claimableInitial || 0) / 1e7), 0),
+  }), [managedPaymentSessions]);
+
+  useEffect(() => {
+    if (!managedPaymentSessions.length) {
+      if (treasurySessionId) {
+        setTreasurySessionId('');
+      }
+      return;
+    }
+    if (!treasurySessionId || !managedPaymentSessions.some((session: any) => String(session.id) === String(treasurySessionId))) {
+      setTreasurySessionId(String(managedPaymentSessions[0].id));
+    }
+  }, [managedPaymentSessions, treasurySessionId]);
 
   return (
     <div className="p-4 sm:p-8 max-w-[1600px] mx-auto space-y-8">
@@ -606,13 +668,88 @@ export default function AgentConsolePage() {
               <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
                 <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Treasury Positions</p>
                 <div className="space-y-2">
-                  <input
-                    type="text"
-                    value={treasurySessionId}
-                    onChange={(event) => setTreasurySessionId(event.target.value)}
-                    placeholder="Optional Continuum payment session ID"
-                    className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
+                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Managed Session Rail</p>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                        {selectedManagedSession ? `Using #${selectedManagedSession.id}` : managedPaymentSessions.length ? 'Select session' : 'Open session'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { label: 'Active Sessions', value: String(managedSessionSummary.active), tone: 'text-primary' },
+                        { label: 'Refundable', value: formatMoney(managedSessionSummary.refundable), tone: 'text-secondary' },
+                        { label: 'Claimable', value: formatMoney(managedSessionSummary.claimable), tone: 'text-purple-600' },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                          <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">{item.label}</p>
+                          <p className={`text-xs font-bold ${item.tone}`}>{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex flex-col gap-2 md:flex-row">
+                      <input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={managedSessionBudget}
+                        onChange={(event) => setManagedSessionBudget(event.target.value)}
+                        placeholder="Session budget"
+                        className="w-full md:w-[9rem] bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                      />
+                      <button
+                        onClick={() => void openManagedSession()}
+                        disabled={!agentPublicKey || managedSessionStatus === 'loading'}
+                        className="rounded-xl border border-primary text-primary text-xs font-bold hover:bg-blue-50 disabled:opacity-50 px-3 py-2"
+                      >
+                        {managedSessionStatus === 'loading' ? 'Opening...' : `Open ${paymentTokenSymbol} Session`}
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={treasurySessionId}
+                      onChange={(event) => setTreasurySessionId(event.target.value)}
+                      placeholder="Selected managed payment session ID"
+                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Treasury optimization, yield claim, yield routing, and paid rebids reuse this managed Continuum session. Recipient: {settlementRecipientAddress ? formatShortAddress(settlementRecipientAddress) : 'not configured'}.
+                    </p>
+                    {managedSessionStatus === 'err' && (
+                      <p className="text-xs text-red-500">{managedSessionError || 'Could not open the managed payment session.'}</p>
+                    )}
+                    {managedSessionStatus === 'ok' && (
+                      <p className="text-xs text-secondary">Managed payment session opened and selected for reuse.</p>
+                    )}
+                    <div className="space-y-2">
+                      {managedPaymentSessions.slice(0, 3).map((session: any) => (
+                        <button
+                          key={session.id}
+                          onClick={() => setTreasurySessionId(String(session.id))}
+                          className={`w-full rounded-xl border px-3 py-2 text-left transition-all ${
+                            String(session.id) === String(treasurySessionId)
+                              ? 'border-blue-200 bg-blue-50'
+                              : 'border-slate-100 bg-slate-50 hover:bg-slate-100'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-bold text-slate-800">Session #{session.id}</p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Refundable {formatMoney(Number(session?.refundableAmount || 0) / 1e7)} · Claimable {formatMoney(Number(session?.claimableInitial || 0) / 1e7)}
+                              </p>
+                            </div>
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-secondary">
+                              {String(session.id) === String(treasurySessionId) ? 'selected' : 'active'}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                      {managedPaymentSessions.length === 0 && (
+                        <p className="text-sm text-slate-400">Open a managed payment session here to drive paid treasury, yield, and rebid actions from the server-custodied path.</p>
+                      )}
+                    </div>
+                  </div>
                   <button
                     onClick={() => void runTreasuryOptimization()}
                     disabled={!agentPublicKey || treasuryActionStatus === 'loading'}
