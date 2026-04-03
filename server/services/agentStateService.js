@@ -32,11 +32,17 @@ function defaultRuntime(agentId = "") {
             autoBids: 0,
             settledAuctions: 0,
             treasuryExecuted: false,
+            screenMatches: 0,
+            watchlistSignals: 0,
+            screenHighlights: [],
+            watchlistHighlights: [],
         },
         fingerprints: {
             opportunities: "",
             risks: "",
             rebalance: "",
+            screens: "",
+            watchlist: "",
         },
         updatedAt: nowSeconds(),
     };

@@ -181,6 +181,8 @@ function assetMatchesSearch(asset, search = "") {
         asset?.publicMetadata?.name,
         asset?.publicMetadata?.description,
         asset?.publicMetadata?.location,
+        asset?.publicMetadataURI,
+        asset?.metadataURI,
         asset?.name,
         asset?.description,
         asset?.location,

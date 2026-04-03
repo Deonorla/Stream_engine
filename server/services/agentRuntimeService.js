@@ -1,6 +1,6 @@
 const crypto = require("crypto");
 
-const { screenAssets } = require("./assetScreener");
+const { screenAssets, parseGoal, extractYieldRate, estimateRiskScore } = require("./assetScreener");
 const { monitorRisks } = require("./assetIntelligence");
 const { buildPortfolio, computeRebalanceActions } = require("./portfolioManager");
 const { checkCompliance } = require("./complianceChecker");
@@ -13,6 +13,12 @@ function nowSeconds() {
 function productiveOnly(asset) {
     return [1, 2, 3].includes(Number(asset?.assetType || 0));
 }
+
+const MARKET_TYPE_TO_CHAIN_ASSET_TYPE = {
+    real_estate: 1,
+    vehicle: 2,
+    commodity: 3,
+};
 
 function assetClassLabel(asset) {
     const assetType = Number(asset?.assetType || 0);
@@ -27,6 +33,49 @@ function toDisplayAmount(value) {
 
 function fingerprint(value) {
     return crypto.createHash("sha1").update(JSON.stringify(value)).digest("hex");
+}
+
+function normalizeText(value = "") {
+    return String(value || "").trim().toLowerCase();
+}
+
+function assetMatchesSearch(asset, search = "") {
+    const query = normalizeText(search);
+    if (!query) return true;
+    const haystack = [
+        asset?.publicMetadata?.name,
+        asset?.publicMetadata?.description,
+        asset?.publicMetadata?.location,
+        asset?.publicMetadataURI,
+        asset?.metadataURI,
+        asset?.name,
+        asset?.description,
+        asset?.location,
+        asset?.jurisdiction,
+        asset?.issuer,
+    ]
+        .filter(Boolean)
+        .map((value) => normalizeText(value))
+        .join(" ");
+    return haystack.includes(query);
+}
+
+function buildScreenCriteria(filters = {}) {
+    const criteria = filters.goal ? { ...parseGoal(filters.goal) } : {};
+    const mappedType = MARKET_TYPE_TO_CHAIN_ASSET_TYPE[String(filters.type || "").trim()];
+    if (mappedType) criteria.assetTypes = [mappedType];
+    if (filters.minYield !== undefined && filters.minYield !== null && filters.minYield !== "") {
+        criteria.minYield = Number(filters.minYield);
+    }
+    if (filters.maxYield !== undefined && filters.maxYield !== null && filters.maxYield !== "") {
+        criteria.maxYield = Number(filters.maxYield);
+    }
+    if (filters.maxRisk !== undefined && filters.maxRisk !== null && filters.maxRisk !== "") {
+        criteria.maxRisk = Number(filters.maxRisk);
+    }
+    if (filters.verifiedOnly) criteria.verifiedOnly = true;
+    if (filters.rentalReady) criteria.rentalReadyOnly = true;
+    return criteria;
 }
 
 class AgentRuntimeService {
@@ -143,6 +192,7 @@ class AgentRuntimeService {
         walletPublicKey,
         opportunities,
         mandate,
+        activeAuctions = null,
     }) {
         if (!this.auctionEngine?.listAuctions || !this.auctionEngine?.placeBid) {
             return [];
@@ -151,13 +201,15 @@ class AgentRuntimeService {
         const opportunityByTokenId = new Map(
             opportunities.map((entry) => [Number(entry.tokenId), entry])
         );
-        const activeAuctions = await this.auctionEngine.listAuctions({ status: "active" });
+        const auctions = Array.isArray(activeAuctions)
+            ? activeAuctions
+            : await this.auctionEngine.listAuctions({ status: "active" });
         const approvalThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
         const bidIncrement = 10_000_000n;
         const now = nowSeconds();
         const placedBids = [];
 
-        const rankedAuctions = activeAuctions
+        const rankedAuctions = auctions
             .filter((auction) => Number(auction?.startTime || 0) <= now && Number(auction?.endTime || 0) > now)
             .filter((auction) => opportunityByTokenId.has(Number(auction.assetId)))
             .filter((auction) => String(auction.seller || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
@@ -207,6 +259,75 @@ class AgentRuntimeService {
         return placedBids;
     }
 
+    evaluateSavedScreens({ savedScreens = [], productiveAssets = [], activeAuctions = [] }) {
+        const activeAuctionTokenIds = new Set(activeAuctions.map((auction) => Number(auction.assetId)));
+        return savedScreens.slice(0, 8).map((screen) => {
+            const filters = screen?.filters || {};
+            const baseAssets = productiveAssets.filter((asset) => {
+                if (!assetMatchesSearch(asset, filters.search)) return false;
+                if (filters.hasAuction && !activeAuctionTokenIds.has(Number(asset.tokenId))) return false;
+                return true;
+            });
+            const criteria = buildScreenCriteria(filters);
+            const ranked = screenAssets(baseAssets, {
+                ...criteria,
+                limit: baseAssets.length,
+            });
+            const top = ranked[0] || null;
+            return {
+                screenId: screen.screenId,
+                name: screen.name || "Saved Screen",
+                matches: ranked.length,
+                topTokenId: top ? Number(top.tokenId) : null,
+                topName: top?.name || "",
+                topScore: Number(top?.score || 0),
+                topYieldRate: Number(top?.yieldRate || 0),
+                topRiskScore: Number(top?.riskScore || 0),
+            };
+        });
+    }
+
+    evaluateWatchlistSignals({ watchlist = [], productiveAssets = [], activeAuctions = [], mandate = {} }) {
+        const assetByTokenId = new Map(productiveAssets.map((asset) => [Number(asset.tokenId), asset]));
+        const auctionByTokenId = new Map(activeAuctions.map((auction) => [Number(auction.assetId), auction]));
+        const minTargetYield = Number(mandate?.targetReturnMinPct || 0);
+
+        return watchlist.slice(0, 12).map((item) => {
+            const tokenId = Number(item.tokenId);
+            const asset = assetByTokenId.get(tokenId);
+            if (!asset) {
+                return {
+                    tokenId,
+                    name: item.name || `Twin #${tokenId}`,
+                    severity: "medium",
+                    reasons: ["missing_from_market"],
+                    hasLiveAuction: false,
+                    yieldRate: 0,
+                    riskScore: 0,
+                };
+            }
+            const assetAlerts = monitorRisks([asset]);
+            const liveAuction = auctionByTokenId.get(tokenId) || null;
+            const yieldRate = Number(extractYieldRate(asset) || 0);
+            const riskScore = Number(estimateRiskScore(asset) || 0);
+            const reasons = [];
+            if (liveAuction) reasons.push("live_auction");
+            if (yieldRate >= minTargetYield && minTargetYield > 0) reasons.push("yield_floor_met");
+            if (assetAlerts.length) reasons.push(assetAlerts[0].type || "risk_alert");
+            if (reasons.length === 0) return null;
+            return {
+                tokenId,
+                name: asset.publicMetadata?.name || item.name || `Twin #${tokenId}`,
+                severity: assetAlerts[0]?.severity || (liveAuction ? "info" : "low"),
+                reasons,
+                hasLiveAuction: Boolean(liveAuction),
+                auctionId: liveAuction ? Number(liveAuction.auctionId) : null,
+                yieldRate,
+                riskScore,
+            };
+        }).filter(Boolean);
+    }
+
     async tick({ agentId, ownerPublicKey, reason = "manual" }) {
         const normalizedAgentId = String(agentId || "").toUpperCase();
         const currentRuntime = await this.agentState.getRuntime(normalizedAgentId);
@@ -224,7 +345,7 @@ class AgentRuntimeService {
             }
 
             const mandate = await this.agentState.getMandate(normalizedAgentId);
-            const [allAssets, ownedAssets, sessions] = await Promise.all([
+            const [allAssets, ownedAssets, sessions, savedScreens, watchlist, activeAuctions] = await Promise.all([
                 this.chainService?.isConfigured?.()
                     ? this.chainService.listAssetSnapshots({ limit: 200 })
                     : this.store.listAssets(),
@@ -232,6 +353,11 @@ class AgentRuntimeService {
                     ? this.chainService.listAssetSnapshots({ owner: wallet.publicKey })
                     : this.store.listAssets({ owner: wallet.publicKey }),
                 this.chainService.listSessions({ owner: wallet.publicKey }),
+                this.agentState.getSavedScreens(normalizedAgentId),
+                this.agentState.getWatchlist(normalizedAgentId),
+                this.auctionEngine?.listAuctions
+                    ? this.auctionEngine.listAuctions({ status: "active" })
+                    : Promise.resolve([]),
             ]);
 
             const settledAuctions = await this.settleReadyAuctions({ agentId: normalizedAgentId });
@@ -258,6 +384,18 @@ class AgentRuntimeService {
                     });
                 }
             }
+
+            const screenSignals = this.evaluateSavedScreens({
+                savedScreens,
+                productiveAssets,
+                activeAuctions,
+            });
+            const watchlistSignals = this.evaluateWatchlistSignals({
+                watchlist,
+                productiveAssets,
+                activeAuctions,
+                mandate,
+            });
 
             const riskAlerts = monitorRisks(ownedAssets);
             const portfolio = buildPortfolio(sessions, ownedAssets);
@@ -300,6 +438,7 @@ class AgentRuntimeService {
                 walletPublicKey: wallet.publicKey,
                 opportunities,
                 mandate,
+                activeAuctions,
             });
 
             let treasury = null;
@@ -346,6 +485,22 @@ class AgentRuntimeService {
                     sessionId: entry.sessionId || 0,
                 }))
             );
+            const screenFingerprint = fingerprint(
+                screenSignals.map((entry) => ({
+                    screenId: entry.screenId,
+                    matches: entry.matches,
+                    topTokenId: entry.topTokenId,
+                    topScore: entry.topScore,
+                }))
+            );
+            const watchlistFingerprint = fingerprint(
+                watchlistSignals.map((entry) => ({
+                    tokenId: entry.tokenId,
+                    reasons: entry.reasons,
+                    hasLiveAuction: entry.hasLiveAuction,
+                    severity: entry.severity,
+                }))
+            );
 
             if (opportunityFingerprint !== currentRuntime.fingerprints?.opportunities) {
                 const topOpportunity = opportunities[0];
@@ -381,6 +536,29 @@ class AgentRuntimeService {
                 });
             }
 
+            if (screenFingerprint !== currentRuntime.fingerprints?.screens && savedScreens.length > 0) {
+                const topScreen = screenSignals.find((entry) => entry.matches > 0) || null;
+                await this.agentState.appendDecision(normalizedAgentId, topScreen ? {
+                    type: "decision",
+                    message: `Saved screen resurfaced ${topScreen.matches} shortlist match(es)`,
+                    detail: `${topScreen.name} · top twin #${topScreen.topTokenId} · score ${topScreen.topScore}`,
+                } : {
+                    type: "info",
+                    message: "Saved screens refreshed",
+                    detail: "No saved screen currently has a live shortlist match.",
+                });
+            }
+
+            if (watchlistFingerprint !== currentRuntime.fingerprints?.watchlist && watchlist.length > 0) {
+                for (const signal of watchlistSignals.slice(0, 3)) {
+                    await this.agentState.appendDecision(normalizedAgentId, {
+                        type: signal.severity === "high" ? "error" : "info",
+                        message: `Watchlist signal on twin #${signal.tokenId}`,
+                        detail: `${signal.name} · ${signal.reasons.join(" · ")} · yield ${signal.yieldRate.toFixed(2)}% · risk ${signal.riskScore}/100`,
+                    });
+                }
+            }
+
             const runtime = await this.agentState.setRuntime(normalizedAgentId, {
                 status: currentRuntime.running ? "running" : currentRuntime.status || "idle",
                 running: currentRuntime.running,
@@ -399,17 +577,25 @@ class AgentRuntimeService {
                     autoBids: autoBids.length,
                     settledAuctions: settledAuctions.length,
                     treasuryExecuted,
+                    screenMatches: screenSignals.reduce((sum, entry) => sum + Number(entry.matches || 0), 0),
+                    watchlistSignals: watchlistSignals.length,
+                    screenHighlights: screenSignals.filter((entry) => entry.matches > 0).slice(0, 3),
+                    watchlistHighlights: watchlistSignals.slice(0, 3),
                 },
                 fingerprints: {
                     opportunities: opportunityFingerprint,
                     risks: riskFingerprint,
                     rebalance: rebalanceFingerprint,
+                    screens: screenFingerprint,
+                    watchlist: watchlistFingerprint,
                 },
             });
 
             return {
                 runtime,
                 opportunities,
+                screenSignals,
+                watchlistSignals,
                 riskAlerts,
                 rebalanceActions,
                 autoBids,
@@ -435,6 +621,8 @@ class AgentRuntimeService {
             return {
                 runtime,
                 opportunities: [],
+                screenSignals: [],
+                watchlistSignals: [],
                 riskAlerts: [],
                 rebalanceActions: [],
                 autoBids: [],

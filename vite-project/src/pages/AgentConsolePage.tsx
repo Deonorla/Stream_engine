@@ -251,8 +251,12 @@ export default function AgentConsolePage() {
   const treasuryHealth = treasurySummary.health || {};
   const treasuryOptimization = treasury.optimization || null;
   const reservations = state?.reservations || [];
+  const savedScreens = state?.savedScreens || [];
+  const watchlist = state?.watchlist || [];
   const positions = state?.positions || { assets: [], sessions: [] };
   const walletState = state?.wallet || { balances: [] };
+  const screenHighlights = Array.isArray(runtime.lastSummary?.screenHighlights) ? runtime.lastSummary.screenHighlights : [];
+  const watchlistHighlights = Array.isArray(runtime.lastSummary?.watchlistHighlights) ? runtime.lastSummary.watchlistHighlights : [];
   const runtimeStatusLabel = agentStatus === 'running'
     ? 'Running'
     : agentStatus === 'paused'
@@ -607,7 +611,7 @@ export default function AgentConsolePage() {
               </div>
             </div>
             <div className="mb-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
-              Last loop: {String(runtime.lastSummary?.opportunities || 0)} opportunities · {String(runtime.lastSummary?.autoBids || 0)} auto bids · {String(runtime.lastSummary?.settledAuctions || 0)} settlements
+              Last loop: {String(runtime.lastSummary?.opportunities || 0)} opportunities · {String(runtime.lastSummary?.screenMatches || 0)} screen matches · {String(runtime.lastSummary?.watchlistSignals || 0)} watchlist signals · {String(runtime.lastSummary?.autoBids || 0)} auto bids
             </div>
             {runtime.lastError && (
               <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
@@ -744,6 +748,85 @@ export default function AgentConsolePage() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Target size={16} className="text-primary" />
+                <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-slate-700">Shortlist Signals</h3>
+              </div>
+              <Link to="/app/marketplace" className="text-[10px] font-bold text-slate-400 hover:text-primary">
+                Manage In Marketplace
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">Saved Screens</p>
+                <p className="text-lg font-bold text-slate-800">{String(savedScreens.length)}</p>
+              </div>
+              <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">Watchlist Twins</p>
+                <p className="text-lg font-bold text-slate-800">{String(watchlist.length)}</p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Saved Screen Matches</p>
+                <div className="space-y-2">
+                  {screenHighlights.length === 0 ? (
+                    <p className="text-sm text-slate-400">No saved-screen shortlist matches on the last runtime loop.</p>
+                  ) : (
+                    screenHighlights.map((entry: any) => (
+                      <div key={entry.screenId} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{entry.name}</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {String(entry.matches)} matches · top twin #{entry.topTokenId}
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                            score {Number(entry.topScore || 0).toFixed(0)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Watchlist Signals</p>
+                <div className="space-y-2">
+                  {watchlistHighlights.length === 0 ? (
+                    <p className="text-sm text-slate-400">No live watchlist signals on the last runtime loop.</p>
+                  ) : (
+                    watchlistHighlights.map((entry: any) => (
+                      <div key={entry.tokenId} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{entry.name}</p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              Twin #{entry.tokenId} · {Array.isArray(entry.reasons) ? entry.reasons.join(' · ') : 'signal'}
+                            </p>
+                          </div>
+                          <span className={cn(
+                            'text-[10px] font-bold uppercase tracking-widest',
+                            entry.severity === 'high'
+                              ? 'text-red-500'
+                              : entry.severity === 'medium'
+                                ? 'text-amber-600'
+                                : 'text-primary',
+                          )}>
+                            {entry.hasLiveAuction ? 'live auction' : entry.severity || 'info'}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

@@ -591,6 +591,39 @@ describe("Continuum API Integration", function () {
     });
 
     it("runs the managed backend runtime and exposes live runtime state", async () => {
+        await request(app)
+            .post(`/api/agents/${agentId}/screens`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                name: "Runtime shortlist",
+                filters: {
+                    search: "warehouse",
+                    type: "real_estate",
+                    minYield: 20,
+                    maxRisk: 40,
+                    verifiedOnly: true,
+                    hasAuction: true,
+                },
+                summary: {
+                    totalProductiveTwins: 1,
+                    activeFilterCount: 6,
+                },
+            })
+            .expect(201);
+
+        await request(app)
+            .post(`/api/agents/${agentId}/watchlist`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                tokenId: 7,
+                name: "Warehouse Alpha",
+                assetType: "real_estate",
+                verificationStatus: "verified",
+                yieldRate: 25,
+                riskScore: 30,
+            })
+            .expect(201);
+
         const startResponse = await request(app)
             .post(`/api/agents/${agentId}/runtime/start`)
             .set("Authorization", `Bearer ${token}`)
@@ -604,6 +637,8 @@ describe("Continuum API Integration", function () {
         expect(startResponse.body.runtime.running).to.equal(true);
         expect(startResponse.body.runtime.lastSummary.autoClaims).to.equal(1);
         expect(startResponse.body.runtime.lastSummary.treasuryExecuted).to.equal(true);
+        expect(startResponse.body.runtime.lastSummary.screenMatches).to.equal(1);
+        expect(startResponse.body.runtime.lastSummary.watchlistSignals).to.equal(1);
 
         const firstHeartbeat = Number(startResponse.body.runtime.heartbeatCount || 0);
 
@@ -627,6 +662,10 @@ describe("Continuum API Integration", function () {
         expect(stateResponse.body.state.performance.attribution.grossPositivePnL).to.equal("7000000");
         expect(stateResponse.body.state.performance.recentEvents.some((event) => event.category === "yield")).to.equal(true);
         expect(stateResponse.body.state.treasury.positions).to.have.length(1);
+        expect(stateResponse.body.state.runtime.lastSummary.screenHighlights[0].topTokenId).to.equal(7);
+        expect(stateResponse.body.state.runtime.lastSummary.watchlistHighlights[0].tokenId).to.equal(7);
+        expect(stateResponse.body.state.decisionLog.some((entry) => entry.message.includes("Saved screen resurfaced"))).to.equal(true);
+        expect(stateResponse.body.state.decisionLog.some((entry) => entry.message.includes("Watchlist signal"))).to.equal(true);
 
         const pauseResponse = await request(app)
             .post(`/api/agents/${agentId}/runtime/pause`)
