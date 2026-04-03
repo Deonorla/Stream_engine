@@ -707,6 +707,39 @@ describe("Continuum API Integration", function () {
         expect(response.body.wallet.summary.status).to.equal("ready");
     });
 
+    it("loads dedicated performance attribution for the managed agent", async () => {
+        await agentState.recordRealizedYield(agentId, "3500000", {
+            message: "Yield claimed for asset #7",
+        });
+        await agentState.recordTreasuryReturn(agentId, "1500000", {
+            message: "Treasury optimizer captured approved return",
+        });
+        await agentState.recordPaidActionFee(agentId, "100000", {
+            action: "premium_analysis",
+        });
+        await agentState.recordAuctionOutcome(agentId, {
+            outcome: "win",
+            metadata: {
+                auctionId: 3,
+            },
+        });
+
+        const response = await request(app)
+            .get(`/api/agents/${agentId}/performance`)
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(response.body.code).to.equal("agent_performance_loaded");
+        expect(response.body.performance.realizedYield).to.equal("3500000");
+        expect(response.body.performance.treasuryReturn).to.equal("1500000");
+        expect(response.body.performance.paidActionFees).to.equal("100000");
+        expect(response.body.performance.netPnL).to.equal("4900000");
+        expect(response.body.performance.attribution.winRatePct).to.equal(100);
+        expect(response.body.performance.recentEvents.some((event) => event.category === "yield")).to.equal(true);
+        expect(response.body.performance.recentEvents.some((event) => event.category === "treasury")).to.equal(true);
+        expect(response.body.performance.recentEvents.some((event) => event.category === "auction")).to.equal(true);
+    });
+
     it("persists saved screens and watchlist entries for the managed agent", async () => {
         const screenResponse = await request(app)
             .post(`/api/agents/${agentId}/screens`)

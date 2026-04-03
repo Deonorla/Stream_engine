@@ -23,6 +23,7 @@ import {
   addAgentWatchAsset,
   createMarketAuction,
   deleteAgentScreen,
+  fetchAgentPerformance,
   fetchAuction,
   fetchAgentState,
   fetchAgentScreens,
@@ -104,6 +105,12 @@ function formatBidPlacedAt(value?: number) {
 function formatUsdcMetric(value?: number) {
   const numeric = Number(value || 0);
   return `${numeric.toFixed(2)} USDC`;
+}
+
+function formatPerformanceAmount(value?: string | number, direction = 'neutral') {
+  const numeric = Number(value || 0) / 1e7;
+  const prefix = direction === 'inflow' ? '+' : direction === 'outflow' ? '-' : '';
+  return `${prefix}${formatUsdcMetric(Math.abs(numeric))}`;
 }
 
 function MarketActions({
@@ -637,6 +644,7 @@ export default function Marketplace() {
   const { agentPublicKey, activate } = useAgentWallet(walletAddress);
   const [assets, setAssets] = useState<any[]>([]);
   const [agentState, setAgentState] = useState<any>(null);
+  const [agentPerformance, setAgentPerformance] = useState<any>(null);
   const [marketPositions, setMarketPositions] = useState<any>(null);
   const [marketSummary, setMarketSummary] = useState<any>(null);
   const [savedScreens, setSavedScreens] = useState<any[]>([]);
@@ -672,15 +680,17 @@ export default function Marketplace() {
         rentalReady: rentalReadyOnly ? 'true' : undefined,
         hasAuction: liveAuctionsOnly ? 'true' : undefined,
       };
-      const [response, nextScreens, nextWatchlist, nextAgentState, nextMarketPositions] = await Promise.all([
+      const [response, nextScreens, nextWatchlist, nextAgentState, nextMarketPositions, nextAgentPerformance] = await Promise.all([
         fetchMarketCatalog(query),
         agentPublicKey ? fetchAgentScreens(agentPublicKey) : Promise.resolve([]),
         agentPublicKey ? fetchAgentWatchlist(agentPublicKey) : Promise.resolve([]),
         agentPublicKey ? fetchAgentState(agentPublicKey) : Promise.resolve(null),
         agentPublicKey ? fetchMarketPositions() : Promise.resolve(null),
+        agentPublicKey ? fetchAgentPerformance(agentPublicKey) : Promise.resolve(null),
       ]);
       setAssets((response.assets || []).map(buildUiAsset));
       setAgentState(nextAgentState);
+      setAgentPerformance(nextAgentPerformance);
       setMarketPositions(nextMarketPositions);
       setMarketSummary(response.summary || null);
       setSavedScreens(nextScreens || []);
@@ -688,6 +698,7 @@ export default function Marketplace() {
     } catch {
       setAssets([]);
       setAgentState(null);
+      setAgentPerformance(null);
       setMarketPositions(null);
       setMarketSummary(null);
       if (!agentPublicKey) {
@@ -704,6 +715,10 @@ export default function Marketplace() {
   }, [load]);
 
   const runtimeSummary = agentState?.runtime?.lastSummary || {};
+  const performance = agentPerformance || agentState?.performance || {};
+  const performanceAttribution = performance.attribution || {};
+  const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
+  const recentDecisionLog = Array.isArray(agentState?.decisionLog) ? [...agentState.decisionLog].reverse() : [];
   const screenHighlights = Array.isArray(runtimeSummary.screenHighlights) ? runtimeSummary.screenHighlights : [];
   const watchlistHighlights = Array.isArray(runtimeSummary.watchlistHighlights) ? runtimeSummary.watchlistHighlights : [];
   const bidFocus = runtimeSummary.bidFocus || null;
@@ -1179,6 +1194,88 @@ export default function Marketplace() {
           ) : (
             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-600">
               Activate the managed agent to see live shortlist hits, watchlist signals, and current bid focus in the market.
+            </div>
+          )}
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Agent Outcome Snapshot</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {agentPublicKey ? 'Live performance' : 'Activate agent'}
+            </span>
+          </div>
+          {agentPublicKey ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                  { label: 'Net P&L', value: formatUsdcMetric(Number(performance.netPnL || 0) / 1e7), tone: 'text-secondary' },
+                  { label: 'Win Rate', value: `${Number(performanceAttribution.winRatePct || 0).toFixed(1)}%`, tone: 'text-primary' },
+                  { label: 'Realized Yield', value: formatUsdcMetric(Number(performance.realizedYield || 0) / 1e7), tone: 'text-purple-600' },
+                  { label: 'Fee Drag', value: formatUsdcMetric(Number(performance.paidActionFees || 0) / 1e7), tone: 'text-amber-600' },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                    <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{item.label}</p>
+                    <p className={`mt-1 text-sm font-bold ${item.tone}`}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Recent Market Outcomes</p>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    {String(performanceEvents.length)} events
+                  </span>
+                </div>
+                {performanceEvents.length ? (
+                  performanceEvents.slice(0, 3).map((event: any) => (
+                    <div key={event.id} className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{event.label || 'Performance event'}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {event.category || 'info'} · {new Date(Number(event.ts || Date.now())).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                          event.direction === 'inflow'
+                            ? 'text-secondary'
+                            : event.direction === 'outflow'
+                              ? 'text-amber-600'
+                              : 'text-slate-400'
+                        }`}>
+                          {formatPerformanceAmount(event.amount, event.direction)}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-400">No realized market outcomes yet. Paid actions, claims, treasury returns, and auction closes will show up here.</p>
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Recent Decisions</p>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    {String(recentDecisionLog.length)} logged
+                  </span>
+                </div>
+                {recentDecisionLog.length ? (
+                  recentDecisionLog.slice(0, 3).map((entry: any, index: number) => (
+                    <div key={entry.id || `${entry.ts || 'decision'}-${index}`} className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                      <p className="text-sm font-bold text-slate-800">{entry.message || 'Decision recorded'}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {entry.detail || 'The managed runtime will append context here as it screens, bids, settles, and rebalances.'}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-400">No managed decisions recorded yet. Start the runtime to build a live decision trail here.</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+              Activate the managed agent to load live P&amp;L, recent market outcomes, and the current decision trail in the marketplace.
             </div>
           )}
         </div>

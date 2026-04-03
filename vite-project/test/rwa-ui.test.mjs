@@ -95,6 +95,9 @@ test("Marketplace source surfaces autonomous attention and bid guardrails", asyn
   const source = await fs.readFile(marketplacePagePath, "utf8");
 
   assert.match(source, /Autonomous Attention/);
+  assert.match(source, /Agent Outcome Snapshot/);
+  assert.match(source, /Recent Market Outcomes/);
+  assert.match(source, /Recent Decisions/);
   assert.match(source, /Current Bid Focus/);
   assert.match(source, /live shortlist hits, watchlist signals, and current bid focus/i);
   assert.match(source, /Bid Guardrails/);
