@@ -676,4 +676,29 @@ describe("Continuum API Integration", function () {
         expect(stateResponse.body.state.reservations).to.have.length(1);
         expect(stateResponse.body.state.reservations[0].reservedAmount).to.equal("2750000000");
     });
+
+    it("returns auction depth and recent bid flow in market asset details", async () => {
+        await request(app)
+            .post("/api/market/auctions/3/bids")
+            .set("Authorization", `Bearer ${token}`)
+            .set("X-Stream-Stream-Id", "77")
+            .send({
+                amount: "275.0000000",
+            })
+            .expect(201);
+
+        const response = await request(app)
+            .get("/api/market/assets/7")
+            .expect(200);
+
+        expect(response.body.code).to.equal("market_asset_loaded");
+        expect(response.body.auctions).to.have.length(1);
+        expect(response.body.auctions[0].bidCount).to.equal(1);
+        expect(response.body.auctions[0].uniqueBidderCount).to.equal(1);
+        expect(response.body.auctions[0].minimumNextBidDisplay).to.equal("276");
+        expect(response.body.auctions[0].marketDepth.minimumNextBid).to.equal("276");
+        expect(response.body.auctions[0].bidLadder).to.have.length(1);
+        expect(response.body.auctions[0].recentBids).to.have.length(1);
+        expect(response.body.auctions[0].bidLadder[0].amountDisplay).to.equal("275.0000000");
+    });
 });

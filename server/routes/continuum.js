@@ -2,6 +2,7 @@ const express = require("express");
 const { ethers } = require("ethers");
 const { generateDueDiligence, aggregateMarketIntel } = require("../services/assetIntelligence");
 const { screenAssets } = require("../services/assetScreener");
+const { formatStellarAmount } = require("../services/stellarAnchorService");
 
 const router = express.Router();
 
@@ -102,6 +103,78 @@ function summarizeActivity(activity = []) {
             blockNumber: entry.blockNumber,
             occurredAt: entry.occurredAt || null,
         }));
+}
+
+function sortBidsByAmountAndTime(bids = []) {
+    return [...bids].sort((left, right) => {
+        const amountDelta = BigInt(right.amountStroops || "0") - BigInt(left.amountStroops || "0");
+        if (amountDelta !== 0n) {
+            return amountDelta > 0n ? 1 : -1;
+        }
+        return Number(left.placedAt || 0) - Number(right.placedAt || 0);
+    });
+}
+
+function sortBidsByRecent(bids = []) {
+    return [...bids].sort((left, right) => Number(right.placedAt || 0) - Number(left.placedAt || 0));
+}
+
+function buildBidSummary(bid, { isLeading = false } = {}) {
+    return {
+        bidId: bid.bidId,
+        bidder: bid.bidder,
+        amountStroops: bid.amountStroops,
+        amountDisplay: bid.amountDisplay || ethers.formatUnits(BigInt(bid.amountStroops || "0"), 7),
+        placedAt: Number(bid.placedAt || 0),
+        status: bid.status || "active",
+        isLeading,
+        txHash: bid.txHash || "",
+    };
+}
+
+function enrichAuction(auction) {
+    if (!auction) return null;
+    const bids = Array.isArray(auction.bids) ? auction.bids : [];
+    const activeBids = bids.filter((bid) => bid.status === "active");
+    const rankedActiveBids = sortBidsByAmountAndTime(activeBids);
+    const highestBid = auction.highestBid || rankedActiveBids[0] || null;
+    const highestAmount = BigInt(highestBid?.amountStroops || "0");
+    const reserveAmount = BigInt(auction.reservePrice || "0");
+    const bidIncrement = 10_000_000n;
+    const minimumNextBid = highestBid
+        ? highestAmount + bidIncrement
+        : reserveAmount;
+    const uniqueBidderCount = new Set(
+        activeBids.map((bid) => normalizeAddress(bid.bidder)),
+    ).size;
+
+    return {
+        ...auction,
+        bids,
+        highestBid,
+        highestBidDisplay: highestBid ? formatStellarAmount(highestBid.amountStroops) : null,
+        reserveMet: highestBid ? highestAmount >= reserveAmount : false,
+        bidCount: bids.length,
+        activeBidCount: activeBids.length,
+        uniqueBidderCount,
+        minimumNextBidStroops: minimumNextBid.toString(),
+        minimumNextBid: formatStellarAmount(minimumNextBid),
+        minimumNextBidDisplay: formatStellarAmount(minimumNextBid),
+        recentBids: sortBidsByRecent(activeBids).slice(0, 5).map((bid) => buildBidSummary(bid, {
+            isLeading: Number(bid.bidId) === Number(highestBid?.bidId),
+        })),
+        bidLadder: rankedActiveBids.slice(0, 5).map((bid) => buildBidSummary(bid, {
+            isLeading: Number(bid.bidId) === Number(highestBid?.bidId),
+        })),
+        marketDepth: {
+            reservePrice: formatStellarAmount(reserveAmount),
+            highestBid: highestBid ? formatStellarAmount(highestBid.amountStroops) : null,
+            minimumNextBid: formatStellarAmount(minimumNextBid),
+            spreadToReserve: highestBid ? formatStellarAmount(highestAmount - reserveAmount) : "0.0000000",
+            uniqueBidderCount,
+            activeBidCount: activeBids.length,
+        },
+    };
 }
 
 function send402Response(req, res, price, description) {
@@ -214,7 +287,8 @@ router.get("/market/assets/:assetId", asyncHandler(async (req, res) => {
     if (!asset) {
         return res.status(404).json({ error: "Asset not found.", code: "asset_not_found" });
     }
-    const auctions = await services.auctionEngine.listAuctions({ tokenId: Number(req.params.assetId) });
+    const auctions = (await services.auctionEngine.listAuctions({ tokenId: Number(req.params.assetId) }))
+        .map((auction) => enrichAuction(auction));
     res.json({
         code: "market_asset_loaded",
         asset: marketAssetSummary(await hydrateAsset(services, asset), auctions.find((entry) => entry.status === "active") || null),
@@ -321,7 +395,7 @@ router.post("/market/assets/:assetId/auctions", requireJwt, asyncHandler(async (
 
 router.get("/market/auctions/:auctionId", asyncHandler(async (req, res) => {
     const services = await req.app.locals.ready;
-    const auction = await services.auctionEngine.getAuction(Number(req.params.auctionId));
+    const auction = enrichAuction(await services.auctionEngine.getAuction(Number(req.params.auctionId)));
     if (!auction) {
         return res.status(404).json({ error: "Auction not found.", code: "auction_not_found" });
     }

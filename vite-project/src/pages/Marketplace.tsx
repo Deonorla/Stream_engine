@@ -76,6 +76,16 @@ function formatRiskLabel(risk?: number) {
   return 'Lower';
 }
 
+function formatShortAddress(value?: string | null) {
+  if (!value) return 'Unknown';
+  return `${value.slice(0, 6)}…${value.slice(-4)}`;
+}
+
+function formatBidPlacedAt(value?: number) {
+  if (!value) return 'Just now';
+  return new Date(Number(value) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 function MarketActions({
   asset,
   agentPublicKey,
@@ -342,12 +352,65 @@ function MarketActions({
               {[
                 { label: 'Reserve', value: `${activeAuction.reservePriceDisplay} USDC` },
                 { label: 'Highest Bid', value: activeAuction.highestBidDisplay ? `${activeAuction.highestBidDisplay} USDC` : 'No bids yet' },
+                { label: 'Minimum Next Bid', value: `${activeAuction.minimumNextBidDisplay || activeAuction.marketDepth?.minimumNextBid || activeAuction.reservePriceDisplay} USDC` },
+                { label: 'Unique Bidders', value: String(activeAuction.uniqueBidderCount || activeAuction.marketDepth?.uniqueBidderCount || 0) },
               ].map((item) => (
                 <div key={item.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                   <p className="text-[9px] font-label uppercase tracking-widest text-slate-400 mb-0.5">{item.label}</p>
                   <p className="text-sm font-bold text-slate-800">{item.value}</p>
                 </div>
               ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Bid Ladder</p>
+                <div className="mt-3 space-y-2">
+                  {(activeAuction.bidLadder || []).length ? (
+                    (activeAuction.bidLadder || []).map((bid: any, index: number) => (
+                      <div key={bid.bidId} className="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">#{index + 1} · {bid.amountDisplay} USDC</p>
+                            <p className="text-xs text-slate-500 mt-1">{formatShortAddress(bid.bidder)} · {formatBidPlacedAt(bid.placedAt)}</p>
+                          </div>
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${bid.isLeading ? 'text-secondary' : 'text-slate-400'}`}>
+                            {bid.isLeading ? 'leader' : bid.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-400">No live bids yet. The first valid bid will set the auction pace.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Recent Bid Flow</p>
+                <div className="mt-3 space-y-2">
+                  {(activeAuction.recentBids || []).length ? (
+                    (activeAuction.recentBids || []).map((bid: any) => (
+                      <div key={`recent-${bid.bidId}`} className="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{bid.amountDisplay} USDC</p>
+                            <p className="text-xs text-slate-500 mt-1">{formatShortAddress(bid.bidder)} · {formatBidPlacedAt(bid.placedAt)}</p>
+                          </div>
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${bid.isLeading ? 'text-purple-600' : 'text-slate-400'}`}>
+                            {bid.isLeading ? 'top bid' : bid.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-400">Bid history will appear here as the auction book fills in.</p>
+                  )}
+                </div>
+                <div className="mt-3 rounded-xl border border-slate-100 bg-white px-3 py-2.5 text-xs text-slate-500">
+                  Spread to reserve: {activeAuction.marketDepth?.spreadToReserve || '0.0000000'} USDC · Active bids: {String(activeAuction.marketDepth?.activeBidCount || 0)}
+                </div>
+              </div>
             </div>
 
             {!isOwner && agentPublicKey && (
