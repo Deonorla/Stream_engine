@@ -537,6 +537,48 @@ describe("Continuum API Integration", function () {
         expect(response.body.paidVia.streamId).to.equal("77");
     });
 
+    it("loads live market positions for the managed agent wallet", async () => {
+        await agentState.upsertReservation(agentId, {
+            bidId: 91,
+            auctionId: 3,
+            assetId: 7,
+            issuer: issuerKeypair.publicKey(),
+            reservedAmount: "125000000",
+            status: "reserved",
+        });
+        await agentState.setTreasury(agentId, {
+            positions: [
+                {
+                    positionId: "safe-1",
+                    strategyFamily: "safe_yield",
+                    venueId: "yield-vault",
+                    allocatedAmount: "180000000",
+                    projectedNetApy: "11.20",
+                    status: "open",
+                },
+            ],
+            summary: {
+                deployed: "180000000",
+                liquidBalance: "4250000000",
+            },
+        });
+
+        const response = await request(app)
+            .get("/api/market/positions")
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(response.body.code).to.equal("market_positions_loaded");
+        expect(response.body.agentId).to.equal(agentId);
+        expect(response.body.positions.ownedAssets).to.have.length(1);
+        expect(response.body.positions.ownedAssets[0].tokenId).to.equal(7);
+        expect(response.body.positions.sessions).to.have.length(1);
+        expect(response.body.positions.sessions[0].id).to.equal(77);
+        expect(response.body.positions.reservations).to.have.length(1);
+        expect(response.body.positions.treasury.positions).to.have.length(1);
+        expect(response.body.positions.performance.realizedYield).to.equal("0");
+    });
+
     it("returns 402 for paid yield routing without a payment session", async () => {
         const response = await request(app)
             .post("/api/market/yield/route")

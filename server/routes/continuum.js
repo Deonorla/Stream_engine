@@ -648,16 +648,17 @@ router.post("/market/auctions/:auctionId/settle", requireJwt, asyncHandler(async
 }));
 
 router.get("/market/positions", requireJwt, asyncHandler(async (req, res) => {
-    const { services, agentId } = await resolveAgentContext(req);
+    const { services, agentId, agentPublicKey } = await resolveAgentContext(req);
     const [assets, sessions, treasury, reservations, performance] = await Promise.all([
-        services.chainService.listAssetSnapshots({ owner: agentId }),
-        services.chainService.listSessions({ owner: agentId }),
+        services.chainService.listAssetSnapshots({ owner: agentPublicKey }),
+        services.chainService.listSessions({ owner: agentPublicKey }),
         services.agentState.getTreasury(agentId),
         services.agentState.listOpenReservations(agentId),
         services.agentState.getPerformance(agentId),
     ]);
     res.json({
         code: "market_positions_loaded",
+        agentId,
         positions: {
             ownedAssets: assets,
             sessions,

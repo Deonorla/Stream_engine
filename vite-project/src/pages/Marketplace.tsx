@@ -30,6 +30,7 @@ import {
   fetchMarketAsset,
   fetchMarketAnalytics,
   fetchMarketCatalog,
+  fetchMarketPositions,
   placeAuctionBid,
   removeAgentWatchAsset,
   saveAgentScreen,
@@ -533,6 +534,7 @@ export default function Marketplace() {
   const { agentPublicKey, activate } = useAgentWallet(walletAddress);
   const [assets, setAssets] = useState<any[]>([]);
   const [agentState, setAgentState] = useState<any>(null);
+  const [marketPositions, setMarketPositions] = useState<any>(null);
   const [marketSummary, setMarketSummary] = useState<any>(null);
   const [savedScreens, setSavedScreens] = useState<any[]>([]);
   const [watchlist, setWatchlist] = useState<any[]>([]);
@@ -567,20 +569,23 @@ export default function Marketplace() {
         rentalReady: rentalReadyOnly ? 'true' : undefined,
         hasAuction: liveAuctionsOnly ? 'true' : undefined,
       };
-      const [response, nextScreens, nextWatchlist, nextAgentState] = await Promise.all([
+      const [response, nextScreens, nextWatchlist, nextAgentState, nextMarketPositions] = await Promise.all([
         fetchMarketCatalog(query),
         agentPublicKey ? fetchAgentScreens(agentPublicKey) : Promise.resolve([]),
         agentPublicKey ? fetchAgentWatchlist(agentPublicKey) : Promise.resolve([]),
         agentPublicKey ? fetchAgentState(agentPublicKey) : Promise.resolve(null),
+        agentPublicKey ? fetchMarketPositions() : Promise.resolve(null),
       ]);
       setAssets((response.assets || []).map(buildUiAsset));
       setAgentState(nextAgentState);
+      setMarketPositions(nextMarketPositions);
       setMarketSummary(response.summary || null);
       setSavedScreens(nextScreens || []);
       setWatchlist(nextWatchlist || []);
     } catch {
       setAssets([]);
       setAgentState(null);
+      setMarketPositions(null);
       setMarketSummary(null);
       if (!agentPublicKey) {
         setSavedScreens([]);
@@ -657,6 +662,10 @@ export default function Marketplace() {
   };
   const topOpportunities = marketSummary?.highlights?.topOpportunities || [];
   const auctionsClosingSoon = marketSummary?.highlights?.auctionsClosingSoon || [];
+  const ownedMarketAssets = Array.isArray(marketPositions?.ownedAssets) ? marketPositions.ownedAssets : [];
+  const managedSessions = Array.isArray(marketPositions?.sessions) ? marketPositions.sessions : [];
+  const managedReservations = Array.isArray(marketPositions?.reservations) ? marketPositions.reservations : [];
+  const marketTreasury = marketPositions?.treasury || null;
   const screeningPills = [
     { label: browseState.search ? `Search: ${browseState.search}` : '', active: Boolean(browseState.search) },
     { label: browseState.type ? `${TYPE_META[browseState.type as keyof typeof TYPE_META]?.label || browseState.type}` : '', active: Boolean(browseState.type) },
@@ -866,7 +875,58 @@ export default function Marketplace() {
             <p className="text-sm text-slate-400">Not enough market history yet to rank opportunities.</p>
           )}
         </div>
+        <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Your Market Book</p>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              {agentPublicKey ? 'Managed agent' : 'Activate agent'}
+            </span>
+          </div>
+          {agentPublicKey ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {[
+                  { label: 'Owned Twins', value: String(ownedMarketAssets.length) },
+                  { label: 'Sessions', value: String(managedSessions.length) },
+                  { label: 'Bid Reserves', value: String(managedReservations.length) },
+                  { label: 'Treasury Positions', value: String(marketTreasury?.positions?.length || 0) },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                    <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{item.label}</p>
+                    <p className="mt-1 text-sm font-bold text-slate-800">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {ownedMarketAssets.slice(0, 3).map((asset: any) => (
+                  <div key={asset.tokenId} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{asset.publicMetadata?.name || asset.name || `Twin #${asset.tokenId}`}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Twin #{asset.tokenId} · {asset.verificationStatusLabel || 'unknown'} · platform/economic ownership only
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-secondary">
+                        {Number(asset.claimableYield || 0) > 0 ? `${(Number(asset.claimableYield || 0) / 1e7).toFixed(2)} USDC` : 'No yield'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {ownedMarketAssets.length === 0 && (
+                  <p className="text-sm text-slate-400">No acquired twins yet. Win an auction to start building the market book.</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+              Activate the managed agent to load owned twins, live sessions, open bid reserves, and treasury positions in the marketplace.
+            </div>
+          )}
+        </div>
+      </div>
 
+      <div className="grid gap-4 lg:grid-cols-2">
         <div className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Autonomous Attention</p>

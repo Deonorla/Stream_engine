@@ -225,10 +225,11 @@ export async function settleAuction(auctionId) {
 }
 
 export async function fetchMarketPositions() {
-  return request('/api/market/positions', {
+  const response = await request('/api/market/positions', {
     method: 'GET',
     headers: agentHeaders(),
   });
+  return response.positions || null;
 }
 
 export async function claimMarketYield(tokenId) {
