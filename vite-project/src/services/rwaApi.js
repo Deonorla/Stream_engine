@@ -202,7 +202,8 @@ export async function createMarketAuction(assetId, payload) {
 }
 
 export async function fetchAuction(auctionId) {
-  return request(`/api/market/auctions/${auctionId}`, { method: 'GET' });
+  const response = await request(`/api/market/auctions/${auctionId}`, { method: 'GET' });
+  return response.auction || null;
 }
 
 export async function placeAuctionBid(auctionId, payload) {
