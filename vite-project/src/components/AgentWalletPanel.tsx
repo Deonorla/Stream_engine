@@ -10,7 +10,7 @@ import { ACTIVE_NETWORK } from '../networkConfig';
 export default function AgentWalletPanel() {
   const { walletAddress } = useWallet();
   const { agentPublicKey, loading, error, activate } = useAgentWallet(walletAddress);
-  const { xlm, usdc } = useAgentBalances(agentPublicKey);
+  const { xlm, usdc, refresh: refreshBalances } = useAgentBalances(agentPublicKey);
   const [copied, setCopied] = useState(false);
   const [trustBusy, setTrustBusy] = useState(false);
   const [trustMsg, setTrustMsg] = useState('');
@@ -40,7 +40,7 @@ export default function AgentWalletPanel() {
       });
       const data = await res.json();
       setWithdrawMsg(res.ok ? `✓ Sent ${withdrawAmount} ${withdrawAsset} to your wallet` : (data.error || 'Failed'));
-      if (res.ok) setWithdrawAmount('');
+      if (res.ok) { setWithdrawAmount(''); refreshBalances(); }
     } catch {
       setWithdrawMsg('Request failed');
     }

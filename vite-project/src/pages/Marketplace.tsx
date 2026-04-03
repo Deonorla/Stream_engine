@@ -775,7 +775,7 @@ export default function Marketplace() {
     <div className="p-4 sm:p-8 max-w-[1600px] mx-auto space-y-8">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400 font-bold">Continuum</p>
+          {/* <p className="text-xs uppercase tracking-[0.3em] text-slate-400 font-bold">Continuum</p> */}
           <h2 className="text-4xl font-headline font-bold tracking-tight text-on-surface">Marketplace</h2>
           <p className="mt-1 text-sm text-on-surface-variant">
             Browse productive twins for free, pay for premium analysis, and let autonomous agents compete in timed auctions.

@@ -87,7 +87,7 @@ function AgentLogRow({ entry }: { entry: any }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { paymentBalance, xlmBalance, incomingStreams, outgoingStreams, formatEth, walletAddress, refreshStreams } = useWallet();
+  const { paymentBalance, xlmBalance, incomingStreams, outgoingStreams, formatEth, walletAddress, refreshStreams, fetchPaymentBalance } = useWallet();
   const { mode, setMode } = useAppMode();
   const { agentPublicKey } = useAgentWallet(walletAddress);
   const { xlm: agentXlm, usdc: agentUsdc } = useAgentBalances(agentPublicKey);
@@ -120,7 +120,7 @@ export default function Dashboard() {
       });
       const data = await res.json();
       setWithdrawMsg(res.ok ? `✓ Sent ${withdrawAmount} ${withdrawAsset} to your wallet` : (data.error || 'Failed'));
-      if (res.ok) setWithdrawAmount('');
+      if (res.ok) { setWithdrawAmount(''); fetchPaymentBalance(); }
     } catch { setWithdrawMsg('Request failed'); }
     setWithdrawBusy(false);
   };
@@ -181,13 +181,13 @@ export default function Dashboard() {
           {mode === 'owner' ? (
             <>
               <p className="text-xs font-label uppercase tracking-widest text-slate-400">Asset Owner · Freighter</p>
-              <p className="text-sm font-mono font-bold text-slate-800 truncate">{walletAddress || 'Not connected'}</p>
+             
             </>
           ) : (
             <>
               <p className="text-xs font-label uppercase tracking-widest text-slate-400">Autonomous Agent Mode</p>
               <p className="text-sm font-mono font-bold text-slate-800 truncate">
-                {agentPublicKey ? `${agentPublicKey.slice(0,8)}…${agentPublicKey.slice(-4)}` : 'No agent wallet — create one in My Agent'}
+                {agentPublicKey ? `` : 'No agent detected'}
               </p>
             </>
           )}

@@ -38,9 +38,13 @@ function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
       {/* Logo */}
       <div className="px-6 mb-10">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl ethereal-gradient flex items-center justify-center shadow-lg shadow-blue-500/20">
-            <Bot size={18} className="text-white" />
-          </div>
+         
+            <svg width="26" height="26" viewBox="0 0 28 28" fill="none">
+                <path d="M4 14 Q8 8 14 14 Q20 20 24 14" stroke="#1a3de6" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+                <path d="M4 18 Q8 12 14 18 Q20 24 24 18" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6"/>
+                <circle cx="14" cy="14" r="2.5" fill="#1a3de6"/>
+              </svg>
+         
           <div>
             <h1 className="text-sm font-black text-slate-900 font-headline leading-tight tracking-tight">Continuum</h1>
             <div className="flex items-center gap-1.5 mt-0.5">
