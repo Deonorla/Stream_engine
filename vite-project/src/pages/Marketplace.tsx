@@ -768,8 +768,14 @@ export default function Marketplace() {
   const ownedMarketAssets = Array.isArray(marketPositions?.ownedAssets) ? marketPositions.ownedAssets : [];
   const managedSessions = Array.isArray(marketPositions?.sessions) ? marketPositions.sessions : [];
   const managedReservations = Array.isArray(marketPositions?.reservations) ? marketPositions.reservations : [];
+  const marketReservationExposure = Array.isArray(marketPositions?.reservationExposure) ? marketPositions.reservationExposure : [];
   const marketTreasury = marketPositions?.treasury || null;
   const marketLiquidity = marketPositions?.liquidity || null;
+  const marketReservationSummary = {
+    leading: marketReservationExposure.filter((entry: any) => entry.isLeading).length,
+    outbid: marketReservationExposure.filter((entry: any) => entry.status === 'outbid').length,
+    ready: marketReservationExposure.filter((entry: any) => entry.readyToSettle && entry.isLeading).length,
+  };
   const screeningPills = [
     { label: browseState.search ? `Search: ${browseState.search}` : '', active: Boolean(browseState.search) },
     { label: browseState.type ? `${TYPE_META[browseState.type as keyof typeof TYPE_META]?.label || browseState.type}` : '', active: Boolean(browseState.type) },
@@ -1030,6 +1036,57 @@ export default function Marketplace() {
                 <p className="text-xs text-slate-500">
                   Bid reserves stay committed off-wallet, and treasury recall can reopen headroom when auction pressure rises.
                 </p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Reserve Book</p>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                    {marketReservationExposure.length ? 'Live exposure' : 'No reserves'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: 'Leading', value: String(marketReservationSummary.leading), tone: 'text-secondary' },
+                    { label: 'Outbid', value: String(marketReservationSummary.outbid), tone: 'text-amber-600' },
+                    { label: 'Ready', value: String(marketReservationSummary.ready), tone: 'text-primary' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                      <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{item.label}</p>
+                      <p className={`mt-1 text-sm font-bold ${item.tone}`}>{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  {marketReservationExposure.slice(0, 3).map((entry: any) => (
+                    <div key={entry.bidId} className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">{entry.title || `Auction #${entry.auctionId}`}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Bid #{entry.bidId} · {entry.reservedAmountDisplay || '0.0000000'} USDC reserved
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                          entry.status === 'ready_to_settle'
+                            ? 'text-primary'
+                            : entry.status === 'leading'
+                              ? 'text-secondary'
+                              : entry.status === 'outbid'
+                                ? 'text-amber-600'
+                                : 'text-slate-400'
+                        }`}>
+                          {entry.statusLabel}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-slate-500">
+                        Top bid {entry.highestBidDisplay || '0.0000000'} USDC · Next valid bid {entry.minimumNextBidDisplay || '0.0000000'} USDC · {formatCountdown(entry.endTime)}
+                      </p>
+                    </div>
+                  ))}
+                  {marketReservationExposure.length === 0 && (
+                    <p className="text-sm text-slate-400">Reserved bids will show up here once the managed agent starts competing in live auctions.</p>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 {ownedMarketAssets.slice(0, 3).map((asset: any) => (
