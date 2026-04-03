@@ -69,6 +69,13 @@ function formatCountdown(endTime?: number) {
   return `${hours}h ${minutes}m left`;
 }
 
+function formatRiskLabel(risk?: number) {
+  const numericRisk = Number(risk || 0);
+  if (numericRisk >= 70) return 'High';
+  if (numericRisk >= 45) return 'Moderate';
+  return 'Lower';
+}
+
 function MarketActions({
   asset,
   agentPublicKey,
@@ -200,18 +207,121 @@ function MarketActions({
         )}
         {analyticsStatus === 'err' && <p className="text-xs text-red-500">Could not load premium analysis.</p>}
         {analytics && (
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Claimable Yield', value: `${Number(analytics.claimableYield || 0).toFixed(4)} USDC` },
-              { label: 'Projected Annual Yield', value: `${Number(analytics.projectedAnnualYield || 0).toFixed(4)} USDC` },
-              { label: 'Auctions', value: String(analytics.auctionCount || 0) },
-              { label: 'Last Winning Bid', value: analytics.lastWinningBid || 'None yet' },
-            ].map((item) => (
-              <div key={item.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                <p className="text-[9px] font-label uppercase tracking-widest text-slate-400 mb-0.5">{item.label}</p>
-                <p className="text-sm font-bold text-slate-800">{item.value}</p>
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Premium Verdict</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                      analytics.verdict === 'BUY'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : analytics.verdict === 'HOLD'
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-rose-100 text-rose-700'
+                    }`}>
+                      {analytics.verdict || 'HOLD'}
+                    </span>
+                    <span className="text-xs font-medium text-slate-500">
+                      {Number(analytics.confidence || 0).toFixed(0)}% confidence
+                    </span>
+                  </div>
+                </div>
+                <div className="rounded-xl bg-white border border-slate-100 px-3 py-2 text-right min-w-[8rem]">
+                  <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">Yield View</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-700">{analytics.yieldAssessment || 'No yield note yet.'}</p>
+                </div>
               </div>
-            ))}
+              <p className="mt-3 text-sm leading-6 text-slate-600">{analytics.summary}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: 'Claimable Yield', value: `${Number(analytics.claimableYield || 0).toFixed(4)} USDC` },
+                { label: 'Projected Annual Yield', value: `${Number(analytics.projectedAnnualYield || 0).toFixed(4)} USDC` },
+                { label: 'Peer Rank', value: analytics.marketContext?.peerRank ? `#${analytics.marketContext.peerRank} of ${analytics.marketContext.peerCount}` : 'Unranked' },
+                { label: 'Market Risk', value: `${formatRiskLabel(analytics.marketContext?.avgRisk)} · ${Number(analytics.marketContext?.avgRisk || 0).toFixed(0)}/100` },
+                { label: 'Auctions', value: String(analytics.auctionCount || 0) },
+                { label: 'Last Winning Bid', value: analytics.lastWinningBid || 'None yet' },
+              ].map((item) => (
+                <div key={item.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                  <p className="text-[9px] font-label uppercase tracking-widest text-slate-400 mb-0.5">{item.label}</p>
+                  <p className="text-sm font-bold text-slate-800">{item.value}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                <p className="text-[10px] font-label uppercase tracking-widest text-emerald-600">What Looks Good</p>
+                <div className="mt-2 space-y-2">
+                  {(analytics.positives || []).length ? (analytics.positives || []).map((item: string) => (
+                    <p key={item} className="text-sm text-emerald-900">• {item}</p>
+                  )) : <p className="text-sm text-emerald-900">No major upside flags yet.</p>}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                <p className="text-[10px] font-label uppercase tracking-widest text-amber-700">What To Watch</p>
+                <div className="mt-2 space-y-2">
+                  {(analytics.risks || []).length ? (analytics.risks || []).map((item: string) => (
+                    <p key={item} className="text-sm text-amber-900">• {item}</p>
+                  )) : <p className="text-sm text-amber-900">No elevated risk flags from the current snapshot.</p>}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Market Context</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Verified Share', value: `${Number(analytics.marketContext?.verifiedSharePct || 0).toFixed(1)}%` },
+                    { label: 'Rental Ready Share', value: `${Number(analytics.marketContext?.rentalReadySharePct || 0).toFixed(1)}%` },
+                    { label: 'Average Yield', value: `${Number(analytics.marketContext?.avgYield || 0).toFixed(2)}%` },
+                    { label: 'Issuer Peer Count', value: String(analytics.marketContext?.issuerPeerCount || 0) },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                      <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{item.label}</p>
+                      <p className="mt-1 text-sm font-bold text-slate-800">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-100 bg-white p-4">
+                <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Auction Context</p>
+                {analytics.auctionContext?.activeAuction ? (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-slate-600">
+                      Active auction #{analytics.auctionContext.activeAuction.auctionId} has a reserve of {analytics.auctionContext.activeAuction.reservePrice} USDC and {analytics.auctionContext.activeAuction.bidCount} live bid{Number(analytics.auctionContext.activeAuction.bidCount || 0) === 1 ? '' : 's'}.
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Highest bid: {analytics.auctionContext.activeAuction.highestBid || 'None yet'} · Time remaining: {formatCountdown(Math.floor(Date.now() / 1000) + Number(analytics.auctionContext.activeAuction.timeRemainingSeconds || 0))}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm text-slate-600">No active auction is running right now for this twin.</p>
+                    <p className="text-xs text-slate-500">
+                      Settled auctions: {String(analytics.auctionContext?.settledAuctionCount || 0)} · Latest winning bid: {analytics.auctionContext?.latestWinningBid || 'None yet'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-100 bg-white p-4">
+              <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Recent Activity</p>
+              <div className="mt-3 space-y-2">
+                {(analytics.recentActivity || []).length ? (analytics.recentActivity || []).map((entry: any) => (
+                  <div key={`${entry.eventName}-${entry.txHash || entry.blockNumber}`} className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2.5">
+                    <p className="text-sm font-semibold text-slate-800">{entry.eventName}</p>
+                    <p className="text-xs text-slate-500">
+                      Block {entry.blockNumber || 'n/a'} · {entry.txHash || 'No tx hash'}
+                    </p>
+                  </div>
+                )) : <p className="text-sm text-slate-500">No indexed market activity yet.</p>}
+              </div>
+            </div>
           </div>
         )}
       </div>

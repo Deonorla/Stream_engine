@@ -1,5 +1,7 @@
 const express = require("express");
 const { ethers } = require("ethers");
+const { generateDueDiligence, aggregateMarketIntel } = require("../services/assetIntelligence");
+const { screenAssets } = require("../services/assetScreener");
 
 const router = express.Router();
 
@@ -83,6 +85,23 @@ function marketAssetSummary(asset, auction) {
             hasActiveAuction: Boolean(auction && auction.status === "active"),
         },
     };
+}
+
+function percentage(part, total) {
+    if (!total) return 0;
+    return Number(((Number(part || 0) / Number(total)) * 100).toFixed(1));
+}
+
+function summarizeActivity(activity = []) {
+    return activity
+        .slice(-5)
+        .reverse()
+        .map((entry) => ({
+            eventName: entry.eventName,
+            txHash: entry.txHash,
+            blockNumber: entry.blockNumber,
+            occurredAt: entry.occurredAt || null,
+        }));
 }
 
 function send402Response(req, res, price, description) {
@@ -210,13 +229,27 @@ router.get("/market/assets/:assetId/analytics", requirePaidAction("0.10", "Premi
     if (!asset) {
         return res.status(404).json({ error: "Asset not found.", code: "asset_not_found" });
     }
+    const rawAssets = services.chainService?.isConfigured?.()
+        ? await services.chainService.listAssetSnapshots({ limit: 200 })
+        : await services.store.listAssets();
+    const productiveAssets = rawAssets.filter(productiveOnly);
     const activity = await services.store.getActivities(tokenId);
     const auctions = await services.auctionEngine.listAuctions({ tokenId });
     const auctionCount = auctions.length;
+    const activeAuction = auctions.find((entry) => entry.status === "active") || null;
     const winningAuction = [...auctions]
         .filter((entry) => entry.status === "settled")
         .sort((left, right) => Number(right.settledAt || 0) - Number(left.settledAt || 0))[0] || null;
     const projectedAnnualYield = Number(asset.stream?.flowRate || 0) * 3600 * 24 * 365;
+    const dueDiligence = await generateDueDiligence(asset, process.env.GEMINI_API_KEY);
+    const marketIntel = aggregateMarketIntel(productiveAssets);
+    const rankedAssets = screenAssets(productiveAssets, { limit: productiveAssets.length });
+    const overallPeerRank = rankedAssets.findIndex((entry) => Number(entry.tokenId) === tokenId);
+    const sameTypePeers = rankedAssets.filter((entry) => Number(entry.assetType) === Number(asset.assetType));
+    const assetTypePeerRank = sameTypePeers.findIndex((entry) => Number(entry.tokenId) === tokenId);
+    const issuerPeers = productiveAssets.filter(
+        (entry) => normalizeAddress(entry.issuer) === normalizeAddress(asset.issuer),
+    );
     res.json({
         code: "market_analysis_ready",
         action: "analyze",
@@ -229,6 +262,41 @@ router.get("/market/assets/:assetId/analytics", requirePaidAction("0.10", "Premi
             lastWinningBid: winningAuction?.highestBidDisplay || null,
             activityCount: activity.length,
             rentalReady: Boolean(asset.rentalReady),
+            verdict: dueDiligence.verdict,
+            confidence: dueDiligence.confidence,
+            summary: dueDiligence.summary,
+            risks: dueDiligence.risks || [],
+            positives: dueDiligence.positives || [],
+            yieldAssessment: dueDiligence.yieldAssessment || "",
+            dueDiligence,
+            marketContext: {
+                totalProductiveTwins: marketIntel.totalAssets || 0,
+                verifiedSharePct: percentage(marketIntel.verifiedCount, marketIntel.totalAssets),
+                rentalReadySharePct: percentage(marketIntel.rentalReadyCount, marketIntel.totalAssets),
+                avgYield: marketIntel.avgYield || 0,
+                avgRisk: marketIntel.avgRisk || 0,
+                topYield: marketIntel.maxYield || 0,
+                peerRank: overallPeerRank >= 0 ? overallPeerRank + 1 : null,
+                peerCount: rankedAssets.length,
+                assetTypePeerRank: assetTypePeerRank >= 0 ? assetTypePeerRank + 1 : null,
+                assetTypePeerCount: sameTypePeers.length,
+                issuerPeerCount: issuerPeers.length,
+            },
+            auctionContext: {
+                activeAuction: activeAuction
+                    ? {
+                        auctionId: activeAuction.auctionId,
+                        reservePrice: activeAuction.reservePriceDisplay || activeAuction.reservePrice || null,
+                        highestBid: activeAuction.highestBidDisplay || null,
+                        reserveMet: Boolean(activeAuction.reserveMet),
+                        bidCount: Array.isArray(activeAuction.bids) ? activeAuction.bids.length : 0,
+                        timeRemainingSeconds: Math.max(0, Number(activeAuction.endTime || 0) - nowSeconds()),
+                    }
+                    : null,
+                settledAuctionCount: auctions.filter((entry) => entry.status === "settled").length,
+                latestWinningBid: winningAuction?.highestBidDisplay || null,
+            },
+            recentActivity: summarizeActivity(activity),
         },
         paidVia: req.streamEngine || null,
     });
@@ -353,6 +421,7 @@ router.post("/market/yield/route", requireJwt, asyncHandler(async (req, res) => 
         action: "routeYield",
         claim,
         treasury,
+        optimization: treasury.optimization || null,
     });
 }));
 
@@ -366,6 +435,7 @@ router.post("/market/treasury/rebalance", requirePaidAction("0.02", "Treasury op
         code: "treasury_rebalanced",
         action: "rebalanceTreasury",
         treasury,
+        optimization: treasury.optimization || null,
         paidVia: req.streamEngine || null,
     });
 }));

@@ -65,6 +65,109 @@ function normalizeStringList(values, fallback = []) {
     return Array.from(new Set(values.map((value) => String(value).trim()).filter(Boolean)));
 }
 
+function defaultPerformance(agentId = "") {
+    return {
+        agentId: String(agentId).toUpperCase(),
+        realizedYield: "0",
+        treasuryReturn: "0",
+        paidActionFees: "0",
+        netPnL: "0",
+        drawdown: "0",
+        auctionWins: 0,
+        auctionLosses: 0,
+        attribution: {
+            yieldContribution: "0",
+            treasuryContribution: "0",
+            feeDrag: "0",
+            grossPositivePnL: "0",
+            netPnL: "0",
+            auctionWins: 0,
+            auctionLosses: 0,
+            totalAuctionOutcomes: 0,
+            winRatePct: 0,
+        },
+        recentEvents: [],
+        updatedAt: nowSeconds(),
+    };
+}
+
+function buildPerformanceEvent({
+    category = "info",
+    label = "",
+    amount = "",
+    direction = "neutral",
+    metadata = {},
+}) {
+    return {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        ts: Date.now(),
+        category,
+        label,
+        amount: amount === undefined || amount === null || amount === "" ? "" : toStringAmount(amount),
+        direction,
+        metadata,
+    };
+}
+
+function normalizePerformance(agentId, current = {}) {
+    const base = defaultPerformance(agentId);
+    return {
+        ...base,
+        ...current,
+        agentId: String(agentId).toUpperCase(),
+        auctionWins: Number(current.auctionWins ?? base.auctionWins),
+        auctionLosses: Number(current.auctionLosses ?? base.auctionLosses),
+        attribution: {
+            ...base.attribution,
+            ...(current.attribution || {}),
+            auctionWins: Number(current.attribution?.auctionWins ?? current.auctionWins ?? base.attribution.auctionWins),
+            auctionLosses: Number(current.attribution?.auctionLosses ?? current.auctionLosses ?? base.attribution.auctionLosses),
+        },
+        recentEvents: Array.isArray(current.recentEvents) ? current.recentEvents.slice(-20) : [],
+    };
+}
+
+function finalizePerformance(agentId, performance = {}) {
+    const current = normalizePerformance(agentId, performance);
+    const realizedYield = BigInt(current.realizedYield || "0");
+    const treasuryReturn = BigInt(current.treasuryReturn || "0");
+    const paidActionFees = BigInt(current.paidActionFees || "0");
+    const grossPositivePnL = realizedYield + treasuryReturn;
+    const netPnL = grossPositivePnL - paidActionFees;
+    const auctionWins = Number(current.auctionWins || 0);
+    const auctionLosses = Number(current.auctionLosses || 0);
+    const totalAuctionOutcomes = auctionWins + auctionLosses;
+    const winRatePct = totalAuctionOutcomes > 0
+        ? Number(((auctionWins / totalAuctionOutcomes) * 100).toFixed(1))
+        : 0;
+
+    return {
+        ...current,
+        realizedYield: realizedYield.toString(),
+        treasuryReturn: treasuryReturn.toString(),
+        paidActionFees: paidActionFees.toString(),
+        netPnL: netPnL.toString(),
+        attribution: {
+            ...current.attribution,
+            yieldContribution: realizedYield.toString(),
+            treasuryContribution: treasuryReturn.toString(),
+            feeDrag: paidActionFees.toString(),
+            grossPositivePnL: grossPositivePnL.toString(),
+            netPnL: netPnL.toString(),
+            auctionWins,
+            auctionLosses,
+            totalAuctionOutcomes,
+            winRatePct,
+        },
+        recentEvents: current.recentEvents.slice(-20),
+        updatedAt: nowSeconds(),
+    };
+}
+
+function appendRecentEvent(performance, event) {
+    return [...(Array.isArray(performance.recentEvents) ? performance.recentEvents : []), event].slice(-20);
+}
+
 function defaultMandate(agentId = "") {
     return {
         agentId: String(agentId).toUpperCase(),
@@ -182,15 +285,7 @@ class AgentStateService {
         const mandate = defaultMandate(agentId);
         await this.store.upsertRecord(agentKey(agentId, "mandate"), mandate);
         await this.store.upsertRecord(agentKey(agentId, "performance"), {
-            agentId,
-            realizedYield: "0",
-            treasuryReturn: "0",
-            paidActionFees: "0",
-            netPnL: "0",
-            drawdown: "0",
-            auctionWins: 0,
-            auctionLosses: 0,
-            updatedAt: nowSeconds(),
+            ...defaultPerformance(agentId),
         });
         await this.store.upsertRecord(agentKey(agentId, "decision-log"), { entries: [] });
         await this.store.upsertRecord(agentKey(agentId, "reservations"), { reservations: [] });
@@ -298,6 +393,7 @@ class AgentStateService {
         return record || {
             positions: [],
             reservePolicy: (await this.getMandate(agentId)).reservePolicy,
+            optimization: null,
             updatedAt: nowSeconds(),
         };
     }
@@ -307,6 +403,7 @@ class AgentStateService {
             positions: Array.isArray(treasury?.positions) ? treasury.positions : [],
             reservePolicy: treasury?.reservePolicy || (await this.getMandate(agentId)).reservePolicy,
             summary: treasury?.summary || {},
+            optimization: treasury?.optimization || null,
             updatedAt: nowSeconds(),
         };
         await this.store.upsertRecord(agentKey(agentId, "treasury"), next);
@@ -314,39 +411,30 @@ class AgentStateService {
     }
 
     async updatePerformance(agentId, patch = {}) {
-        const current = await this.store.getRecord(agentKey(agentId, "performance")) || {
-            agentId: String(agentId).toUpperCase(),
-            realizedYield: "0",
-            treasuryReturn: "0",
-            paidActionFees: "0",
-            netPnL: "0",
-            drawdown: "0",
-            auctionWins: 0,
-            auctionLosses: 0,
-        };
-        const next = {
+        const current = normalizePerformance(
+            agentId,
+            await this.store.getRecord(agentKey(agentId, "performance")) || {},
+        );
+        const next = finalizePerformance(agentId, {
             ...current,
             ...patch,
             auctionWins: Number(patch.auctionWins ?? current.auctionWins ?? 0),
             auctionLosses: Number(patch.auctionLosses ?? current.auctionLosses ?? 0),
-            updatedAt: nowSeconds(),
-        };
+            attribution: {
+                ...current.attribution,
+                ...(patch.attribution || {}),
+            },
+            recentEvents: Array.isArray(patch.recentEvents) ? patch.recentEvents : current.recentEvents,
+        });
         await this.store.upsertRecord(agentKey(agentId, "performance"), next);
         return next;
     }
 
     async getPerformance(agentId) {
-        return (await this.store.getRecord(agentKey(agentId, "performance"))) || {
-            agentId: String(agentId).toUpperCase(),
-            realizedYield: "0",
-            treasuryReturn: "0",
-            paidActionFees: "0",
-            netPnL: "0",
-            drawdown: "0",
-            auctionWins: 0,
-            auctionLosses: 0,
-            updatedAt: nowSeconds(),
-        };
+        return finalizePerformance(
+            agentId,
+            await this.store.getRecord(agentKey(agentId, "performance")) || {},
+        );
     }
 
     async getRuntime(agentId) {
@@ -366,26 +454,20 @@ class AgentStateService {
     }
 
     async recordPaidActionFee(agentId, amount, metadata = {}) {
-        const current = await this.store.getRecord(agentKey(agentId, "performance")) || {
-            agentId: String(agentId).toUpperCase(),
-            realizedYield: "0",
-            treasuryReturn: "0",
-            paidActionFees: "0",
-            netPnL: "0",
-            drawdown: "0",
-            auctionWins: 0,
-            auctionLosses: 0,
-        };
+        const current = await this.getPerformance(agentId);
         const nextFee = (
             BigInt(current.paidActionFees || "0")
             + BigInt(toStringAmount(amount))
         ).toString();
-        const treasuryReturn = BigInt(current.treasuryReturn || "0");
-        const realizedYield = BigInt(current.realizedYield || "0");
-        const netPnL = (realizedYield + treasuryReturn - BigInt(nextFee)).toString();
         const updated = await this.updatePerformance(agentId, {
             paidActionFees: nextFee,
-            netPnL,
+            recentEvents: appendRecentEvent(current, buildPerformanceEvent({
+                category: "fee",
+                label: metadata.action ? `${metadata.action} fee` : "Platform action fee",
+                amount,
+                direction: "outflow",
+                metadata,
+            })),
         });
         await this.appendDecision(agentId, {
             type: "action",
@@ -398,19 +480,20 @@ class AgentStateService {
     }
 
     async recordRealizedYield(agentId, amount, metadata = {}) {
-        const current = await this.store.getRecord(agentKey(agentId, "performance")) || {};
+        const current = await this.getPerformance(agentId);
         const nextYield = (
             BigInt(current.realizedYield || "0")
             + BigInt(toStringAmount(amount))
         ).toString();
-        const netPnL = (
-            BigInt(nextYield)
-            + BigInt(current.treasuryReturn || "0")
-            - BigInt(current.paidActionFees || "0")
-        ).toString();
         const updated = await this.updatePerformance(agentId, {
             realizedYield: nextYield,
-            netPnL,
+            recentEvents: appendRecentEvent(current, buildPerformanceEvent({
+                category: "yield",
+                label: metadata.message || "Yield claimed",
+                amount,
+                direction: "inflow",
+                metadata,
+            })),
         });
         await this.appendDecision(agentId, {
             type: "profit",
@@ -423,19 +506,20 @@ class AgentStateService {
     }
 
     async recordTreasuryReturn(agentId, amount, metadata = {}) {
-        const current = await this.store.getRecord(agentKey(agentId, "performance")) || {};
+        const current = await this.getPerformance(agentId);
         const nextTreasuryReturn = (
             BigInt(current.treasuryReturn || "0")
             + BigInt(toStringAmount(amount))
         ).toString();
-        const netPnL = (
-            BigInt(current.realizedYield || "0")
-            + BigInt(nextTreasuryReturn)
-            - BigInt(current.paidActionFees || "0")
-        ).toString();
         const updated = await this.updatePerformance(agentId, {
             treasuryReturn: nextTreasuryReturn,
-            netPnL,
+            recentEvents: appendRecentEvent(current, buildPerformanceEvent({
+                category: "treasury",
+                label: metadata.message || "Treasury yield realized",
+                amount,
+                direction: "inflow",
+                metadata,
+            })),
         });
         await this.appendDecision(agentId, {
             type: "profit",
@@ -446,6 +530,26 @@ class AgentStateService {
         });
         return updated;
     }
+
+    async recordAuctionOutcome(agentId, { outcome = "loss", amount = "", metadata = {} } = {}) {
+        const current = await this.getPerformance(agentId);
+        const auctionWins = Number(current.auctionWins || 0) + (outcome === "win" ? 1 : 0);
+        const auctionLosses = Number(current.auctionLosses || 0) + (outcome === "loss" ? 1 : 0);
+        const label = outcome === "win"
+            ? `Auction #${metadata.auctionId || "?"} won`
+            : `Auction #${metadata.auctionId || "?"} closed without a win`;
+        return this.updatePerformance(agentId, {
+            auctionWins,
+            auctionLosses,
+            recentEvents: appendRecentEvent(current, buildPerformanceEvent({
+                category: "auction",
+                label,
+                amount,
+                direction: "neutral",
+                metadata,
+            })),
+        });
+    }
 }
 
 module.exports = {
@@ -453,4 +557,5 @@ module.exports = {
     defaultRuntime,
     defaultMandate,
     mergeMandate,
+    defaultPerformance,
 };

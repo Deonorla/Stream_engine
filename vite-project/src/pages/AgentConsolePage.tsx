@@ -25,6 +25,7 @@ import {
   fetchAgentState,
   fetchMarketAssets,
   pauseAgentRuntime,
+  rebalanceMarketTreasury,
   saveAgentMandate,
   startAgentRuntime,
   tickAgentRuntime,
@@ -112,6 +113,9 @@ export default function AgentConsolePage() {
   });
   const [savingMandate, setSavingMandate] = useState(false);
   const [runtimeActionError, setRuntimeActionError] = useState('');
+  const [treasurySessionId, setTreasurySessionId] = useState('');
+  const [treasuryActionStatus, setTreasuryActionStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
+  const [treasuryActionError, setTreasuryActionError] = useState('');
   const runtime = state?.runtime || {};
   const agentStatus: AgentStatus = runtime?.running
     ? 'running'
@@ -209,6 +213,25 @@ export default function AgentConsolePage() {
     }
   }, [agentPublicKey, mandateDraft, refreshState]);
 
+  const runTreasuryOptimization = useCallback(async () => {
+    if (!agentPublicKey) return;
+    setTreasuryActionStatus('loading');
+    setTreasuryActionError('');
+    try {
+      await rebalanceMarketTreasury(treasurySessionId || undefined);
+      setTreasuryActionStatus('ok');
+      await refreshState();
+    } catch (rebalanceError: any) {
+      const message = rebalanceError?.message || 'Treasury optimization failed.';
+      setTreasuryActionError(message);
+      if (String(message).includes('402') || String(message).includes('Payment')) {
+        setTreasuryActionStatus('402');
+      } else {
+        setTreasuryActionStatus('err');
+      }
+    }
+  }, [agentPublicKey, refreshState, treasurySessionId]);
+
   const mergedLogs = useMemo<LogEntry[]>(() => (
     Array.isArray(state?.decisionLog) ? state.decisionLog.map((entry: any) => ({
       id: entry.id,
@@ -221,9 +244,12 @@ export default function AgentConsolePage() {
   ), [state?.decisionLog]);
 
   const performance = state?.performance || {};
+  const performanceAttribution = performance.attribution || {};
+  const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
   const treasury = state?.treasury || { positions: [], summary: {} };
   const treasurySummary = treasury.summary || {};
   const treasuryHealth = treasurySummary.health || {};
+  const treasuryOptimization = treasury.optimization || null;
   const reservations = state?.reservations || [];
   const positions = state?.positions || { assets: [], sessions: [] };
   const walletState = state?.wallet || { balances: [] };
@@ -392,6 +418,31 @@ export default function AgentConsolePage() {
 
               <div className="bg-slate-50 rounded-2xl border border-slate-100 p-4 space-y-3">
                 <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Treasury Positions</p>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={treasurySessionId}
+                    onChange={(event) => setTreasurySessionId(event.target.value)}
+                    placeholder="Optional Continuum payment session ID"
+                    className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                  />
+                  <button
+                    onClick={() => void runTreasuryOptimization()}
+                    disabled={!agentPublicKey || treasuryActionStatus === 'loading'}
+                    className="w-full py-2.5 rounded-xl border border-primary text-primary text-xs font-bold hover:bg-blue-50 disabled:opacity-50"
+                  >
+                    {treasuryActionStatus === 'loading' ? 'Optimizing...' : 'Optimize Treasury · 0.02 USDC'}
+                  </button>
+                  {treasuryActionStatus === '402' && (
+                    <p className="text-xs text-amber-700">Treasury optimization is paid. Reuse or enter a valid Continuum payment session first.</p>
+                  )}
+                  {treasuryActionStatus === 'err' && (
+                    <p className="text-xs text-red-500">{treasuryActionError || 'Treasury optimization failed.'}</p>
+                  )}
+                  {treasuryActionStatus === 'ok' && (
+                    <p className="text-xs text-secondary">Treasury optimization completed and refreshed the live state.</p>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   {[
                     { label: 'Deployed', value: formatMoney(Number(treasurySummary.deployed || 0) / 1e7) },
@@ -434,6 +485,77 @@ export default function AgentConsolePage() {
                       <p className="text-xs text-slate-400 mt-1">{formatMoney(Number(position.allocatedAmount || 0) / 1e7)}</p>
                     </div>
                   ))
+                )}
+                {treasuryOptimization && (
+                  <div className="rounded-2xl border border-slate-100 bg-white p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400">Last Optimization</p>
+                        <p className="text-sm font-bold text-slate-800">{treasuryOptimization.objective?.replaceAll('_', ' ') || 'highest approved return first'}</p>
+                      </div>
+                      <span className="rounded-full bg-purple-50 text-purple-600 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1">
+                        {String(treasuryOptimization.reason || 'rebalanced').replaceAll('_', ' ')}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { label: 'Deployable', value: formatMoney(Number(treasuryOptimization.deployableAmount || 0) / 1e7) },
+                        { label: 'Target Reserve', value: formatMoney(Number(treasuryOptimization.targetReserve || 0) / 1e7) },
+                        { label: 'Deployments', value: String(treasuryOptimization.execution?.deploymentCount || 0) },
+                        { label: 'Reserved', value: formatMoney(Number(treasuryOptimization.reservedAmount || 0) / 1e7) },
+                      ].map((item) => (
+                        <div key={item.label} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                          <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">{item.label}</p>
+                          <p className="text-xs font-bold text-slate-800">{item.value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Selected Venues</p>
+                      <div className="space-y-2">
+                        {(treasuryOptimization.execution?.deployedVenues || []).length ? (
+                          (treasuryOptimization.execution?.deployedVenues || []).map((venue: any) => (
+                            <div key={`${venue.strategyFamily}-${venue.venueId}`} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm font-bold text-slate-800">{venue.venueId}</span>
+                                <span className="text-xs font-bold text-secondary">{Number(venue.projectedNetApy || 0).toFixed(2)}% APY</span>
+                              </div>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {venue.strategyFamily} · {formatMoney(Number(venue.allocatedAmount || 0) / 1e7)}
+                              </p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-sm text-slate-400">No new treasury deployments were executed on the last optimization.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Eligible Venues</p>
+                      <div className="space-y-2">
+                        {(treasuryOptimization.candidates || []).map((candidate: any) => (
+                          <div key={`${candidate.strategyFamily}-${candidate.venueId}`} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="text-sm font-bold text-slate-800">{candidate.label || candidate.venueId}</span>
+                              <span className={`text-[10px] font-bold uppercase tracking-widest ${candidate.selected ? 'text-secondary' : 'text-slate-500'}`}>
+                                {candidate.selected ? 'selected' : 'eligible'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {candidate.strategyFamily} · {Number(candidate.projectedNetApy || 0).toFixed(2)}% APY · cap room {formatMoney(Number(candidate.remainingCap || 0) / 1e7)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-500">
+                      Recall order when liquidity is needed: {(treasuryOptimization.recallOrder || []).join(' → ')}
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
@@ -495,15 +617,74 @@ export default function AgentConsolePage() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: 'Net P&L', value: formatMoney(performance.netPnL ? Number(performance.netPnL) / 1e7 : 0), color: 'text-secondary' },
+                { label: 'Gross Positive', value: formatMoney(performanceAttribution.grossPositivePnL ? Number(performanceAttribution.grossPositivePnL) / 1e7 : 0), color: 'text-primary' },
                 { label: 'Fees Paid', value: formatMoney(performance.paidActionFees ? Number(performance.paidActionFees) / 1e7 : 0), color: 'text-amber-600' },
+                { label: 'Realized Yield', value: formatMoney(performance.realizedYield ? Number(performance.realizedYield) / 1e7 : 0), color: 'text-secondary' },
                 { label: 'Treasury Return', value: formatMoney(performance.treasuryReturn ? Number(performance.treasuryReturn) / 1e7 : 0), color: 'text-purple-600' },
-                { label: 'Auction Losses', value: String(performance.auctionLosses || 0), color: 'text-slate-700' },
+                { label: 'Auction Win Rate', value: `${Number(performanceAttribution.winRatePct || 0).toFixed(1)}%`, color: 'text-slate-700' },
               ].map((item) => (
                 <div key={item.label} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                   <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">{item.label}</p>
                   <p className={`text-lg font-bold ${item.color}`}>{item.value}</p>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-widest text-slate-400">Attribution</p>
+                  <p className="text-sm font-bold text-slate-800">How yield, treasury, fees, and auctions are shaping this book</p>
+                </div>
+                <span className="rounded-full bg-white border border-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                  {String(performanceAttribution.totalAuctionOutcomes || 0)} outcomes
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Yield Contribution', value: formatMoney(performanceAttribution.yieldContribution ? Number(performanceAttribution.yieldContribution) / 1e7 : 0) },
+                  { label: 'Treasury Contribution', value: formatMoney(performanceAttribution.treasuryContribution ? Number(performanceAttribution.treasuryContribution) / 1e7 : 0) },
+                  { label: 'Fee Drag', value: formatMoney(performanceAttribution.feeDrag ? Number(performanceAttribution.feeDrag) / 1e7 : 0) },
+                  { label: 'Auction Record', value: `${String(performanceAttribution.auctionWins || 0)}W / ${String(performanceAttribution.auctionLosses || 0)}L` },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2">
+                    <p className="text-[9px] uppercase tracking-widest text-slate-400 mb-1">{item.label}</p>
+                    <p className="text-xs font-bold text-slate-800">{item.value}</p>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-slate-400 mb-2">Recent Performance Events</p>
+                <div className="space-y-2">
+                  {performanceEvents.length === 0 ? (
+                    <p className="text-sm text-slate-400">No realized performance events yet.</p>
+                  ) : (
+                    performanceEvents.slice(0, 6).map((event: any) => (
+                      <div key={event.id} className="rounded-xl border border-slate-100 bg-white px-3 py-2.5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{event.label}</p>
+                            <p className="text-xs text-slate-500 mt-1">{String(event.category || 'event').toUpperCase()}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-xs font-bold ${
+                              event.direction === 'inflow'
+                                ? 'text-secondary'
+                                : event.direction === 'outflow'
+                                  ? 'text-amber-600'
+                                  : 'text-slate-600'
+                            }`}>
+                              {event.amount ? formatMoney(Number(event.amount || 0) / 1e7) : 'Tracked'}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-1">
+                              {event.ts ? new Date(Number(event.ts)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 

@@ -469,9 +469,14 @@ class AuctionEngine {
             });
             const losingProfile = await this.agentState.getAgentProfile(String(bid.bidder).toUpperCase());
             if (losingProfile) {
-                const stats = await this.agentState.getPerformance(losingProfile.agentId);
-                await this.agentState.updatePerformance(losingProfile.agentId, {
-                    auctionLosses: Number(stats.auctionLosses || 0) + 1,
+                await this.agentState.recordAuctionOutcome(losingProfile.agentId, {
+                    outcome: "loss",
+                    amount: bid.amountStroops,
+                    metadata: {
+                        auctionId: Number(auctionId),
+                        assetId: Number(auction.assetId),
+                        releasedAmount: bid.amountStroops,
+                    },
                 });
                 await this.agentState.appendDecision(losingProfile.agentId, {
                     type: "info",
@@ -545,9 +550,14 @@ class AuctionEngine {
 
         const winnerProfile = await this.agentState.getAgentProfile(String(winningBid.bidder).toUpperCase());
         if (winnerProfile) {
-            const performance = await this.agentState.getPerformance(winnerProfile.agentId);
-            await this.agentState.updatePerformance(winnerProfile.agentId, {
-                auctionWins: Number(performance.auctionWins || 0) + 1,
+            await this.agentState.recordAuctionOutcome(winnerProfile.agentId, {
+                outcome: "win",
+                amount: winningBid.amountStroops,
+                metadata: {
+                    auctionId: Number(auctionId),
+                    assetId: Number(auction.assetId),
+                    winningBidAmount: winningBid.amountStroops,
+                },
             });
             await this.agentState.appendDecision(winnerProfile.agentId, {
                 type: "profit",
