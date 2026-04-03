@@ -1,19 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getRwaApiBaseUrl } from '../services/rwaApi';
+import {
+  clearAgentSessionToken,
+  getExternalAgentAuthToken,
+  getPreferredAgentAuthToken,
+  storeAgentSessionToken,
+} from '../lib/agentAuthStorage';
 
 type AppMode = 'owner' | 'agent';
-
-const STORAGE_KEY = 'agent_session_token';
-
-function getStoredToken(): string | null {
-  return localStorage.getItem(STORAGE_KEY);
-}
-function storeToken(token: string) {
-  localStorage.setItem(STORAGE_KEY, token);
-}
-function clearToken() {
-  localStorage.removeItem(STORAGE_KEY);
-}
 
 interface AppModeContextValue {
   mode: AppMode;
@@ -43,12 +37,12 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
 
   // On mount: restore from existing JWT
   useEffect(() => {
-    const token = getStoredToken();
+    const token = getPreferredAgentAuthToken();
     if (!token) return;
     fetch(`${getRwaApiBaseUrl()}/api/agent/wallet`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.publicKey) setAgentPublicKey(data.publicKey); else clearToken(); })
+      .then(data => { if (data?.publicKey) setAgentPublicKey(data.publicKey); else clearAgentSessionToken(); })
       .catch(() => {});
   }, []);
 
@@ -56,17 +50,21 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
   // (server returns existing wallet — never creates a new one without explicit activation)
   const silentRestore = useCallback(async (ownerPublicKey: string) => {
     if (agentPublicKey) return; // already loaded
-    const token = getStoredToken();
+    const token = getPreferredAgentAuthToken();
     if (token) return; // already have a token, useEffect above handles it
     try {
+      const externalToken = getExternalAgentAuthToken();
       const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/wallet-restore`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(externalToken ? { Authorization: `Bearer ${externalToken}` } : {}),
+        },
         body: JSON.stringify({ ownerPublicKey }),
       });
       if (!res.ok) return; // no wallet exists yet — show activation UI
       const data = await res.json();
-      storeToken(data.token);
+      storeAgentSessionToken(data.token);
       setAgentPublicKey(data.agentPublicKey);
     } catch {}
   }, [agentPublicKey]);
@@ -74,14 +72,18 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
   const activateAgent = useCallback(async (ownerPublicKey: string) => {
     setAgentLoading(true); setAgentError('');
     try {
+      const externalToken = getExternalAgentAuthToken();
       const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/activate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(externalToken ? { Authorization: `Bearer ${externalToken}` } : {}),
+        },
         body: JSON.stringify({ ownerPublicKey }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Activation failed.');
       const data = await res.json();
-      storeToken(data.token);
+      storeAgentSessionToken(data.token);
       setAgentPublicKey(data.agentPublicKey);
     } catch (err: any) {
       setAgentError(err.message || 'Activation failed.');

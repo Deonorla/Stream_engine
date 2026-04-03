@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAppMode } from '../context/AppModeContext';
 import { useWallet } from '../context/WalletContext';
+import { getPreferredAgentAuthToken } from '../lib/agentAuthStorage';
 
 export function useAgentWallet(_ownerPublicKey?: string | null) {
   const { agentPublicKey, agentLoading, agentError, activateAgent, silentRestore } = useAppMode();
@@ -19,7 +20,7 @@ export function useAgentWallet(_ownerPublicKey?: string | null) {
 }
 
 export function getAgentToken(): string | null {
-  return localStorage.getItem('agent_session_token');
+  return getPreferredAgentAuthToken();
 }
 
 export function agentAuthHeaders(): Record<string, string> {

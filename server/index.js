@@ -25,6 +25,7 @@ const {
 } = require("./services/rwaModel");
 const { createRuntimeConfig } = require("../utils/runtimeConfig");
 const { AgentWalletService } = require("./services/agentWalletService");
+const { AgentAuthService } = require("./services/agentAuthService");
 const { AgentStateService } = require("./services/agentStateService");
 const { AuctionEngine } = require("./services/auctionEngine");
 const { TreasuryManager } = require("./services/treasuryManager");
@@ -208,6 +209,10 @@ async function buildServices(config) {
         });
     }
 
+    if (!services.agentAuth) {
+        services.agentAuth = new AgentAuthService();
+    }
+
     if (!services.agentState) {
         services.agentState = new AgentStateService({
             store: services.store,
@@ -344,6 +349,7 @@ function createApp(config = defaultConfig) {
     app.locals.ready = buildServices(resolvedConfig).then((services) => {
         app.locals.services = services;
         app.locals.agentWallet = services.agentWallet;
+        app.locals.agentAuth = services.agentAuth;
         return services;
     });
 

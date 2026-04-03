@@ -1,4 +1,5 @@
 import { getApiBaseUrl } from './apiBase';
+import { getPreferredAgentAuthToken } from '../lib/agentAuthStorage';
 
 const DEFAULT_RWA_API_URL = getApiBaseUrl();
 
@@ -33,11 +34,7 @@ async function request(path, options = {}, query) {
 }
 
 function getAgentToken() {
-  try {
-    return localStorage.getItem('agent_session_token');
-  } catch {
-    return null;
-  }
+  return getPreferredAgentAuthToken();
 }
 
 function agentHeaders() {
@@ -260,6 +257,7 @@ export async function rebalanceMarketTreasury(sessionId) {
 export async function ensureManagedAgent(ownerPublicKey) {
   return request('/api/agents', {
     method: 'POST',
+    headers: agentHeaders(),
     body: JSON.stringify({ ownerPublicKey }),
   });
 }

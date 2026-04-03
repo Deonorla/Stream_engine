@@ -1,5 +1,4 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
 const { Keypair, StrKey } = require("@stellar/stellar-sdk");
 const { screenAssets, parseGoal } = require("../services/assetScreener");
 const { generateDueDiligence, aggregateMarketIntel, monitorRisks } = require("../services/assetIntelligence");
@@ -8,9 +7,6 @@ const { buildPortfolio, computeRebalanceActions } = require("../services/portfol
 const { checkCompliance } = require("../services/complianceChecker");
 const { createMandate, matchMandate } = require("../services/mandateProtocol");
 const router = express.Router();
-
-const JWT_SECRET = process.env.AGENT_JWT_SECRET || process.env.AGENT_ENCRYPTION_KEY || "change-me";
-const JWT_TTL = "7d";
 
 function asyncHandler(fn) {
     return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -28,16 +24,18 @@ function verifyFreighterSignature(ownerPublicKey, signature) {
     }
 }
 
-function requireJwt(req, res, next) {
-    const auth = req.headers.authorization || "";
-    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    if (!token) return res.status(401).json({ error: "Missing agent session token." });
-    try {
-        req.agentSession = jwt.verify(token, JWT_SECRET);
-        next();
-    } catch {
-        res.status(401).json({ error: "Invalid or expired agent session token." });
-    }
+async function getAgentAuth(req) {
+    const services = await req.app.locals.ready;
+    return req.app.locals.agentAuth || services.agentAuth;
+}
+
+const requireJwt = asyncHandler(async (req, _res, next) => {
+    req.agentSession = await (await getAgentAuth(req)).verifyRequest(req);
+    next();
+});
+
+async function resolveOwner(req, { requireAuth = false } = {}) {
+    return (await getAgentAuth(req)).resolveOwnerPublicKey(req, { requireAuth });
 }
 
 function getAgent(req) {
@@ -48,10 +46,7 @@ function getAgent(req) {
 
 // POST /api/agent/wallet-restore — silent restore on login, never creates a new wallet
 router.post("/wallet-restore", asyncHandler(async (req, res) => {
-    const { ownerPublicKey } = req.body || {};
-    if (!ownerPublicKey || !StrKey.isValidEd25519PublicKey(String(ownerPublicKey))) {
-        return res.status(400).json({ error: "Valid ownerPublicKey is required." });
-    }
+    const { ownerPublicKey, session } = await resolveOwner(req);
     const agent = getAgent(req);
     const wallet = await agent.getWallet(ownerPublicKey);
     if (!wallet) return res.status(404).json({ error: "No agent wallet found." });
@@ -61,16 +56,17 @@ router.post("/wallet-restore", asyncHandler(async (req, res) => {
             agentPublicKey: wallet.publicKey,
         });
     }
-    const token = jwt.sign({ ownerPublicKey }, JWT_SECRET, { expiresIn: JWT_TTL });
-    res.json({ token, agentPublicKey: wallet.publicKey, agentId: wallet.publicKey });
+    const token = (await getAgentAuth(req)).signLocalSession({
+        ownerPublicKey,
+        authProvider: session?.authProvider || "local",
+        authSubject: session?.authSubject || "",
+    });
+    res.json({ token, agentPublicKey: wallet.publicKey, agentId: wallet.publicKey, authProvider: session?.authProvider || "local" });
 }));
 
 // POST /api/agent/activate
 router.post("/activate", asyncHandler(async (req, res) => {
-    const { ownerPublicKey } = req.body || {};
-    if (!ownerPublicKey || !StrKey.isValidEd25519PublicKey(String(ownerPublicKey))) {
-        return res.status(400).json({ error: "Valid ownerPublicKey is required." });
-    }
+    const { ownerPublicKey, session } = await resolveOwner(req);
     const agent = getAgent(req);
     if (!agent?.isConfigured()) {
         return res.status(503).json({ error: "Agent wallet not configured. Set AGENT_ENCRYPTION_KEY in .env." });
@@ -86,8 +82,12 @@ router.post("/activate", asyncHandler(async (req, res) => {
     // Trustline is set up separately via POST /api/agent/trustline
     // (requires XLM on the account first — can't be done at creation time)
 
-    const token = jwt.sign({ ownerPublicKey }, JWT_SECRET, { expiresIn: JWT_TTL });
-    res.json({ token, agentPublicKey: wallet.publicKey, agentId: wallet.publicKey });
+    const token = (await getAgentAuth(req)).signLocalSession({
+        ownerPublicKey,
+        authProvider: session?.authProvider || "local",
+        authSubject: session?.authSubject || "",
+    });
+    res.json({ token, agentPublicKey: wallet.publicKey, agentId: wallet.publicKey, authProvider: session?.authProvider || "local" });
 }));
 
 // GET /api/agent/wallet — fetch agent public key (requires JWT)
