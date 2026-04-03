@@ -1315,7 +1315,7 @@ export default function RWA() {
     <div className="mx-auto max-w-[1600px] p-4 sm:p-8 lg:p-12">
       <header className="mb-12 flex flex-col items-center justify-between md:flex-row">
         <div>
-          <h2 className="text-4xl font-headline font-bold tracking-tight text-on-surface">RWA Studio</h2>
+          <h2 className="text-4xl font-headline font-bold tracking-tight text-on-surface"> Studio</h2>
           <p className="mt-2 max-w-md font-body text-on-surface-variant">
             Mint, manage and attest tokenized real-world assets on Stellar.
           </p>
