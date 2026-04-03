@@ -506,8 +506,8 @@ describe("RWA API Integration", function () {
         expect(response.body.publicMetadataURI).to.equal("ipfs://bafytestcid");
         expect(response.body.verificationStatus).to.equal("pending_attestation");
         expect(response.body.issuerOnboarding).to.deep.equal({
-            alreadyApproved: true,
-            automaticallyApproved: false,
+            alreadyApproved: false,
+            automaticallyApproved: true,
         });
         expect(response.body.verificationPayload).to.be.a("string");
         expect(parseVerificationPayload(response.body.verificationPayload).verificationStatus)
@@ -517,7 +517,55 @@ describe("RWA API Integration", function () {
         expect(response.body.asset.tokenId).to.equal(7);
         expect(response.body.asset.rentalReady).to.equal(true);
         expect(response.body.asset.rentalReadiness.label).to.equal("Stellar Rental Ready");
-        expect(app.locals.services.chainService.ensuredIssuerApprovals).to.deep.equal([]);
+        expect(app.locals.services.chainService.ensuredIssuerApprovals).to.deep.equal([
+            {
+                issuer: issuerWallet.address,
+                note: "Auto-approved from signed Stream Engine mint authorization",
+            },
+        ]);
+    });
+
+    it("returns a clear onboarding error when automatic issuer approval fails", async function () {
+        app.locals.services.chainService.ensureIssuerApproved = async () => {
+            const error = new Error("Issuer onboarding failed because the backend signer is not allowed to approve issuers.");
+            error.code = "issuer_onboarding_failed";
+            error.details = { issuer: issuerWallet.address };
+            throw error;
+        };
+
+        const evidenceResponse = await request(app)
+            .post("/api/rwa/evidence")
+            .send({
+                rightsModel: "verified_rental_asset",
+                propertyRef: "plot-42-block-7",
+                jurisdiction: "NG-LA",
+                evidenceBundle: baseEvidenceBundle,
+            });
+
+        const publicMetadataHash = hashJson(basePublicMetadata);
+        const authorization = await buildIssuerAuthorization({
+            issuer: issuerWallet.address,
+            publicMetadataHash,
+            evidenceRoot: evidenceResponse.body.evidenceRoot,
+        });
+
+        const response = await request(app)
+            .post("/api/rwa/assets")
+            .send({
+                issuer: issuerWallet.address,
+                assetType: 1,
+                rightsModel: "verified_rental_asset",
+                jurisdiction: "NG-LA",
+                propertyRef: "plot-42-block-7",
+                publicMetadata: basePublicMetadata,
+                evidenceRoot: evidenceResponse.body.evidenceRoot,
+                evidenceManifestHash: evidenceResponse.body.evidenceManifestHash,
+                issuerAuthorization: authorization,
+            });
+
+        expect(response.status).to.equal(400);
+        expect(response.body.code).to.equal("issuer_onboarding_failed");
+        expect(response.body.error).to.match(/Issuer onboarding failed/i);
     });
 
     it("returns structured verification states for v2 and legacy assets", async function () {

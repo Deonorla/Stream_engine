@@ -31,7 +31,7 @@ These are surfaced through `GET /api/engine/catalog`, the deployment manifest, a
 2. `GET /api/engine/catalog`
 3. confirm Freighter is on Stellar testnet
 4. confirm `DEMO_STELLAR_SENDER` is configured for CLI smoke
-5. confirm issuer onboarding exists before mint
+5. confirm the backend admin signer is configured so issuer onboarding can happen automatically during mint
 6. mint asset
 7. verify asset
 8. start rental session

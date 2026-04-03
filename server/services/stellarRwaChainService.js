@@ -489,17 +489,34 @@ class StellarRWAChainService {
         return [];
     }
 
-    async ensureIssuerApproved(issuer) {
+    async ensureIssuerApproved(
+        issuer,
+        note = "Auto-approved from signed Stream Engine mint authorization"
+    ) {
         const approval = await this.getIssuerApproval(issuer);
         if (!approval?.approved) {
-            throw createError(
-                "issuer_not_onboarded",
-                `Issuer ${issuer} is not onboarded for Stellar RWA minting.`,
-                {
+            try {
+                const result = await this.setIssuerApproval({
                     issuer,
-                    operator: this.signer.address,
-                }
-            );
+                    approved: true,
+                    note,
+                });
+                return {
+                    approved: true,
+                    alreadyApproved: false,
+                    txHash: result.txHash || "",
+                };
+            } catch (error) {
+                throw createError(
+                    "issuer_onboarding_failed",
+                    `Issuer ${issuer} is not onboarded and automatic onboarding failed.`,
+                    {
+                        issuer,
+                        operator: this.signer.address,
+                        reason: error?.message || String(error),
+                    }
+                );
+            }
         }
         return {
             approved: true,
@@ -706,8 +723,15 @@ class StellarRWAChainService {
         tagHash,
         issuer,
         statusReason = "",
+        skipIssuerApprovalCheck = false,
     }) {
-        await this.ensureIssuerApproved(issuer);
+        const issuerOnboarding = skipIssuerApprovalCheck
+            ? {
+                approved: true,
+                alreadyApproved: true,
+                txHash: "",
+            }
+            : await this.ensureIssuerApproved(issuer);
 
         const attestationPolicies = await this.getAttestationPolicies(assetType);
         const requiresAttestations = attestationPolicies.some((policy) => policy.required);
@@ -844,7 +868,7 @@ class StellarRWAChainService {
             })
         );
 
-        return { tokenId, txHash };
+        return { tokenId, txHash, issuerOnboarding };
     }
 
     async getAttestationRecord(attestationId) {

@@ -25,7 +25,6 @@ import { supportedPaymentAssets } from '../contactInfo.js';
 import {
   fetchRwaAsset,
   fetchRwaAssets,
-  getRwaApiBaseUrl,
   mintRwaAsset,
   pinRwaMetadata,
   storeRwaEvidence,
@@ -872,17 +871,7 @@ function MintingTab({ onMinted, portfolioCount }) {
     let loadingToast = null;
     try {
       setIsSubmitting(true);
-      loadingToast = toast.transaction.pending('Preparing metadata, hashing evidence, and checking issuer onboarding...');
-
-      const issuerApproval = await fetch(`${getRwaApiBaseUrl()}/api/rwa/admin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'getIssuerApproval', issuer: walletAddress }),
-      }).then(r => r.json()).catch(() => ({ approved: true }));
-      if (!issuerApproval.approved) {
-        const note = issuerApproval.note ? ` ${issuerApproval.note}` : '';
-        throw new Error(`This issuer still needs onboarding before minting.${note}`.trim());
-      }
+      loadingToast = toast.transaction.pending('Preparing metadata, hashing evidence, and onboarding the issuer if needed...');
 
       const evidenceBundle = await buildEvidenceBundle(evidenceFiles, {
         propertyRef,
@@ -956,7 +945,9 @@ function MintingTab({ onMinted, portfolioCount }) {
         mintResult.txHash,
       );
       toast.success(
-        `Private evidence stayed offchain while the rental twin was anchored on Soroban. Portfolio size: ${portfolioCount + 1}.`,
+        mintResult.issuerOnboarding?.automaticallyApproved
+          ? `Private evidence stayed offchain while the rental twin was anchored on Soroban. The issuer was auto-onboarded in the background. Portfolio size: ${portfolioCount + 1}.`
+          : `Private evidence stayed offchain while the rental twin was anchored on Soroban. Portfolio size: ${portfolioCount + 1}.`,
         { title: 'Mint Complete' },
       );
     } catch (error) {
@@ -964,7 +955,7 @@ function MintingTab({ onMinted, portfolioCount }) {
       toast.dismiss(loadingToast);
       toast.error(
         /issuer/i.test(message) && /(onboarding|approve)/i.test(message)
-          ? `${message} Ask a platform admin to approve this issuer in the registry, then try again.`
+          ? `${message} The backend admin signer may need to be configured for automatic onboarding, or a platform admin can onboard the issuer manually.`
           : message,
         { title: 'Mint Failed' },
       );

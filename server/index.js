@@ -598,7 +598,14 @@ function createApp(config = defaultConfig) {
         const cidHash = hashText(resolvedPublicMetadataURI);
 
         let mintResult;
+        let issuerOnboardingResult = null;
         try {
+            if (typeof chainService.ensureIssuerApproved === "function") {
+                issuerOnboardingResult = await chainService.ensureIssuerApproved(
+                    issuer,
+                    "Auto-approved from signed Stream Engine mint authorization"
+                );
+            }
             mintResult = await chainService.mintAsset({
                 publicMetadataURI: resolvedPublicMetadataURI,
                 assetType,
@@ -612,9 +619,10 @@ function createApp(config = defaultConfig) {
                 tagHash: resolvedTagHash,
                 issuer,
                 statusReason,
+                skipIssuerApprovalCheck: Boolean(issuerOnboardingResult),
             });
         } catch (error) {
-            const statusCode = error.code === "issuer_not_onboarded" ? 400 : 500;
+            const statusCode = ["issuer_not_onboarded", "issuer_onboarding_failed"].includes(error.code) ? 400 : 500;
             return res.status(statusCode).json({
                 error: error.message || "Asset mint failed",
                 code: error.code || "mint_failed",
@@ -675,12 +683,26 @@ function createApp(config = defaultConfig) {
             statusReason: resolvedStatusReason,
             details: {
                 runtime: runtimeConfig.kind,
-                issuerApproved: true,
+                issuerApproved: Boolean(
+                    issuerOnboardingResult?.approved
+                    ?? mintResult?.issuerOnboarding?.approved
+                    ?? true
+                ),
             },
-            issuerOnboarding: {
-                alreadyApproved: true,
-                automaticallyApproved: false,
-            },
+            issuerOnboarding: issuerOnboardingResult
+                ? {
+                    alreadyApproved: Boolean(issuerOnboardingResult.alreadyApproved),
+                    automaticallyApproved: !issuerOnboardingResult.alreadyApproved,
+                }
+                : mintResult?.issuerOnboarding
+                    ? {
+                        alreadyApproved: Boolean(mintResult.issuerOnboarding.alreadyApproved),
+                        automaticallyApproved: !mintResult.issuerOnboarding.alreadyApproved,
+                    }
+                    : {
+                        alreadyApproved: true,
+                        automaticallyApproved: false,
+                    },
             verificationPayload,
             verificationUrl: buildVerificationUrl(resolvedConfig.appBaseUrl, verificationPayload),
             verificationApiUrl: `${resolvedConfig.appBaseUrl.replace(/5173$/, "3001")}/api/rwa/verify`,

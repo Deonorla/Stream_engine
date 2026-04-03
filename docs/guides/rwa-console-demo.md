@@ -61,7 +61,7 @@ Click **Mint**.
 
 What the backend does:
 
-1. checks issuer onboarding
+1. checks issuer onboarding and auto-approves the issuer if the backend admin signer is allowed to
 2. verifies the issuer signature freshness
 3. verifies evidence presence
 4. mints the asset through the Stellar-backed chain service
@@ -69,8 +69,8 @@ What the backend does:
 
 Important talking point:
 
-- mint no longer tries to auto-approve issuers during the same transaction path
-- if onboarding is missing, the backend returns `issuer_not_onboarded` instead of an opaque revert
+- mint can auto-onboard a first-time issuer through the backend admin signer
+- if onboarding still fails, the backend returns a clear issuer-onboarding error instead of an opaque revert
 
 ## Step 5 — Verify the asset
 

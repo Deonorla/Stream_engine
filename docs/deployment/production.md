@@ -12,7 +12,7 @@ This repo currently targets **Stellar testnet** for active testing. Before any p
 
 - attestation registry/runtime surface is configured
 - backend operator key is configured for admin/policy actions
-- issuer onboarding policy is active and explicit before minting
+- issuer onboarding can be performed automatically by the backend admin signer before minting
 - attestation policy is defined per asset type
 - private evidence vault storage is configured
 - public metadata pinning is configured
