@@ -101,9 +101,17 @@ function formatBidPlacedAt(value?: number) {
   return new Date(Number(value) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function formatUsdcMetric(value?: number) {
+  const numeric = Number(value || 0);
+  return `${numeric.toFixed(2)} USDC`;
+}
+
 function MarketActions({
   asset,
   agentPublicKey,
+  mandate,
+  liquidity,
+  reservations,
   isWatched,
   watchPending,
   onToggleWatch,
@@ -111,6 +119,9 @@ function MarketActions({
 }: {
   asset: any;
   agentPublicKey: string | null | undefined;
+  mandate: any;
+  liquidity: any;
+  reservations: any[];
   isWatched: boolean;
   watchPending: boolean;
   onToggleWatch: (asset: any) => Promise<void>;
@@ -121,6 +132,7 @@ function MarketActions({
   const [analyticsStatus, setAnalyticsStatus] = useState<'idle' | 'loading' | '402' | 'ok' | 'err'>('idle');
   const [auctionStatus, setAuctionStatus] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
   const [bidStatus, setBidStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
+  const [bidError, setBidError] = useState('');
   const [reservePrice, setReservePrice] = useState('250');
   const [durationHours, setDurationHours] = useState('24');
   const [bidAmount, setBidAmount] = useState('');
@@ -141,6 +153,56 @@ function MarketActions({
   }, [loadDetails]);
 
   const activeAuction = details?.auctions?.find((entry: any) => entry.status === 'active') || asset.market?.activeAuction || null;
+  const currentReservation = activeAuction
+    ? (reservations || []).find((reservation: any) => Number(reservation.auctionId) === Number(activeAuction.auctionId))
+    : null;
+  const currentReservedUsdc = Number(currentReservation?.reservedAmount || 0) / 1e7;
+  const sameIssuerReservedUsdc = (reservations || [])
+    .filter((reservation: any) => String(reservation.issuer || '') === String(asset.issuer || ''))
+    .reduce((sum: number, reservation: any) => {
+      if (Number(reservation.auctionId) === Number(activeAuction?.auctionId || 0)) return sum;
+      return sum + (Number(reservation.reservedAmount || 0) / 1e7);
+    }, 0);
+  const capitalBaseUsdc = Number(mandate?.capitalBase || 0);
+  const minimumNextBidUsdc = Number(
+    activeAuction?.minimumNextBidDisplay
+    || activeAuction?.marketDepth?.minimumNextBid
+    || activeAuction?.reservePriceDisplay
+    || 0,
+  );
+  const liquidityHeadroomUsdc = Number(liquidity?.immediateBidHeadroomDisplay || 0) + currentReservedUsdc;
+  const approvalLimitUsdc = Number(mandate?.approvalThreshold || 0);
+  const assetCapLimitUsdc = capitalBaseUsdc > 0
+    ? (capitalBaseUsdc * Number(mandate?.assetCapPct || 25)) / 100
+    : 0;
+  const issuerCapRemainingUsdc = capitalBaseUsdc > 0
+    ? Math.max(0, ((capitalBaseUsdc * Number(mandate?.issuerCapPct || 40)) / 100) - sameIssuerReservedUsdc)
+    : 0;
+  const bidGuardrailCandidates = [
+    { label: 'Liquidity runway', value: liquidityHeadroomUsdc },
+    { label: 'Approval threshold', value: approvalLimitUsdc },
+    { label: 'Asset cap', value: assetCapLimitUsdc },
+    { label: 'Issuer cap', value: issuerCapRemainingUsdc },
+  ].filter((entry) => Number.isFinite(entry.value) && entry.value > 0);
+  const limitingGuardrail = bidGuardrailCandidates.length
+    ? bidGuardrailCandidates.reduce((lowest, entry) => (entry.value < lowest.value ? entry : lowest))
+    : null;
+  const maxGuidedBidUsdc = limitingGuardrail?.value || 0;
+  const bidGuardrailNotes = [
+    liquidity?.status === 'below_floor' ? 'Managed wallet is already below the liquidity floor.' : '',
+    liquidity?.status === 'near_floor' ? 'Wallet is close to the reserve target, so auction headroom is tight.' : '',
+    currentReservedUsdc > 0 ? `This auction already has ${currentReservedUsdc.toFixed(2)} USDC reserved by the agent.` : '',
+    minimumNextBidUsdc > 0 && maxGuidedBidUsdc > 0 && maxGuidedBidUsdc < minimumNextBidUsdc
+      ? 'Current headroom is below the minimum next bid, so a fresh bid would fail.'
+      : '',
+  ].filter(Boolean);
+  const canBidNow = Boolean(
+    !isOwner
+    && agentPublicKey
+    && activeAuction
+    && maxGuidedBidUsdc >= minimumNextBidUsdc
+    && liquidity?.status !== 'below_floor',
+  );
 
   const handleCreateAuction = async () => {
     setAuctionStatus('loading');
@@ -176,6 +238,7 @@ function MarketActions({
   const handlePlaceBid = async () => {
     if (!activeAuction || !bidAmount) return;
     setBidStatus('loading');
+    setBidError('');
     try {
       await placeAuctionBid(activeAuction.auctionId, {
         amount: bidAmount,
@@ -186,7 +249,9 @@ function MarketActions({
       await loadDetails();
       await onRefresh();
     } catch (error: any) {
-      if (String(error?.message || '').includes('Payment') || String(error?.message || '').includes('402')) {
+      const message = String(error?.message || 'Bid failed.');
+      setBidError(message);
+      if (message.includes('Payment') || message.includes('402')) {
         setBidStatus('402');
       } else {
         setBidStatus('err');
@@ -405,6 +470,39 @@ function MarketActions({
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[10px] font-label uppercase tracking-widest text-blue-700">Bid Guardrails</p>
+                  <span className={`text-[10px] font-bold uppercase tracking-widest ${
+                    canBidNow ? 'text-secondary' : 'text-amber-700'
+                  }`}>
+                    {canBidNow ? 'Bid eligible' : 'Needs room'}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Max Guided Bid', value: formatUsdcMetric(maxGuidedBidUsdc) },
+                    { label: 'Next Valid Bid', value: formatUsdcMetric(minimumNextBidUsdc) },
+                    { label: 'Current Reserve', value: formatUsdcMetric(currentReservedUsdc) },
+                    { label: 'Limiting Factor', value: limitingGuardrail?.label || 'No live guardrail yet' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-blue-100 bg-white px-3 py-3">
+                      <p className="text-[9px] font-label uppercase tracking-widest text-slate-400">{item.label}</p>
+                      <p className="mt-1 text-sm font-bold text-slate-800">{item.value}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 space-y-2">
+                  {bidGuardrailNotes.length ? bidGuardrailNotes.map((note) => (
+                    <p key={note} className="text-xs text-slate-600">• {note}</p>
+                  )) : (
+                    <p className="text-xs text-slate-600">
+                      The guided bid ceiling already accounts for liquidity runway, approval threshold, and current issuer/asset cap pressure.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
                 <p className="text-[10px] font-label uppercase tracking-widest text-slate-400">Bid Ladder</p>
                 <div className="mt-3 space-y-2">
@@ -469,7 +567,7 @@ function MarketActions({
                   />
                   <button
                     onClick={() => void handlePlaceBid()}
-                    disabled={bidStatus === 'loading' || !bidAmount}
+                    disabled={bidStatus === 'loading' || !bidAmount || !canBidNow}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-white text-xs font-bold uppercase tracking-widest disabled:opacity-50"
                   >
                     <Gavel size={13} />
@@ -477,8 +575,13 @@ function MarketActions({
                   </button>
                 </div>
                 {bidStatus === '402' && <p className="text-xs text-amber-700">Bid placement is paid. Reuse or enter a valid Continuum payment session ID first.</p>}
-                {bidStatus === 'err' && <p className="text-xs text-red-500">Bid failed. Check your mandate, liquidity floor, and payment session.</p>}
+                {bidStatus === 'err' && <p className="text-xs text-red-500">{bidError || 'Bid failed. Check your mandate, liquidity floor, and payment session.'}</p>}
                 {bidStatus === 'ok' && <p className="text-xs text-secondary">Bid placed and principal reserved successfully.</p>}
+                {!canBidNow && (
+                  <p className="text-xs text-amber-700">
+                    This auction currently sits above the guided bid envelope. Free up liquidity, lower reserve pressure, or wait for treasury recall before retrying.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1276,6 +1379,9 @@ export default function Marketplace() {
           <MarketActions
             asset={asset}
             agentPublicKey={agentPublicKey}
+            mandate={agentState?.mandate || null}
+            liquidity={marketLiquidity}
+            reservations={managedReservations}
             isWatched={watchedTokenIds.has(Number(asset.tokenId))}
             watchPending={watchPendingTokenId === Number(asset.tokenId)}
             onToggleWatch={handleToggleWatch}

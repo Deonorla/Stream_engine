@@ -91,10 +91,12 @@ test("Docs page source states the v2 legal boundary clearly", async () => {
   assert.match(source, /raw deeds, tax files, and inspections stay private/i);
 });
 
-test("Marketplace source surfaces autonomous attention and bid focus", async () => {
+test("Marketplace source surfaces autonomous attention and bid guardrails", async () => {
   const source = await fs.readFile(marketplacePagePath, "utf8");
 
   assert.match(source, /Autonomous Attention/);
   assert.match(source, /Current Bid Focus/);
   assert.match(source, /live shortlist hits, watchlist signals, and current bid focus/i);
+  assert.match(source, /Bid Guardrails/);
+  assert.match(source, /Max Guided Bid/);
 });
