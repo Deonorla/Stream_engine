@@ -28,6 +28,7 @@ import {
   fetchAgentWalletState,
   fetchMarketAssets,
   pauseAgentRuntime,
+  placeAuctionBid,
   rebalanceMarketTreasury,
   routeMarketYield,
   saveAgentMandate,
@@ -131,7 +132,9 @@ export default function AgentConsolePage() {
   const [savingMandate, setSavingMandate] = useState(false);
   const [runtimeActionError, setRuntimeActionError] = useState('');
   const [settlePendingAuctionId, setSettlePendingAuctionId] = useState<number | null>(null);
-  const [settleReservationError, setSettleReservationError] = useState('');
+  const [rebidPendingAuctionId, setRebidPendingAuctionId] = useState<number | null>(null);
+  const [reserveActionStatus, setReserveActionStatus] = useState<'idle' | 'ok' | '402' | 'err'>('idle');
+  const [reserveActionMessage, setReserveActionMessage] = useState('');
   const [treasurySessionId, setTreasurySessionId] = useState('');
   const [treasuryActionStatus, setTreasuryActionStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
   const [treasuryActionError, setTreasuryActionError] = useState('');
@@ -246,16 +249,47 @@ export default function AgentConsolePage() {
   const settleReservedAuction = useCallback(async (auctionId: number) => {
     if (!agentPublicKey) return;
     setSettlePendingAuctionId(auctionId);
-    setSettleReservationError('');
+    setReserveActionStatus('idle');
+    setReserveActionMessage('');
     try {
       await settleAuction(auctionId);
+      setReserveActionStatus('ok');
+      setReserveActionMessage(`Auction #${auctionId} settled from the reserve book.`);
       await refreshState();
     } catch (settleError: any) {
-      setSettleReservationError(settleError?.message || 'Could not settle the selected auction.');
+      setReserveActionStatus('err');
+      setReserveActionMessage(settleError?.message || 'Could not settle the selected auction.');
     } finally {
       setSettlePendingAuctionId(null);
     }
   }, [agentPublicKey, refreshState]);
+
+  const rebidReservedAuction = useCallback(async (auctionId: number, nextBidAmount: string) => {
+    if (!agentPublicKey) return;
+    setRebidPendingAuctionId(auctionId);
+    setReserveActionStatus('idle');
+    setReserveActionMessage('');
+    try {
+      await placeAuctionBid(auctionId, {
+        amount: nextBidAmount,
+        sessionId: treasurySessionId || undefined,
+      });
+      setReserveActionStatus('ok');
+      setReserveActionMessage(`Auction #${auctionId} rebid placed at ${nextBidAmount} USDC.`);
+      await refreshState();
+    } catch (rebidError: any) {
+      const message = rebidError?.message || 'Could not place the rebid.';
+      if (String(message).includes('402') || String(message).includes('Payment')) {
+        setReserveActionStatus('402');
+        setReserveActionMessage('Rebids are paid. Reuse or enter a valid Continuum payment session ID in the treasury panel first.');
+      } else {
+        setReserveActionStatus('err');
+        setReserveActionMessage(message);
+      }
+    } finally {
+      setRebidPendingAuctionId(null);
+    }
+  }, [agentPublicKey, refreshState, treasurySessionId]);
 
   const saveMandate = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -944,9 +978,19 @@ export default function AgentConsolePage() {
               <Target size={16} className="text-primary" />
               <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-slate-700">Active Bid Reserves</h3>
             </div>
-            {settleReservationError && (
+            {reserveActionStatus === 'err' && reserveActionMessage && (
               <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
-                {settleReservationError}
+                {reserveActionMessage}
+              </div>
+            )}
+            {reserveActionStatus === '402' && reserveActionMessage && (
+              <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                {reserveActionMessage}
+              </div>
+            )}
+            {reserveActionStatus === 'ok' && reserveActionMessage && (
+              <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {reserveActionMessage}
               </div>
             )}
             {reservations.length === 0 ? (
@@ -1006,10 +1050,21 @@ export default function AgentConsolePage() {
                         {readyToSettle && (
                           <button
                             onClick={() => void settleReservedAuction(Number(reservation.auctionId))}
-                            disabled={settlePendingAuctionId === Number(reservation.auctionId)}
+                            disabled={settlePendingAuctionId === Number(reservation.auctionId) || rebidPendingAuctionId === Number(reservation.auctionId)}
                             className="w-full rounded-xl border border-primary bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-widest text-primary hover:bg-blue-50 disabled:opacity-50"
                           >
                             {settlePendingAuctionId === Number(reservation.auctionId) ? 'Settling...' : 'Settle Now'}
+                          </button>
+                        )}
+                        {status === 'outbid' && auction && (
+                          <button
+                            onClick={() => void rebidReservedAuction(Number(reservation.auctionId), String(auction.minimumNextBidDisplay || auction.minimumNextBid || '0'))}
+                            disabled={rebidPendingAuctionId === Number(reservation.auctionId) || settlePendingAuctionId === Number(reservation.auctionId)}
+                            className="w-full rounded-xl border border-purple-200 bg-white px-3 py-2.5 text-xs font-bold uppercase tracking-widest text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                          >
+                            {rebidPendingAuctionId === Number(reservation.auctionId)
+                              ? 'Rebidding...'
+                              : `Rebid ${auction.minimumNextBidDisplay || auction.minimumNextBid || '0'} USDC`}
                           </button>
                         )}
                       </div>
