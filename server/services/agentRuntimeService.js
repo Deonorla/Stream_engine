@@ -4,6 +4,7 @@ const { screenAssets } = require("./assetScreener");
 const { monitorRisks } = require("./assetIntelligence");
 const { buildPortfolio, computeRebalanceActions } = require("./portfolioManager");
 const { checkCompliance } = require("./complianceChecker");
+const { formatStellarAmount, normalizeStellarAmount } = require("./stellarAnchorService");
 
 function nowSeconds() {
     return Math.floor(Date.now() / 1000);
@@ -35,6 +36,7 @@ class AgentRuntimeService {
         this.agentWallet = config.agentWallet;
         this.agentState = config.agentState;
         this.treasuryManager = config.treasuryManager;
+        this.auctionEngine = config.auctionEngine || null;
         this.tickIntervalMs = Math.max(5000, Number(process.env.CONTINUUM_AGENT_TICK_MS || 15000));
         this.intervals = new Map();
     }
@@ -101,6 +103,110 @@ class AgentRuntimeService {
         return this.agentState.getRuntime(agentId);
     }
 
+    async settleReadyAuctions({ agentId }) {
+        if (!this.auctionEngine?.listAuctions || !this.auctionEngine?.settleAuction) {
+            return [];
+        }
+
+        const activeAuctions = await this.auctionEngine.listAuctions({ status: "active" });
+        const readyAuctions = activeAuctions.filter(
+            (auction) => Number(auction?.endTime || 0) > 0 && Number(auction.endTime) <= nowSeconds()
+        );
+        const settled = [];
+
+        for (const auction of readyAuctions) {
+            try {
+                const result = await this.auctionEngine.settleAuction({
+                    auctionId: Number(auction.auctionId),
+                });
+                settled.push({
+                    auctionId: Number(auction.auctionId),
+                    assetId: Number(auction.assetId),
+                    status: result?.settlement?.status || "settled",
+                    txHash: result?.settlement?.txHash || "",
+                });
+            } catch (error) {
+                await this.agentState.appendDecision(agentId, {
+                    type: "error",
+                    message: `Auction #${Number(auction.auctionId)} settlement failed`,
+                    detail: error.message || "Unknown settlement error",
+                });
+            }
+        }
+
+        return settled;
+    }
+
+    async maybePlaceAuctionBid({
+        agentId,
+        ownerPublicKey,
+        walletPublicKey,
+        opportunities,
+        mandate,
+    }) {
+        if (!this.auctionEngine?.listAuctions || !this.auctionEngine?.placeBid) {
+            return [];
+        }
+
+        const opportunityByTokenId = new Map(
+            opportunities.map((entry) => [Number(entry.tokenId), entry])
+        );
+        const activeAuctions = await this.auctionEngine.listAuctions({ status: "active" });
+        const approvalThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
+        const bidIncrement = 10_000_000n;
+        const now = nowSeconds();
+        const placedBids = [];
+
+        const rankedAuctions = activeAuctions
+            .filter((auction) => Number(auction?.startTime || 0) <= now && Number(auction?.endTime || 0) > now)
+            .filter((auction) => opportunityByTokenId.has(Number(auction.assetId)))
+            .filter((auction) => String(auction.seller || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
+            .filter((auction) => String(auction.highestBid?.bidder || "").toUpperCase() !== String(walletPublicKey || "").toUpperCase())
+            .sort((left, right) => {
+                const leftOpportunity = opportunityByTokenId.get(Number(left.assetId));
+                const rightOpportunity = opportunityByTokenId.get(Number(right.assetId));
+                return Number(rightOpportunity?.score || 0) - Number(leftOpportunity?.score || 0);
+            });
+
+        for (const auction of rankedAuctions.slice(0, 1)) {
+            const opportunity = opportunityByTokenId.get(Number(auction.assetId));
+            const reserve = BigInt(auction.reservePrice || "0");
+            const highest = BigInt(auction.highestBid?.amountStroops || "0");
+            const nextBid = highest > 0n ? highest + bidIncrement : reserve;
+            if (nextBid <= 0n || nextBid > approvalThreshold) {
+                continue;
+            }
+
+            try {
+                const result = await this.auctionEngine.placeBid({
+                    auctionId: Number(auction.auctionId),
+                    bidderOwnerPublicKey: ownerPublicKey,
+                    amount: formatStellarAmount(nextBid),
+                    note: "autonomous-runtime",
+                });
+                await this.agentState.recordPaidActionFee(agentId, "500000", {
+                    action: "auction_bid_auto",
+                    auctionId: Number(auction.auctionId),
+                    assetId: Number(auction.assetId),
+                });
+                await this.agentState.appendDecision(agentId, {
+                    type: "decision",
+                    message: `Autonomous runtime selected auction #${Number(auction.auctionId)}`,
+                    detail: `Twin #${Number(auction.assetId)} scored ${Number(opportunity?.score || 0)} with bid ${result.bid.amountDisplay} USDC.`,
+                });
+                placedBids.push(result.bid);
+            } catch (error) {
+                await this.agentState.appendDecision(agentId, {
+                    type: "error",
+                    message: `Autonomous bid skipped for auction #${Number(auction.auctionId)}`,
+                    detail: error.message || "Unknown bidding error",
+                });
+            }
+        }
+
+        return placedBids;
+    }
+
     async tick({ agentId, ownerPublicKey, reason = "manual" }) {
         const normalizedAgentId = String(agentId || "").toUpperCase();
         const currentRuntime = await this.agentState.getRuntime(normalizedAgentId);
@@ -127,6 +233,8 @@ class AgentRuntimeService {
                     : this.store.listAssets({ owner: wallet.publicKey }),
                 this.chainService.listSessions({ owner: wallet.publicKey }),
             ]);
+
+            const settledAuctions = await this.settleReadyAuctions({ agentId: normalizedAgentId });
 
             const productiveAssets = allAssets.filter(productiveOnly);
             const approvedClasses = new Set(mandate.approvedAssetClasses || []);
@@ -185,6 +293,14 @@ class AgentRuntimeService {
                     autoClaims += 1;
                 }
             }
+
+            const autoBids = await this.maybePlaceAuctionBid({
+                agentId: normalizedAgentId,
+                ownerPublicKey,
+                walletPublicKey: wallet.publicKey,
+                opportunities,
+                mandate,
+            });
 
             let treasury = null;
             let treasuryExecuted = false;
@@ -280,6 +396,8 @@ class AgentRuntimeService {
                     riskAlerts: riskAlerts.length,
                     rebalanceActions: rebalanceActions.length,
                     autoClaims,
+                    autoBids: autoBids.length,
+                    settledAuctions: settledAuctions.length,
                     treasuryExecuted,
                 },
                 fingerprints: {
@@ -294,6 +412,8 @@ class AgentRuntimeService {
                 opportunities,
                 riskAlerts,
                 rebalanceActions,
+                autoBids,
+                settledAuctions,
                 treasury,
                 portfolio: portfolio.summary,
             };
@@ -317,6 +437,8 @@ class AgentRuntimeService {
                 opportunities: [],
                 riskAlerts: [],
                 rebalanceActions: [],
+                autoBids: [],
+                settledAuctions: [],
                 treasury: null,
                 portfolio: null,
             };

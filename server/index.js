@@ -247,6 +247,7 @@ async function buildServices(config) {
             agentWallet: services.agentWallet,
             agentState: services.agentState,
             treasuryManager: services.treasuryManager,
+            auctionEngine: services.auctionEngine,
         });
     }
 

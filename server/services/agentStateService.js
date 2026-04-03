@@ -29,6 +29,8 @@ function defaultRuntime(agentId = "") {
             riskAlerts: 0,
             rebalanceActions: 0,
             autoClaims: 0,
+            autoBids: 0,
+            settledAuctions: 0,
             treasuryExecuted: false,
         },
         fingerprints: {

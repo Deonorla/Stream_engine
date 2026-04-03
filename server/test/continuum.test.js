@@ -9,15 +9,19 @@ const { AgentStateService } = require("../services/agentStateService");
 describe("Continuum API Integration", function () {
     let app;
     let store;
+    let services;
     let agentState;
     let ownerKeypair;
     let agentKeypair;
+    let competitorOwnerKeypair;
+    let competitorAgentKeypair;
     let issuerKeypair;
     let serviceRecipientKeypair;
     let usdcIssuerKeypair;
     let token;
     let agentId;
     let auctionState;
+    let externalAuctionState;
     let ownerWallets;
 
     function createManagedWallet(ownerPublicKey) {
@@ -27,6 +31,8 @@ describe("Continuum API Integration", function () {
                 ownerPublicKey: normalizedOwner,
                 publicKey: ownerKeypair.publicKey() === normalizedOwner
                     ? agentKeypair.publicKey()
+                    : competitorOwnerKeypair.publicKey() === normalizedOwner
+                        ? competitorAgentKeypair.publicKey()
                     : Keypair.random().publicKey(),
             });
         }
@@ -49,6 +55,8 @@ describe("Continuum API Integration", function () {
         agentState = new AgentStateService({ store });
         ownerKeypair = Keypair.random();
         agentKeypair = Keypair.random();
+        competitorOwnerKeypair = Keypair.random();
+        competitorAgentKeypair = Keypair.random();
         issuerKeypair = Keypair.random();
         serviceRecipientKeypair = Keypair.random();
         usdcIssuerKeypair = Keypair.random();
@@ -99,17 +107,18 @@ describe("Continuum API Integration", function () {
             assetType: "real_estate",
             title: "Warehouse Alpha",
         };
+        externalAuctionState = null;
 
-        const services = {
+        services = {
             store,
             ipfsService: {
                 async fetchJSON(uri) {
                     return {
                         uri,
                         metadata: {
-                            name: "Warehouse Alpha",
-                            description: "Lagos logistics facility",
-                            category: "real_estate",
+                            name: String(uri).includes("vehicle") ? "Truck Beta" : "Warehouse Alpha",
+                            description: String(uri).includes("vehicle") ? "Fleet vehicle" : "Lagos logistics facility",
+                            category: String(uri).includes("vehicle") ? "vehicle" : "real_estate",
                         },
                     };
                 },
@@ -228,19 +237,20 @@ describe("Continuum API Integration", function () {
 
         services.auctionEngine = {
             async listAuctions({ status, tokenId } = {}) {
-                if (tokenId && Number(tokenId) !== Number(auctionState.assetId)) {
-                    return [];
-                }
-                if (status && status !== auctionState.status) {
-                    return [];
-                }
-                return [{ ...auctionState }];
+                return [auctionState, externalAuctionState]
+                    .filter(Boolean)
+                    .filter((entry) => !tokenId || Number(entry.assetId) === Number(tokenId))
+                    .filter((entry) => !status || entry.status === status)
+                    .map((entry) => ({ ...entry }));
             },
             async getAuction(auctionId) {
-                if (Number(auctionId) !== Number(auctionState.auctionId)) {
-                    return null;
+                if (Number(auctionId) === Number(auctionState.auctionId)) {
+                    return { ...auctionState };
                 }
-                return { ...auctionState };
+                if (externalAuctionState && Number(auctionId) === Number(externalAuctionState.auctionId)) {
+                    return { ...externalAuctionState };
+                }
+                return null;
             },
             async createAuction({ tokenId, reservePrice, startTime, endTime }) {
                 auctionState = {
@@ -254,7 +264,12 @@ describe("Continuum API Integration", function () {
                 return { ...auctionState };
             },
             async placeBid({ auctionId, bidderOwnerPublicKey, amount }) {
-                if (Number(auctionId) !== Number(auctionState.auctionId)) {
+                const targetAuction = Number(auctionId) === Number(auctionState.auctionId)
+                    ? auctionState
+                    : externalAuctionState && Number(auctionId) === Number(externalAuctionState.auctionId)
+                        ? externalAuctionState
+                        : null;
+                if (!targetAuction) {
                     throw Object.assign(new Error("Auction not found"), {
                         status: 404,
                         code: "auction_not_found",
@@ -268,17 +283,17 @@ describe("Continuum API Integration", function () {
                 const bid = {
                     bidId: 11,
                     auctionId: Number(auctionId),
-                    assetId: Number(auctionState.assetId),
+                    assetId: Number(targetAuction.assetId),
                     bidder: bidderWallet.publicKey,
                     amountDisplay: String(amount),
-                    amountStroops: "2750000000",
+                    amountStroops: String(Math.round(Number(amount) * 1e7)),
                     placedAt: Math.floor(Date.now() / 1000),
                     status: "active",
                 };
                 await agentState.upsertReservation(bidderProfile.agentId, {
                     bidId: bid.bidId,
                     auctionId: Number(auctionId),
-                    assetId: Number(auctionState.assetId),
+                    assetId: Number(targetAuction.assetId),
                     issuer: issuerKeypair.publicKey(),
                     reservedAmount: bid.amountStroops,
                     status: "reserved",
@@ -286,35 +301,69 @@ describe("Continuum API Integration", function () {
                 await agentState.appendDecision(bidderProfile.agentId, {
                     type: "action",
                     message: `Bid placed on auction #${auctionId}`,
-                    detail: `${amount} USDC reserved for Warehouse Alpha.`,
+                    detail: `${amount} USDC reserved for twin #${Number(targetAuction.assetId)}.`,
                     amount: `-${amount}`,
                 });
-                auctionState = {
-                    ...auctionState,
+                const nextAuction = {
+                    ...targetAuction,
                     bids: [bid],
                     highestBid: bid,
                     highestBidDisplay: String(amount),
                     reserveMet: true,
                 };
+                if (Number(auctionId) === Number(auctionState.auctionId)) {
+                    auctionState = nextAuction;
+                } else {
+                    externalAuctionState = nextAuction;
+                }
                 return {
                     bid,
-                    auction: { ...auctionState },
+                    auction: { ...nextAuction },
                 };
             },
             async settleAuction({ auctionId }) {
-                if (Number(auctionId) !== Number(auctionState.auctionId)) {
+                const targetAuction = Number(auctionId) === Number(auctionState.auctionId)
+                    ? auctionState
+                    : externalAuctionState && Number(auctionId) === Number(externalAuctionState.auctionId)
+                        ? externalAuctionState
+                        : null;
+                if (!targetAuction) {
                     throw Object.assign(new Error("Auction not found"), {
                         status: 404,
                         code: "auction_not_found",
                     });
                 }
-                auctionState = {
-                    ...auctionState,
+                const winningBid = targetAuction.highestBid || null;
+                const nextAuction = {
+                    ...targetAuction,
                     status: "settled",
-                    winningBidId: 11,
+                    winningBidId: winningBid?.bidId || null,
                 };
+                if (winningBid?.bidder) {
+                    const winnerProfile = await agentState.getAgentProfile(String(winningBid.bidder).toUpperCase());
+                    if (winnerProfile) {
+                        const performance = await agentState.getPerformance(winnerProfile.agentId);
+                        await agentState.updatePerformance(winnerProfile.agentId, {
+                            auctionWins: Number(performance.auctionWins || 0) + 1,
+                        });
+                        await agentState.resolveReservation(winnerProfile.agentId, winningBid.bidId, {
+                            status: "settled",
+                            settledAt: Math.floor(Date.now() / 1000),
+                        });
+                    }
+                    const settledAsset = await store.getAsset(Number(targetAuction.assetId));
+                    await store.upsertAsset({
+                        ...settledAsset,
+                        currentOwner: winningBid.bidder,
+                    });
+                }
+                if (Number(auctionId) === Number(auctionState.auctionId)) {
+                    auctionState = nextAuction;
+                } else {
+                    externalAuctionState = nextAuction;
+                }
                 return {
-                    auction: { ...auctionState },
+                    auction: { ...nextAuction },
                     refunds: [],
                     settlement: {
                         txHash: "auction-settle-tx",
@@ -416,6 +465,83 @@ describe("Continuum API Integration", function () {
         expect(pauseResponse.body.code).to.equal("agent_runtime_paused");
         expect(pauseResponse.body.runtime.running).to.equal(false);
         expect(pauseResponse.body.runtime.status).to.equal("paused");
+    });
+
+    it("lets the managed runtime bid into and settle an external auction", async () => {
+        await store.upsertAsset({
+            tokenId: 8,
+            assetType: 2,
+            currentOwner: competitorAgentKeypair.publicKey(),
+            issuer: issuerKeypair.publicKey(),
+            verificationStatusLabel: "verified",
+            claimableYield: "1500000",
+            totalYieldDeposited: "10000000",
+            rentalReady: true,
+            publicMetadataURI: "ipfs://vehicle-beta",
+            stream: {
+                flowRate: "5000",
+            },
+            assetPolicy: {
+                frozen: false,
+                disputed: false,
+                revoked: false,
+            },
+        });
+        externalAuctionState = {
+            auctionId: 9,
+            assetId: 8,
+            seller: competitorAgentKeypair.publicKey(),
+            sellerOwnerPublicKey: competitorOwnerKeypair.publicKey(),
+            reservePrice: "1200000000",
+            reservePriceDisplay: "120.0000000",
+            currency: "USDC",
+            startTime: Math.floor(Date.now() / 1000) - 60,
+            endTime: Math.floor(Date.now() / 1000) + 3600,
+            status: "active",
+            bids: [],
+            highestBid: null,
+            highestBidDisplay: null,
+            reserveMet: false,
+            assetType: "vehicle",
+            title: "Truck Beta",
+        };
+
+        const startResponse = await request(app)
+            .post(`/api/agents/${agentId}/runtime/start`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                executeTreasury: false,
+                executeClaims: false,
+            })
+            .expect(200);
+
+        expect(startResponse.body.runtime.lastSummary.autoBids).to.equal(1);
+        expect(externalAuctionState.highestBid).to.not.equal(null);
+        expect(externalAuctionState.highestBid.bidder).to.equal(agentKeypair.publicKey());
+
+        externalAuctionState = {
+            ...externalAuctionState,
+            endTime: Math.floor(Date.now() / 1000) - 1,
+        };
+
+        const tickResponse = await request(app)
+            .post(`/api/agents/${agentId}/runtime/tick`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({})
+            .expect(200);
+
+        expect(tickResponse.body.runtime.lastSummary.settledAuctions).to.equal(1);
+        expect(externalAuctionState.status).to.equal("settled");
+
+        const stateResponse = await request(app)
+            .get(`/api/agents/${agentId}/state`)
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(stateResponse.body.state.performance.auctionWins).to.equal(1);
+        expect(stateResponse.body.state.performance.paidActionFees).to.equal("500000");
+        expect(stateResponse.body.state.reservations).to.have.length(0);
+        expect(stateResponse.body.state.positions.assets.map((asset) => Number(asset.tokenId))).to.include(8);
     });
 
     it("persists mandate updates server-side", async () => {

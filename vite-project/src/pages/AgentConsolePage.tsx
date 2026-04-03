@@ -453,6 +453,9 @@ export default function AgentConsolePage() {
                 <p className="text-sm font-bold text-slate-800">{String(runtime.heartbeatCount || 0)}</p>
               </div>
             </div>
+            <div className="mb-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+              Last loop: {String(runtime.lastSummary?.opportunities || 0)} opportunities · {String(runtime.lastSummary?.autoBids || 0)} auto bids · {String(runtime.lastSummary?.settledAuctions || 0)} settlements
+            </div>
             {runtime.lastError && (
               <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600">
                 {runtime.lastError}
