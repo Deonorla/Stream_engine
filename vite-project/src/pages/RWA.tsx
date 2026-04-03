@@ -44,6 +44,7 @@ import {
   hashJson,
   hashText,
 } from '../lib/stellarRwaContracts.ts';
+import { createIssuerAuthorization } from '../lib/rwaAuthorization.js';
 
 const ASSET_CATEGORIES = [
   { key: 'real_estate', label: 'Real Estate', Icon: Building2 },
@@ -892,6 +893,15 @@ function MintingTab({ onMinted, portfolioCount }) {
       const publicMetadataURI = pinResult.uri;
       const publicMetadataHash = hashJson(previewMetadata);
       const tagSeed = `${propertyRef}-VERIFY`;
+      const issuerAuthorization = await createIssuerAuthorization({
+        signer,
+        issuer: walletAddress,
+        rightsModel: RIGHTS_MODEL,
+        jurisdiction: '',
+        propertyRef,
+        publicMetadataHash,
+        evidenceRoot: evidenceResult.evidenceRoot,
+      });
 
       const mintResult = await mintRwaAsset({
         issuer: walletAddress,
@@ -903,6 +913,8 @@ function MintingTab({ onMinted, portfolioCount }) {
         evidenceManifestHash: evidenceResult.evidenceManifestHash,
         jurisdiction: '',
         tag: tagSeed,
+        issuerSignature: issuerAuthorization.signature,
+        issuerAuthorization,
         statusReason: 'Awaiting attestation review',
       });
 
