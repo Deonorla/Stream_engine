@@ -350,30 +350,30 @@ function buildSections(catalog) {
       title: "Overview",
       eyebrow: "Start Here",
       summary:
-        "What Stella's Stream Engine is, what problem it solves, and how the pieces fit together.",
+        "What Continuum is, how Stream Engine sits underneath it, and how the pieces fit together.",
       plainEnglish:
-        `If x402 is the sign on the shop door saying "you must pay before entry", Stella's Stream Engine is the running tab that lets the agent pay once, keep using the service, and settle fairly over time.`,
+        `If x402 is the sign on the shop door saying "you must pay before entry", Continuum is the marketplace the agent is trying to use, and Stream Engine is the reusable tab that keeps those paid actions economical over time.`,
       takeaways: [
         "x402 is the payment handshake, not the payment engine.",
-        "Streaming is the reusable settlement rail that makes repeated paid usage practical.",
-        "The RWA side extends the same streaming logic into real-world rental assets and asset-linked yield.",
+        "Continuum is the product layer for analysis, auctions, yield, and treasury decisions.",
+        "Stream Engine is the reusable settlement rail that makes repeated paid usage practical.",
       ],
       points: [
         {
           title: "What the project is",
-          body: `Stella's Stream Engine is a machine-payments and rental-RWA system running on ${networkName}. It combines payment negotiation, reusable settlement, and asset verification in one product.`,
+          body: `Continuum is an agent marketplace running on ${networkName}. Stream Engine sits underneath it to handle payment negotiation, reusable settlement, and productive RWA state.`,
         },
         {
           title: "What problem it solves",
-          body: "Repeated onchain payments are too expensive and too slow for agents. Stella's Stream Engine replaces repeated checkout with one reusable payment session or stream.",
+          body: "Repeated onchain payments are too expensive and too slow for agents, and raw tokenization alone is not enough for an agent market. Continuum adds paid market actions on top of Stream Engine so agents can analyze, bid, settle, and rebalance without constant checkout friction.",
         },
         {
           title: "What the moving parts are",
-          body: "x402 handles payment negotiation, the settlement runtime handles reusable payment state, middleware checks payment status, and RWA Studio handles minting, verification, renting, and yield.",
+          body: "x402 handles payment negotiation, Stream Engine handles reusable payment state, middleware checks payment status, RWA Studio handles admission and verification, and Continuum exposes the marketplace, auction, yield, and treasury workflows.",
         },
         {
           title: "What not to confuse",
-          body: "x402 is not the session or stream. x402 says payment is required. Stella's Stream Engine decides how to satisfy that payment requirement efficiently.",
+          body: "x402 is not the market, and the market is not the settlement rail. x402 says payment is required, Continuum defines the paid action, and Stream Engine decides how to satisfy that payment requirement efficiently.",
         },
       ],
       stepsTitle: "The full product loop",
@@ -402,9 +402,9 @@ function buildSections(catalog) {
       ],
       faqs: [
         {
-          question: "Is Stella's Stream Engine only for API payments?",
+          question: "Is Continuum only for API payments?",
           answer:
-            "No. It handles API payments and rental RWAs. The same stream logic can power machine payments, rental access, and asset-linked revenue flows.",
+            "No. Continuum is the marketplace layer for productive RWA twins, while Stream Engine handles reusable API payments, rental access, and asset-linked revenue flows underneath.",
         },
         {
           question: "Why keep x402 if streams already exist?",

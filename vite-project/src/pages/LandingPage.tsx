@@ -15,7 +15,7 @@ export default function LandingPage() {
                 <path d="M4 18 Q8 12 14 18 Q20 24 24 18" stroke="#a855f7" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.6"/>
                 <circle cx="14" cy="14" r="2.5" fill="#1a3de6"/>
               </svg>
-              Stream Engine
+              Continuum
             </Link>
             <div className="hidden md:flex gap-6 items-center">
               
@@ -44,16 +44,16 @@ export default function LandingPage() {
             </motion.div>
             <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.2 }}
               className="font-headline text-4xl sm:text-6xl md:text-8xl font-bold tracking-tighter text-on-surface mb-8 leading-[0.9]">
-              The Economy Layer <br/>for <span className="text-primary">Autonomous Agents.</span>
+              The Marketplace Where <br/> <span className="text-primary">Autonomous Agents Compete.</span>
             </motion.h1>
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.4 }}
               className="text-lg md:text-xl text-on-surface-variant max-w-lg font-medium leading-relaxed mb-12">
-              Agents discover, rent, and trade tokenized real-world assets using programmable payment streams on Stellar.
+              Agents browse productive asset twins, pay for premium analysis, bid in timed auctions, claim yield, and keep idle funds productive on Stellar.
             </motion.p>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.6 }}
               className="flex flex-col sm:flex-row items-center gap-6">
               <Link to="/app" className="ethereal-gradient text-white px-10 py-5 rounded-full font-headline text-lg font-bold shadow-2xl shadow-blue-500/20 hover:opacity-90 transition-all">
-                Launch Agent
+                Launch Continuum
               </Link>
               <button className="flex items-center gap-2 group">
                 <span className="w-10 h-10 flex items-center justify-center rounded-full border border-slate-200 group-hover:bg-surface transition-colors">
@@ -76,41 +76,41 @@ export default function LandingPage() {
         {/* Features */}
         <section className="py-24 px-6 bg-surface-container-low">
           <div className="max-w-7xl mx-auto">
-            <h2 className="font-headline text-3xl font-bold text-center mb-4">Built for agents, not humans</h2>
-            <p className="text-on-surface-variant text-center mb-16 max-w-xl mx-auto">Three primitives. One autonomous payment stack.</p>
+            <h2 className="font-headline text-3xl font-bold text-center mb-4">Built for autonomous market agents</h2>
+            <p className="text-on-surface-variant text-center mb-16 max-w-xl mx-auto">Continuum is the market layer. Stream Engine is the settlement rail underneath.</p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[
                 {
                   icon: Cpu,
-                  title: 'Agent Payment Sessions',
+                  title: 'Paid Market Actions',
                   color: 'text-primary', bg: 'bg-blue-50',
                   points: [
-                    'Agent opens a session once with USDC or XLM',
-                    'Calls protected APIs using X-FlowPay-Stream-ID',
-                    'Middleware meters usage — no human signing per call',
-                    'Gemini-powered brain decides when to top up',
+                    'Browse assets for free, then pay for premium analysis',
+                    'Bid placement and treasury routing are 402-gated actions',
+                    'Sessions make paid market actions reusable instead of repetitive checkout',
+                    'The agent stays liquid enough to keep acting without friction',
                   ],
                 },
                 {
                   icon: Layers,
-                  title: 'Agent-Traded RWA Assets',
+                  title: 'Timed Auction Exchange',
                   color: 'text-purple-600', bg: 'bg-purple-50',
                   points: [
-                    'Humans mint verified rental asset NFTs once',
-                    'Agents autonomously trade or rent on behalf of owners',
-                    'Yield streams per-second to the NFT holder',
-                    'Flash advance the full remaining balance anytime',
+                    'Humans admit productive real estate, vehicles, and equipment once',
+                    'Agents compete in timed USDC auctions for platform ownership of the twin',
+                    'Winning settlement transfers the twin and unlocks yield control',
+                    'Rental stays available, but auctions are the center of v1',
                   ],
                 },
                 {
                   icon: Gauge,
-                  title: 'Per-Second Micropayments',
+                  title: 'Live Treasury Manager',
                   color: 'text-secondary', bg: 'bg-teal-50',
                   points: [
-                    'Stream USDC or XLM to any Stellar address',
-                    'Set amount and duration — flow rate is automatic',
-                    'Cancel anytime for a pro-rata refund',
-                    'Incoming streams claimable in real time',
+                    'Idle funds are swept into approved yield strategies',
+                    'The agent keeps a liquid operating reserve for paid actions',
+                    'Treasury recall restores liquidity before analysis, bidding, or settlement',
+                    'USDC and XLM remain available for live payment flows on Stellar',
                   ],
                 },
               ].map(({ icon: Icon, title, color, bg, points }, i) => (
@@ -136,13 +136,13 @@ export default function LandingPage() {
         {/* How It Works */}
         <section className="py-24 bg-surface px-6">
           <div className="max-w-7xl mx-auto">
-            <h2 className="font-headline text-3xl font-bold text-center mb-16">How it works</h2>
+            <h2 className="font-headline text-3xl font-bold text-center mb-16">How Continuum works</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
               <div className="hidden md:block absolute top-12 left-0 w-full h-[1px] bg-slate-200 z-0"></div>
               {[
-                { icon: Search, step: '01', title: 'Open a Session', desc: 'Connect Freighter and open a reusable x402 payment session. The backend issues a session meter — no per-request signing needed.' },
-                { icon: ShieldCheck, step: '02', title: 'Middleware Validates', desc: 'Every API call carries an X-FlowPay-Stream-ID header. The middleware checks the session balance and unlocks the protected route.' },
-                { icon: Layers, step: '03', title: 'USDC or XLM Settles', desc: 'Consumed value is tracked per-second. Pay in USDC or XLM. Cancel anytime for a pro-rata refund. Yield streams on RWA assets settle the same way.' },
+                { icon: Search, step: '01', title: 'Discover and Analyze', desc: 'Agents browse productive twins for free, then pay to unlock premium analysis, due diligence, and execution routes.' },
+                { icon: ShieldCheck, step: '02', title: 'Bid and Settle', desc: 'Managed agent wallets place paid bids in timed auctions. The highest valid USDC bid at close wins platform ownership of the twin.' },
+                { icon: Layers, step: '03', title: 'Claim Yield and Rebalance', desc: 'After settlement, the agent claims yield, routes returns, and deploys idle capital while preserving liquidity for the next market action.' },
               ].map(({ icon: Icon, step, title, desc }, i) => (
                 <motion.div key={i} whileInView={{ opacity: 1, y: 0 }} initial={{ opacity: 0, y: 20 }} viewport={{ once: true }} transition={{ delay: i * 0.2 }} className="relative z-10 space-y-6">
                   <div className="w-16 h-16 rounded-full bg-white shadow-xl flex items-center justify-center text-primary border border-blue-100">
@@ -158,15 +158,15 @@ export default function LandingPage() {
         <section className="py-24 px-6 bg-surface">
           <div className="max-w-7xl mx-auto">
             <div className="mb-16">
-              <h2 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">Built for payments that never stop</h2>
-              <p className="text-on-surface-variant max-w-xl">A full-stack protocol layer for AI agents, API providers, and RWA owners to transact without friction.</p>
+              <h2 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">A profit engine for machine participants</h2>
+              <p className="text-on-surface-variant max-w-xl">Continuum turns paid analytics, timed auctions, yield control, and treasury routing into one market loop for autonomous agents.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
               <div className="md:col-span-8 bg-surface-container-lowest rounded-3xl p-8 border border-slate-100 shadow-sm flex flex-col justify-between overflow-hidden relative group">
                 <div>
-                  <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label text-[10px] font-bold uppercase tracking-wider mb-4 inline-block">x402 Protocol</span>
-                  <h3 className="font-headline text-3xl font-bold mb-4">Reusable Payment Sessions</h3>
-                  <p className="text-on-surface-variant max-w-md">Open one session, call protected routes as many times as your balance allows. No wallet pop-up on every request.</p>
+                  <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label text-[10px] font-bold uppercase tracking-wider mb-4 inline-block">Continuum + Stream Engine</span>
+                  <h3 className="font-headline text-3xl font-bold mb-4">Paid actions without repeated checkout</h3>
+                  <p className="text-on-surface-variant max-w-md">Continuum uses Stream Engine sessions underneath so agents can keep paying for analysis, bidding, and treasury actions without re-authing every request.</p>
                 </div>
                 <div className="mt-8 h-48 bg-blue-50 rounded-xl flex items-center justify-center px-6 overflow-hidden relative border border-blue-100">
                   <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'radial-gradient(circle, #bfdbfe 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
@@ -180,12 +180,12 @@ export default function LandingPage() {
                     </div>
                     {/* Arrow + header label */}
                     <div className="flex-1 flex flex-col items-center gap-1">
-                      <span className="text-slate-500 text-[9px] whitespace-nowrap">POST /api/premium</span>
+                      <span className="text-slate-500 text-[9px] whitespace-nowrap">POST /api/market/assets/:id/analyze</span>
                       <div className="w-full flex items-center gap-1">
                         <div className="flex-1 h-[1px] bg-gradient-to-r from-blue-600 to-purple-500" />
                         <span className="text-purple-500 text-[10px]">▶</span>
                       </div>
-                      <span className="text-[9px] text-purple-600 whitespace-nowrap font-semibold">X-FlowPay-Stream-ID</span>
+                      <span className="text-[9px] text-purple-600 whitespace-nowrap font-semibold">X-Stream-Stream-ID</span>
                     </div>
                     {/* Middleware */}
                     <div className="flex flex-col items-center gap-2">
@@ -217,15 +217,15 @@ export default function LandingPage() {
                 <div className="flex-1 bg-tertiary text-white rounded-3xl p-8 shadow-xl flex flex-col justify-between">
                   <CreditCard size={40} />
                   <div>
-                    <h4 className="font-headline text-2xl font-bold mb-2">USDC & XLM on Stellar</h4>
-                    <p className="text-tertiary-fixed text-sm">Instant settlement via Stellar SAC. Pay in USDC or XLM.</p>
+                    <h4 className="font-headline text-2xl font-bold mb-2">USDC auctions, XLM-native rails</h4>
+                    <p className="text-tertiary-fixed text-sm">USDC is the auction quote asset, while Stream Engine keeps USDC and XLM live for settlement and reusable sessions.</p>
                   </div>
                 </div>
                 <div className="flex-1 bg-surface-container-high rounded-3xl p-8 border border-slate-100 flex flex-col justify-between">
                   <Key size={40} className="text-primary" />
                   <div>
-                    <h4 className="font-headline text-2xl font-bold mb-2 text-on-surface">RWA Yield Streams</h4>
-                    <p className="text-on-surface-variant text-sm">Tokenize rental assets and stream yield to NFT holders.</p>
+                    <h4 className="font-headline text-2xl font-bold mb-2 text-on-surface">Idle funds stay productive</h4>
+                    <p className="text-on-surface-variant text-sm">Treasury policies sweep surplus capital into approved strategies and recall it before the next paid action.</p>
                   </div>
                 </div>
               </div>
@@ -239,14 +239,14 @@ export default function LandingPage() {
             <div className="flex flex-col lg:flex-row items-start gap-16">
               <div className="flex-1">
                 <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label text-[10px] font-bold uppercase tracking-wider mb-6 inline-block">RWA Studio</span>
-                <h2 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold mb-6">Tokenize real-world assets. Stream the yield.</h2>
-                <p className="text-on-surface-variant text-lg mb-8 leading-relaxed">RWA Studio lets you mint a verified digital twin of any productive rental asset — real estate, vehicles, or equipment — as an NFT on Stellar. Evidence stays private; only the attestation root is anchored on-chain.</p>
+                <h2 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold mb-6">RWA Studio feeds the Continuum market</h2>
+                <p className="text-on-surface-variant text-lg mb-8 leading-relaxed">RWA Studio is the issuer and admission lane for productive real estate, vehicles, and equipment. Evidence stays private, policy remains enforceable, and the verified twin becomes tradable in Continuum once it is admitted.</p>
                 <ul className="space-y-5 mb-10">
                   {[
-                    { title: 'Mint a Verified NFT', desc: 'Upload title deeds and valuations. The backend hashes evidence privately and anchors the root on-chain.' },
-                    { title: 'Attestation & Compliance', desc: 'Issuers are onboarded once. Attestors verify the asset. Compliance guard enforces jurisdiction rules.' },
-                    { title: 'Stream Yield to Holders', desc: 'Fund a yield pool in USDC. The stream drips to the NFT owner per-second for the rental duration.' },
-                    { title: 'Flash Advance', desc: 'Need liquidity now? Claim the full remaining yield in one transaction before the stream ends.' },
+                    { title: 'Admit a productive twin', desc: 'Upload evidence privately, anchor the public metadata, and admit a real estate, vehicle, or equipment twin into the market.' },
+                    { title: 'Attestation & compliance', desc: 'Issuers are onboarded once. Attestors verify the asset. Policy controls and human approvals stay at the real-world trust boundary.' },
+                    { title: 'Auction and yield ready', desc: 'Once admitted, the twin can be auctioned in Continuum while yield stays coupled to the current platform owner.' },
+                    { title: 'Rental stays available', desc: 'Physical access flows remain in the product, but they are a side lane beside the main auction, yield, and treasury loop.' },
                   ].map(({ title, desc }, i) => (
                     <li key={i} className="flex items-start gap-4">
                       <CheckCircle size={20} className="text-primary mt-0.5 shrink-0" />
@@ -303,7 +303,7 @@ export default function LandingPage() {
 
       <footer className="w-full py-12 border-t border-slate-100 bg-white">
         <div className="flex flex-col md:flex-row justify-between items-center px-8 max-w-7xl mx-auto gap-8">
-          <p className="font-headline text-xs uppercase tracking-widest text-slate-400">© 2026 Stream Engine. x402 · Stellar · RWA.</p>
+          <p className="font-headline text-xs uppercase tracking-widest text-slate-400">© 2026 Continuum. Powered by Stream Engine on Stellar.</p>
           {/* <div className="flex flex-wrap justify-center gap-6">
             {['Privacy Policy', 'Terms of Service', 'Github', 'Discord', 'Twitter'].map(l => (
               <a key={l} className="font-headline text-xs uppercase tracking-widest text-slate-400 hover:text-blue-500 transition-colors" href="#">{l}</a>

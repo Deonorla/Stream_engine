@@ -20,6 +20,12 @@ The asset is still using the old CID/tag model. Migrate it to the v2 evidence + 
 
 The frontend is likely using its cached registry snapshot because the backend verifier is unavailable. Start the backend with `npm run start:all` and re-run the verification flow to get live evidence and attestation checks.
 
-## `issuer_not_onboarded` during RWA mint
+## Issuer onboarding fails during RWA mint
 
-Issuer onboarding is a separate admin action. Mint will not auto-approve an issuer. Onboard the issuer first, then retry the mint flow.
+The normal flow now auto-onboards a first-time issuer during minting when the backend admin signer is configured correctly.
+
+If you still see an issuer-onboarding error:
+
+- confirm the backend is running with the registry admin signer configured
+- confirm that signer can call issuer-approval actions
+- if needed, let a platform admin onboard the issuer manually and then retry the mint

@@ -70,8 +70,8 @@ VITE_RWA_API_URL=http://localhost:3001
 
 ## Issuer onboarding
 
-Issuer approval is now a separate admin action.
+Issuer approval is normally handled automatically during minting.
 
-- onboarding happens once
-- mint checks onboarding but does not auto-fix it
-- mint failures now return `issuer_not_onboarded` instead of opaque contract reverts
+- the backend checks whether the issuer is already approved
+- if not, the backend admin signer auto-onboards the issuer before minting
+- if automatic onboarding fails, mint returns a clear issuer-onboarding error instead of an opaque contract revert

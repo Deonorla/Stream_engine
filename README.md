@@ -1,25 +1,35 @@
-# Stella's Stream Engine
+# Continuum
 
-**Stella's Stream Engine** is an `x402`-compatible payment and settlement stack for AI agents plus a rental-RWA backend for verified productive assets on **Stellar testnet**.
+**Continuum** is an agent marketplace for productive RWA twins on **Stellar testnet**. It uses **Stream Engine** underneath as the settlement, session, and yield runtime for paid market actions.
 
 ## What It Does
 
-- uses reusable **payment sessions** to unlock paid API routes
-- keeps the current web UI/UX while running on a **Stellar-backed runtime**
-- supports **verified productive rental assets** with private evidence storage, attestation-backed verification, and ownership-linked yield
+- lets agents browse productive twins for free, then pay for premium analysis, bidding, and treasury actions
+- runs timed USDC auctions for platform and economic ownership of productive asset twins
+- supports server-managed agent wallets, mandate enforcement, yield claims, and treasury rebalancing
+- keeps **Stream Engine** underneath as the reusable payment-session and RWA runtime
+
+## Product Split
+
+- **Continuum**: the public marketplace, agent console, auctions, analytics, and treasury layer
+- **Stream Engine**: the underlying session, settlement, RWA registry, and yield runtime
 
 ## Runtime
 
 - **Network:** Stellar Testnet
-- **Settlement asset:** USDC via SAC
+- **Auction quote asset:** USDC via SAC
+- **Runtime assets:** USDC + XLM
 - **Wallet:** Freighter
 - **Payment model:** x402 negotiation + reusable session settlement
-- **RWA model:** verified rental twin + private evidence + attestations + policy controls
+- **Exchange model:** timed English auction
+- **RWA model:** productive twin + private evidence + attestations + policy controls
 
 ## Preserved public surfaces
 
 - `/api/engine/catalog`
 - `/api/rwa/*`
+- `/api/market/*`
+- `/api/agents/*`
 - x402 `402` headers
 - `StreamEngineSDK`
 - `StreamEngineRWAClient`
@@ -39,6 +49,26 @@
 - `POST /api/sessions/:sessionId/metadata`
 - `POST /api/sessions/:sessionId/cancel`
 - `POST /api/sessions/:sessionId/claim`
+
+### Continuum market and agents
+
+- `GET /api/market/assets`
+- `GET /api/market/assets/:assetId`
+- `GET /api/market/assets/:assetId/analytics`
+- `POST /api/market/assets/:assetId/auctions`
+- `GET /api/market/auctions/:auctionId`
+- `POST /api/market/auctions/:auctionId/bids`
+- `POST /api/market/auctions/:auctionId/settle`
+- `GET /api/market/positions`
+- `POST /api/market/yield/claim`
+- `POST /api/market/yield/route`
+- `POST /api/market/treasury/rebalance`
+- `POST /api/agents`
+- `GET /api/agents/:agentId/state`
+- `GET /api/agents/:agentId/performance`
+- `GET /api/agents/:agentId/mandate`
+- `POST /api/agents/:agentId/mandate`
+- `GET /api/agents/:agentId/wallet`
 
 ### RWA
 
@@ -83,13 +113,13 @@ Open [http://localhost:5173](http://localhost:5173).
 2. Confirm `GET /api/health`
 3. Confirm `GET /api/engine/catalog`
 4. Connect Freighter in the web app
-5. Onboard the issuer once
-6. Mint an asset
-7. Verify the asset
-8. Start a rental session
-9. End or cancel the session and inspect the refund state
-10. Fund yield and claim it
-11. Confirm the session snapshot shows `sessionStatus`, `refundableAmount`, and `consumedAmount`
+5. Create or load the managed agent wallet
+6. Mint and verify a productive twin in RWA Studio
+7. Open the Marketplace and fetch premium analysis with a payment session
+8. List the twin in a timed auction or place a bid from the managed agent
+9. Settle the auction after the close time
+10. Claim or route yield from the new position
+11. Rebalance treasury and confirm idle funds move into approved strategies
 
 ### CLI/provider smoke
 

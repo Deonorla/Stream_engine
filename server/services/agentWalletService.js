@@ -56,7 +56,9 @@ class AgentWalletService {
             agentPublicKey: kp.publicKey(),
             encryptedSecret: encrypt(kp.secret(), this.encryptionKey),
         };
-        await store.upsertAgentWallet(newRecord);
+        if (this.store && typeof this.store.upsertAgentWallet === "function") {
+            await this.store.upsertAgentWallet(newRecord);
+        }
         fileStore.upsertAgentWallet(newRecord); // always persist to file as backup
         return kp;
     }
@@ -78,8 +80,98 @@ class AgentWalletService {
         return { publicKey: record.agentPublicKey };
     }
 
+    async getBalances({ owner }) {
+        const kp = await this.resolveKeypair(owner);
+        const cs = this.chainService.contractService;
+        if (!cs.horizonServer) {
+            throw Object.assign(new Error("Horizon not configured."), { status: 503 });
+        }
+
+        const account = await cs.horizonServer.loadAccount(kp.publicKey());
+        return {
+            publicKey: kp.publicKey(),
+            balances: (account.balances || []).map((balance) => ({
+                type: balance.asset_type === "native" ? "native" : "credit_alphanum",
+                assetCode: balance.asset_code || "XLM",
+                assetIssuer: balance.asset_issuer || "",
+                balance: balance.balance || "0",
+                buyingLiabilities: balance.buying_liabilities || "0",
+                sellingLiabilities: balance.selling_liabilities || "0",
+            })),
+            sequence: account.sequence,
+        };
+    }
+
+    async getBalanceForAsset({ owner, assetCode = "XLM", assetIssuer = "" }) {
+        const snapshot = await this.getBalances({ owner });
+        const normalizedCode = String(assetCode || "XLM").toUpperCase();
+        const match = snapshot.balances.find((balance) => {
+            if (normalizedCode === "XLM") {
+                return balance.type === "native";
+            }
+            return (
+                String(balance.assetCode || "").toUpperCase() === normalizedCode
+                && String(balance.assetIssuer || "") === String(assetIssuer || "")
+            );
+        });
+        return match?.balance || "0";
+    }
+
     async openSession({ owner, recipient, totalAmount, durationSeconds, metadata, assetCode, assetIssuer }) {
         const kp = await this.resolveKeypair(owner);
+        const paymentAssetCode = String(
+            assetCode || this.chainService.runtime?.paymentAssetCode || "USDC"
+        ).toUpperCase();
+        const paymentAssetIssuer = paymentAssetCode === "XLM"
+            ? ""
+            : String(assetIssuer || this.chainService.runtime?.paymentAssetIssuer || "");
+        const tokenAddress = paymentAssetCode === "XLM"
+            ? this.chainService.nativeTokenAddress
+            : this.chainService.runtime?.paymentTokenAddress;
+
+        if (
+            this.chainService.sessionMeterAddress
+            && this.chainService.contractService?.isConfigured?.()
+            && tokenAddress
+        ) {
+            const startTime = Math.floor(Date.now() / 1000);
+            const stopTime = startTime + Math.max(1, Number(durationSeconds || 1));
+            const metadataHash = crypto.createHash("sha256").update(String(metadata || "{}")).digest("hex");
+            const chainWrite = await this.chainService.contractService.invokeWrite({
+                contractId: this.chainService.sessionMeterAddress,
+                method: "open_session",
+                args: [
+                    { type: "address", value: kp.publicKey() },
+                    { type: "address", value: recipient },
+                    { type: "address", value: tokenAddress },
+                    { type: "string", value: paymentAssetCode },
+                    { type: "string", value: paymentAssetIssuer },
+                    { type: "i128", value: BigInt(String(totalAmount)) },
+                    { type: "u64", value: BigInt(startTime) },
+                    { type: "u64", value: BigInt(stopTime) },
+                    { type: "bytes32", value: `0x${metadataHash}` },
+                ],
+                sourceAccount: kp.publicKey(),
+                signerSecret: kp.secret(),
+            });
+            const sessionId = Number(chainWrite.result || 0);
+            const synced = await this.chainService.syncSessionMetadata({
+                sessionId,
+                metadata: metadata || "{}",
+                txHash: chainWrite.txHash,
+                fundingTxHash: chainWrite.txHash,
+                sender: kp.publicKey(),
+                recipient,
+                assetCode: paymentAssetCode,
+                assetIssuer: paymentAssetIssuer,
+            });
+            return {
+                streamId: String(sessionId),
+                startTime: synced.startTime,
+                txHash: chainWrite.txHash,
+            };
+        }
+
         return this.chainService.openSession({
             sender: kp.publicKey(),
             recipient,
@@ -93,21 +185,91 @@ class AgentWalletService {
 
     async claimSession({ owner, sessionId }) {
         const kp = await this.resolveKeypair(owner);
+        if (this.chainService.sessionMeterAddress && this.chainService.contractService?.isConfigured?.()) {
+            const chainWrite = await this.chainService.contractService.invokeWrite({
+                contractId: this.chainService.sessionMeterAddress,
+                method: "claim",
+                args: [
+                    { type: "address", value: kp.publicKey() },
+                    { type: "u64", value: BigInt(Number(sessionId)) },
+                ],
+                sourceAccount: kp.publicKey(),
+                signerSecret: kp.secret(),
+            });
+            const session = await this.chainService.getSessionSnapshot(sessionId);
+            return {
+                txHash: chainWrite.txHash,
+                amount: String(chainWrite.result || session?.claimableInitial || "0"),
+            };
+        }
         return this.chainService.claimSession({ sessionId: Number(sessionId), claimer: kp.publicKey() });
     }
 
     async cancelSession({ owner, sessionId }) {
         const kp = await this.resolveKeypair(owner);
+        if (this.chainService.sessionMeterAddress && this.chainService.contractService?.isConfigured?.()) {
+            const chainWrite = await this.chainService.contractService.invokeWrite({
+                contractId: this.chainService.sessionMeterAddress,
+                method: "cancel",
+                args: [
+                    { type: "address", value: kp.publicKey() },
+                    { type: "u64", value: BigInt(Number(sessionId)) },
+                ],
+                sourceAccount: kp.publicKey(),
+                signerSecret: kp.secret(),
+            });
+            const session = await this.chainService.getSessionSnapshot(sessionId);
+            return {
+                txHash: chainWrite.txHash,
+                refundableAmount: String(chainWrite.result?.refundable_amount || session?.refundableAmount || "0"),
+                claimableAmount: String(chainWrite.result?.claimable_amount || session?.claimableInitial || "0"),
+            };
+        }
         return this.chainService.cancelSession({ sessionId: Number(sessionId), cancelledBy: kp.publicKey() });
     }
 
     async claimYield({ owner, tokenId }) {
-        await this.resolveKeypair(owner); // auth check
+        const kp = await this.resolveKeypair(owner);
+        if (this.chainService.assetStreamAddress && this.chainService.contractService?.isConfigured?.()) {
+            const chainWrite = await this.chainService.contractService.invokeWrite({
+                contractId: this.chainService.assetStreamAddress,
+                method: "claim",
+                args: [
+                    { type: "address", value: kp.publicKey() },
+                    { type: "u64", value: BigInt(Number(tokenId)) },
+                ],
+                sourceAccount: kp.publicKey(),
+                signerSecret: kp.secret(),
+            });
+            const refreshed = await this.chainService.getAssetSnapshot(tokenId);
+            if (refreshed) {
+                await this.chainService.store.upsertAsset(refreshed);
+            }
+            return { txHash: chainWrite.txHash, amount: String(chainWrite.result || "0") };
+        }
         return this.chainService.claimYield({ tokenId: Number(tokenId) });
     }
 
     async flashAdvance({ owner, tokenId, amount }) {
-        await this.resolveKeypair(owner);
+        const kp = await this.resolveKeypair(owner);
+        if (this.chainService.assetStreamAddress && this.chainService.contractService?.isConfigured?.()) {
+            const chainWrite = await this.chainService.contractService.invokeWrite({
+                contractId: this.chainService.assetStreamAddress,
+                method: "flash_advance",
+                args: [
+                    { type: "address", value: kp.publicKey() },
+                    { type: "u64", value: BigInt(Number(tokenId)) },
+                    { type: "i128", value: BigInt(String(amount)) },
+                ],
+                sourceAccount: kp.publicKey(),
+                signerSecret: kp.secret(),
+            });
+            const refreshed = await this.chainService.getAssetSnapshot(tokenId);
+            if (refreshed) {
+                await this.chainService.store.upsertAsset(refreshed);
+            }
+            return { txHash: chainWrite.txHash, amount: String(chainWrite.result || amount) };
+        }
         return this.chainService.flashAdvance({ tokenId: Number(tokenId), amount: BigInt(String(amount)) });
     }
 
@@ -162,6 +324,36 @@ class AgentWalletService {
         tx.sign(kp);
         const result = await cs.horizonServer.submitTransaction(tx);
         return { txHash: result.hash };
+    }
+
+    async sendAssetPayment({ owner, destination, assetCode, assetIssuer, amount, memoText = "" }) {
+        const kp = await this.resolveKeypair(owner);
+        const cs = this.chainService.contractService;
+        if (!cs.horizonServer || !cs.networkPassphrase) {
+            throw Object.assign(new Error("Horizon not configured."), { status: 503 });
+        }
+
+        const account = await cs.horizonServer.loadAccount(kp.publicKey());
+        const asset = assetCode === "XLM" ? Asset.native() : new Asset(assetCode, assetIssuer);
+        const builder = new TransactionBuilder(account, {
+            fee: String(BASE_FEE),
+            networkPassphrase: cs.networkPassphrase,
+        }).addOperation(Operation.payment({
+            destination,
+            asset,
+            amount: String(amount),
+        }));
+
+        if (memoText) {
+            builder.addMemo(require("@stellar/stellar-sdk").Memo.text(String(memoText).slice(0, 28)));
+        }
+
+        const tx = builder
+            .setTimeout(30)
+            .build();
+        tx.sign(kp);
+        const result = await cs.horizonServer.submitTransaction(tx);
+        return { txHash: result.hash, source: kp.publicKey(), destination, amount: String(amount) };
     }
 }
 

@@ -65,4 +65,4 @@ Fresh v2 mints return:
 
 If the asset type has required attestation roles, new mints typically start as `pending_attestation`. If no required role policy exists, the asset can start as `verified`. New v2 mints do not emit a new legacy verification payload.
 
-`issuerOnboarding` reports whether the issuer was already approved before minting. The current Stellar migration keeps issuer onboarding explicit; mint no longer auto-approves issuers.
+`issuerOnboarding` reports whether the issuer was already approved before minting or was auto-approved by the backend admin signer during the mint flow.

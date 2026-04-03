@@ -25,7 +25,11 @@ const {
 } = require("./services/rwaModel");
 const { createRuntimeConfig } = require("../utils/runtimeConfig");
 const { AgentWalletService } = require("./services/agentWalletService");
+const { AgentStateService } = require("./services/agentStateService");
+const { AuctionEngine } = require("./services/auctionEngine");
+const { TreasuryManager } = require("./services/treasuryManager");
 const agentRoutes = require("./routes/agent");
+const continuumRoutes = require("./routes/continuum");
 
 require("dotenv").config({ path: "../.env" });
 
@@ -92,6 +96,21 @@ const defaultConfig = {
             price: "0.01",
             mode: "per-request",
             description: "Asset bid placement",
+        },
+        "/api/market/assets/:assetId/analytics": {
+            price: "0.10",
+            mode: "per-request",
+            description: "Continuum premium analysis",
+        },
+        "/api/market/auctions/:auctionId/bids": {
+            price: "0.05",
+            mode: "per-request",
+            description: "Continuum paid bid placement",
+        },
+        "/api/market/treasury/rebalance": {
+            price: "0.02",
+            mode: "per-request",
+            description: "Continuum treasury optimization",
         },
     },
     rwa: {
@@ -186,6 +205,32 @@ async function buildServices(config) {
             encryptionKey: process.env.AGENT_ENCRYPTION_KEY || "",
             store: services.store,
             chainService: services.chainService,
+        });
+    }
+
+    if (!services.agentState) {
+        services.agentState = new AgentStateService({
+            store: services.store,
+        });
+    }
+
+    if (!services.treasuryManager) {
+        services.treasuryManager = new TreasuryManager({
+            runtime: runtimeConfig,
+            store: services.store,
+            chainService: services.chainService,
+            agentWallet: services.agentWallet,
+            agentState: services.agentState,
+        });
+    }
+
+    if (!services.auctionEngine) {
+        services.auctionEngine = new AuctionEngine({
+            store: services.store,
+            chainService: services.chainService,
+            agentWallet: services.agentWallet,
+            agentState: services.agentState,
+            treasuryManager: services.treasuryManager,
         });
     }
 
@@ -291,6 +336,8 @@ function createApp(config = defaultConfig) {
     app.use(cors());
     app.use(express.json({ limit: "2mb" }));
 
+    app.locals.config = resolvedConfig;
+    app.locals.runtimeConfig = runtimeConfig;
     app.locals.services = resolvedConfig.services ? { ...resolvedConfig.services } : {};
     app.locals.indexerSyncPromise = null;
     app.locals.assetPrimePromise = null;
@@ -313,6 +360,8 @@ function createApp(config = defaultConfig) {
             return services.chainService.getSessionSnapshot(streamId);
         },
     }));
+
+    app.use("/api", continuumRoutes);
 
     app.get("/api/weather", (req, res) => {
         res.json({
@@ -347,7 +396,8 @@ function createApp(config = defaultConfig) {
         }));
 
         res.json({
-            appName: "Stream Engine",
+            appName: "Continuum",
+            infrastructure: "Stream Engine",
             network: {
                 name: resolvedConfig.networkName,
                 chainId: resolvedConfig.chainId,
@@ -387,6 +437,7 @@ function createApp(config = defaultConfig) {
                 assetStreamAddress: resolvedConfig.rwa?.assetStreamAddress || "",
                 complianceGuardAddress: resolvedConfig.rwa?.complianceGuardAddress || "",
             },
+            treasury: (app.locals.services?.treasuryManager || null)?.healthCheck?.() || {},
             routes,
         });
     });
@@ -395,6 +446,8 @@ function createApp(config = defaultConfig) {
         const services = await app.locals.ready;
         res.json({
             ok: true,
+            product: "Continuum",
+            infrastructure: "Stream Engine",
             runtime: runtimeConfig.kind,
             network: runtimeConfig.networkName,
             operator: services.chainService?.signer?.address || "",
@@ -405,6 +458,7 @@ function createApp(config = defaultConfig) {
             rwa: {
                 hubAddress: resolvedConfig.rwa?.hubAddress || "",
             },
+            treasury: services.treasuryManager?.healthCheck?.() || {},
         });
     }));
 
@@ -544,7 +598,14 @@ function createApp(config = defaultConfig) {
         const cidHash = hashText(resolvedPublicMetadataURI);
 
         let mintResult;
+        let issuerOnboardingResult = null;
         try {
+            if (typeof chainService.ensureIssuerApproved === "function") {
+                issuerOnboardingResult = await chainService.ensureIssuerApproved(
+                    issuer,
+                    "Auto-approved from signed Stream Engine mint authorization"
+                );
+            }
             mintResult = await chainService.mintAsset({
                 publicMetadataURI: resolvedPublicMetadataURI,
                 assetType,
@@ -558,9 +619,10 @@ function createApp(config = defaultConfig) {
                 tagHash: resolvedTagHash,
                 issuer,
                 statusReason,
+                skipIssuerApprovalCheck: Boolean(issuerOnboardingResult),
             });
         } catch (error) {
-            const statusCode = error.code === "issuer_not_onboarded" ? 400 : 500;
+            const statusCode = ["issuer_not_onboarded", "issuer_onboarding_failed"].includes(error.code) ? 400 : 500;
             return res.status(statusCode).json({
                 error: error.message || "Asset mint failed",
                 code: error.code || "mint_failed",
@@ -621,12 +683,26 @@ function createApp(config = defaultConfig) {
             statusReason: resolvedStatusReason,
             details: {
                 runtime: runtimeConfig.kind,
-                issuerApproved: true,
+                issuerApproved: Boolean(
+                    issuerOnboardingResult?.approved
+                    ?? mintResult?.issuerOnboarding?.approved
+                    ?? true
+                ),
             },
-            issuerOnboarding: {
-                alreadyApproved: true,
-                automaticallyApproved: false,
-            },
+            issuerOnboarding: issuerOnboardingResult
+                ? {
+                    alreadyApproved: Boolean(issuerOnboardingResult.alreadyApproved),
+                    automaticallyApproved: !issuerOnboardingResult.alreadyApproved,
+                }
+                : mintResult?.issuerOnboarding
+                    ? {
+                        alreadyApproved: Boolean(mintResult.issuerOnboarding.alreadyApproved),
+                        automaticallyApproved: !mintResult.issuerOnboarding.alreadyApproved,
+                    }
+                    : {
+                        alreadyApproved: true,
+                        automaticallyApproved: false,
+                    },
             verificationPayload,
             verificationUrl: buildVerificationUrl(resolvedConfig.appBaseUrl, verificationPayload),
             verificationApiUrl: `${resolvedConfig.appBaseUrl.replace(/5173$/, "3001")}/api/rwa/verify`,
