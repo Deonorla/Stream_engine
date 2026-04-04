@@ -430,6 +430,72 @@ async function buildReservationExposure(services, reservations = []) {
     ));
 }
 
+async function loadAgentStateBundle(services, { agentId, ownerPublicKey, agentPublicKey }) {
+    const [
+        walletState,
+        mandate,
+        objective,
+        brain,
+        performance,
+        treasury,
+        reservations,
+        decisionLog,
+        journalPreview,
+        chatPreview,
+        assets,
+        sessions,
+        runtime,
+        savedScreens,
+        watchlist,
+    ] = await Promise.all([
+        services.agentWallet.getBalances({ owner: ownerPublicKey }),
+        services.agentState.getMandate(agentId),
+        services.agentState.getObjective(agentId),
+        services.agentState.getBrainState(agentId),
+        services.agentState.getPerformance(agentId),
+        services.agentState.getTreasury(agentId),
+        services.agentState.listOpenReservations(agentId),
+        services.agentState.getDecisionLog(agentId, 50),
+        services.agentState.getJournal(agentId, 12),
+        services.agentState.getChatMessages(agentId, 20),
+        services.chainService.listAssetSnapshots({ owner: agentPublicKey }),
+        services.chainService.listSessions({ owner: agentPublicKey }),
+        services.agentRuntime.getState({ agentId }),
+        services.agentState.getSavedScreens(agentId),
+        services.agentState.getWatchlist(agentId),
+    ]);
+    const liquidity = buildLiquiditySummary({
+        walletState,
+        mandate,
+        reservations,
+        treasury,
+        assetCode: "USDC",
+        assetIssuer: services.chainService.runtime?.paymentAssetIssuer || "",
+    });
+    const reservationExposure = await buildReservationExposure(services, reservations);
+    return {
+        walletState,
+        mandate,
+        objective,
+        brain,
+        liquidity,
+        performance,
+        treasury,
+        reservations,
+        reservationExposure,
+        savedScreens,
+        watchlist,
+        decisionLog,
+        journalPreview,
+        chatPreview,
+        runtime,
+        positions: {
+            assets,
+            sessions,
+        },
+    };
+}
+
 function summarizeActivity(activity = []) {
     return activity
         .slice(-5)
@@ -818,7 +884,7 @@ router.get("/market/assets/:assetId/analytics", requirePaidAction("0.10", "Premi
 }));
 
 router.post("/market/assets/:assetId/auctions", requireJwt, asyncHandler(async (req, res) => {
-    const { services, ownerPublicKey } = await resolveAgentContext(req);
+    const { services, ownerPublicKey, agentId } = await resolveAgentContext(req);
     const auction = await services.auctionEngine.createAuction({
         sellerOwnerPublicKey: ownerPublicKey,
         tokenId: Number(req.params.assetId),
@@ -827,10 +893,17 @@ router.post("/market/assets/:assetId/auctions", requireJwt, asyncHandler(async (
         endTime: req.body?.endTime,
         note: req.body?.note || "",
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "auction_opened",
+        allowWhenIdle: true,
+    });
     res.status(201).json({
         code: "auction_created",
         action: "createAuction",
         auction,
+        wake,
     });
 }));
 
@@ -858,24 +931,52 @@ router.post("/market/auctions/:auctionId/bids", requirePaidAction("0.05", "Paid 
         action: "auction_bid",
         auctionId: Number(req.params.auctionId),
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "auction_bid_placed",
+        allowWhenIdle: true,
+    });
+    if (
+        result?.previousHighestBid?.bidderOwnerPublicKey
+        && normalizeAddress(result.previousHighestBid.bidderOwnerPublicKey) !== normalizeAddress(ownerPublicKey)
+    ) {
+        const previousProfile = await services.agentState.getAgentProfileByOwner(result.previousHighestBid.bidderOwnerPublicKey);
+        if (previousProfile?.agentId) {
+            await services.agentRuntime.requestWake({
+                agentId: previousProfile.agentId,
+                ownerPublicKey: result.previousHighestBid.bidderOwnerPublicKey,
+                reason: "auction_outbid",
+                allowWhenIdle: true,
+            });
+        }
+    }
     res.status(201).json({
         code: "auction_bid_placed",
         action: "placeBid",
         bid: result.bid,
         auction: result.auction,
         paidVia: req.streamEngine || null,
+        wake,
     });
 }));
 
 router.post("/market/auctions/:auctionId/settle", requireJwt, asyncHandler(async (req, res) => {
-    const { services } = await resolveAgentContext(req);
+    const { services, agentId, ownerPublicKey } = await resolveAgentContext(req);
     const settlement = await services.auctionEngine.settleAuction({
         auctionId: Number(req.params.auctionId),
+    });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "auction_closed",
+        allowWhenIdle: true,
     });
     res.json({
         code: "auction_settled",
         action: "settleAuction",
         ...settlement,
+        wake,
     });
 }));
 
@@ -1015,12 +1116,19 @@ router.post("/market/yield/claim", requirePaidAction("0.01", "Yield claim"), req
         action: "yield_claim",
         tokenId: req.body?.tokenId ? Number(req.body.tokenId) : null,
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "yield_claimable",
+        allowWhenIdle: true,
+    });
     res.json({
         code: "market_yield_claimed",
         action: "claimYield",
         txHash: result.txHash,
         amount: result.amount || "0",
         paidVia: req.streamEngine || null,
+        wake,
     });
 }));
 
@@ -1041,6 +1149,12 @@ router.post("/market/yield/route", requirePaidAction("0.03", "Yield routing"), r
         action: "yield_route",
         tokenId: req.body?.tokenId ? Number(req.body.tokenId) : null,
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "treasury_liquidity_changed",
+        allowWhenIdle: true,
+    });
     res.json({
         code: "yield_routed",
         action: "routeYield",
@@ -1048,6 +1162,7 @@ router.post("/market/yield/route", requirePaidAction("0.03", "Yield routing"), r
         treasury,
         optimization: treasury.optimization || null,
         paidVia: req.streamEngine || null,
+        wake,
     });
 }));
 
@@ -1057,12 +1172,19 @@ router.post("/market/treasury/rebalance", requirePaidAction("0.02", "Treasury op
     await services.agentState.recordPaidActionFee(agentId, req.streamEngineActionFee, {
         action: "treasury_rebalance",
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "treasury_liquidity_changed",
+        allowWhenIdle: true,
+    });
     res.json({
         code: "treasury_rebalanced",
         action: "rebalanceTreasury",
         treasury,
         optimization: treasury.optimization || null,
         paidVia: req.streamEngine || null,
+        wake,
     });
 }));
 
@@ -1092,47 +1214,33 @@ router.get("/agents/:agentId/state", requireJwt, asyncHandler(async (req, res) =
     if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
         return res.status(403).json({ error: "Cannot inspect another agent state.", code: "agent_scope_forbidden" });
     }
-    const [walletState, mandate, performance, treasury, reservations, decisionLog, assets, sessions, runtime, savedScreens, watchlist] = await Promise.all([
-        services.agentWallet.getBalances({ owner: ownerPublicKey }),
-        services.agentState.getMandate(agentId),
-        services.agentState.getPerformance(agentId),
-        services.agentState.getTreasury(agentId),
-        services.agentState.listOpenReservations(agentId),
-        services.agentState.getDecisionLog(agentId, 50),
-        services.chainService.listAssetSnapshots({ owner: agentPublicKey }),
-        services.chainService.listSessions({ owner: agentPublicKey }),
-        services.agentRuntime.getState({ agentId }),
-        services.agentState.getSavedScreens(agentId),
-        services.agentState.getWatchlist(agentId),
-    ]);
-    const liquidity = buildLiquiditySummary({
-        walletState,
-        mandate,
-        reservations,
-        treasury,
-        assetCode: "USDC",
-        assetIssuer: services.chainService.runtime?.paymentAssetIssuer || "",
+    const state = await loadAgentStateBundle(services, {
+        agentId,
+        ownerPublicKey,
+        agentPublicKey,
     });
-    const reservationExposure = await buildReservationExposure(services, reservations);
     res.json({
         code: "agent_state_loaded",
         agentId,
         state: {
-            wallet: walletState,
-            mandate,
-            liquidity,
-            performance,
-            treasury,
-            reservations,
-            reservationExposure,
-            savedScreens,
-            watchlist,
-            decisionLog,
-            runtime,
-            positions: {
-                assets,
-                sessions,
-            },
+            wallet: state.walletState,
+            mandate: state.mandate,
+            objective: state.objective,
+            brain: state.brain,
+            liquidity: state.liquidity,
+            degradedMode: Boolean(state.brain?.degradedMode),
+            lastWakeReason: state.brain?.wakeReason || "",
+            performance: state.performance,
+            treasury: state.treasury,
+            reservations: state.reservations,
+            reservationExposure: state.reservationExposure,
+            savedScreens: state.savedScreens,
+            watchlist: state.watchlist,
+            decisionLog: state.decisionLog,
+            journalPreview: state.journalPreview,
+            chatPreview: state.chatPreview,
+            runtime: state.runtime,
+            positions: state.positions,
         },
     });
 }));
@@ -1165,6 +1273,7 @@ router.post("/agents/:agentId/runtime/start", requireJwt, asyncHandler(async (re
         code: "agent_runtime_started",
         agentId,
         ...result,
+        brain: await services.agentState.getBrainState(agentId),
     });
 }));
 
@@ -1178,6 +1287,7 @@ router.post("/agents/:agentId/runtime/pause", requireJwt, asyncHandler(async (re
         code: "agent_runtime_paused",
         agentId,
         runtime,
+        brain: await services.agentState.getBrainState(agentId),
     });
 }));
 
@@ -1195,6 +1305,158 @@ router.post("/agents/:agentId/runtime/tick", requireJwt, asyncHandler(async (req
         code: "agent_runtime_ticked",
         agentId,
         ...result,
+        brain: await services.agentState.getBrainState(agentId),
+    });
+}));
+
+router.get("/agents/:agentId/objective", requireJwt, asyncHandler(async (req, res) => {
+    const { services, agentId } = await resolveAgentContext(req);
+    if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
+        return res.status(403).json({ error: "Cannot inspect another agent objective.", code: "agent_scope_forbidden" });
+    }
+    const objective = await services.agentState.getObjective(agentId);
+    res.json({
+        code: "agent_objective_loaded",
+        agentId,
+        objective,
+    });
+}));
+
+router.post("/agents/:agentId/objective", requireJwt, asyncHandler(async (req, res) => {
+    const { services, agentId, ownerPublicKey } = await resolveAgentContext(req);
+    if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
+        return res.status(403).json({ error: "Cannot update another agent objective.", code: "agent_scope_forbidden" });
+    }
+    const objective = await services.agentState.setObjective(agentId, req.body || {});
+    await services.agentState.appendDecision(agentId, {
+        type: "decision",
+        message: "Agent objective updated",
+        detail: `${objective.style} strategy · ${objective.goal}`,
+    });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "objective_changed",
+        allowWhenIdle: true,
+    });
+    res.json({
+        code: "agent_objective_updated",
+        agentId,
+        objective,
+        wake,
+        brain: await services.agentState.getBrainState(agentId),
+    });
+}));
+
+router.get("/agents/:agentId/journal", requireJwt, asyncHandler(async (req, res) => {
+    const { services, agentId } = await resolveAgentContext(req);
+    if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
+        return res.status(403).json({ error: "Cannot inspect another agent journal.", code: "agent_scope_forbidden" });
+    }
+    const [journal, memorySummary] = await Promise.all([
+        services.agentState.getJournal(agentId, Number(req.query.limit || 40)),
+        services.agentState.getMemorySummary(agentId),
+    ]);
+    res.json({
+        code: "agent_journal_loaded",
+        agentId,
+        journal,
+        memorySummary,
+    });
+}));
+
+router.post("/agents/:agentId/chat", requireJwt, asyncHandler(async (req, res) => {
+    const { services, agentId, ownerPublicKey, agentPublicKey } = await resolveAgentContext(req);
+    if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
+        return res.status(403).json({ error: "Cannot chat with another managed agent.", code: "agent_scope_forbidden" });
+    }
+    const message = String(req.body?.message || "").trim();
+    if (!message) {
+        return res.status(400).json({ error: "message is required", code: "chat_message_required" });
+    }
+
+    const state = await loadAgentStateBundle(services, {
+        agentId,
+        ownerPublicKey,
+        agentPublicKey,
+    });
+    await services.agentState.appendChatMessage(agentId, {
+        role: "user",
+        content: message,
+    });
+    const memorySummary = await services.agentState.getMemorySummary(agentId);
+    const response = await services.agentBrain.chat({
+        message,
+        objective: state.objective,
+        brainState: state.brain,
+        context: {
+            liquidity: state.liquidity,
+            runtime: state.runtime,
+            positions: state.positions,
+            treasury: state.treasury,
+            performance: state.performance,
+        },
+        recentMessages: state.chatPreview,
+        memorySummary: memorySummary.summary || "",
+    });
+
+    let objective = state.objective;
+    if (response.objectivePatch) {
+        objective = await services.agentState.setObjective(agentId, response.objectivePatch);
+        await services.agentState.appendDecision(agentId, {
+            type: "decision",
+            message: "Agent objective updated from chat",
+            detail: `${objective.style} strategy · ${objective.goal}`,
+        });
+    }
+
+    const assistantMessage = await services.agentState.appendChatMessage(agentId, {
+        role: "assistant",
+        content: response.reply,
+        metadata: {
+            degradedMode: Boolean(response.degradedMode),
+            wakeReason: response.wakeReason || "chat_message",
+        },
+    });
+    const journalEntry = await services.agentState.appendJournal(agentId, {
+        kind: "conversation",
+        message: "Agent conversation updated",
+        detail: response.reply,
+        rationale: "",
+        metadata: {
+            degradedMode: Boolean(response.degradedMode),
+            wakeReason: response.wakeReason || "chat_message",
+        },
+    });
+    const updatedMessages = await services.agentState.getChatMessages(agentId, 20);
+    const summary = await services.agentBrain.summarize({
+        objective,
+        journal: await services.agentState.getJournal(agentId, 10),
+        recentMessages: updatedMessages.slice(-8),
+    });
+    await services.agentState.setMemorySummary(agentId, {
+        summary,
+        sourceCount: updatedMessages.length,
+    });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: response.wakeReason || "chat_message",
+        allowWhenIdle: true,
+    });
+
+    res.json({
+        code: "agent_chat_complete",
+        agentId,
+        reply: response.reply,
+        objective,
+        brain: await services.agentState.getBrainState(agentId),
+        wake,
+        degradedMode: Boolean(response.degradedMode),
+        degradedReason: response.degradedReason || "",
+        messages: updatedMessages,
+        journalPreview: [journalEntry],
+        assistantMessage,
     });
 }));
 
@@ -1212,7 +1474,7 @@ router.get("/agents/:agentId/screens", requireJwt, asyncHandler(async (req, res)
 }));
 
 router.post("/agents/:agentId/screens", requireJwt, asyncHandler(async (req, res) => {
-    const { services, agentId } = await resolveAgentContext(req);
+    const { services, agentId, ownerPublicKey } = await resolveAgentContext(req);
     if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
         return res.status(403).json({ error: "Cannot update another agent screen set.", code: "agent_scope_forbidden" });
     }
@@ -1234,10 +1496,17 @@ router.post("/agents/:agentId/screens", requireJwt, asyncHandler(async (req, res
             activeFilterCount: Number(summary.activeFilterCount || 0),
         },
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "screen_updated",
+        allowWhenIdle: true,
+    });
     res.status(201).json({
         code: "agent_screen_saved",
         agentId,
         screen,
+        wake,
     });
 }));
 
@@ -1268,7 +1537,7 @@ router.get("/agents/:agentId/watchlist", requireJwt, asyncHandler(async (req, re
 }));
 
 router.post("/agents/:agentId/watchlist", requireJwt, asyncHandler(async (req, res) => {
-    const { services, agentId } = await resolveAgentContext(req);
+    const { services, agentId, ownerPublicKey } = await resolveAgentContext(req);
     if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
         return res.status(403).json({ error: "Cannot update another agent watchlist.", code: "agent_scope_forbidden" });
     }
@@ -1281,10 +1550,17 @@ router.post("/agents/:agentId/watchlist", requireJwt, asyncHandler(async (req, r
             tokenId: asset.tokenId,
         },
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "watchlist_updated",
+        allowWhenIdle: true,
+    });
     res.status(201).json({
         code: "agent_watchlist_added",
         agentId,
         asset,
+        wake,
     });
 }));
 
@@ -1328,7 +1604,7 @@ router.get("/agents/:agentId/mandate", requireJwt, asyncHandler(async (req, res)
 }));
 
 router.post("/agents/:agentId/mandate", requireJwt, asyncHandler(async (req, res) => {
-    const { services, agentId } = await resolveAgentContext(req);
+    const { services, agentId, ownerPublicKey } = await resolveAgentContext(req);
     if (normalizeAddress(req.params.agentId) !== normalizeAddress(agentId)) {
         return res.status(403).json({ error: "Cannot update another agent mandate.", code: "agent_scope_forbidden" });
     }
@@ -1338,10 +1614,17 @@ router.post("/agents/:agentId/mandate", requireJwt, asyncHandler(async (req, res
         message: "Agent mandate updated",
         detail: `Liquidity floor ${mandate.liquidityFloorPct}% · approval threshold ${mandate.approvalThreshold} USDC`,
     });
+    const wake = await services.agentRuntime.requestWake({
+        agentId,
+        ownerPublicKey,
+        reason: "mandate_changed",
+        allowWhenIdle: true,
+    });
     res.json({
         code: "agent_mandate_updated",
         agentId,
         mandate,
+        wake,
     });
 }));
 

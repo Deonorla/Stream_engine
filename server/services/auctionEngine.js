@@ -217,6 +217,12 @@ class AuctionEngine {
             });
         }
 
+        const previousHighestBid = auction.highestBid
+            ? {
+                ...auction.highestBid,
+                bidderOwnerPublicKey: auction.highestBid.bidderOwnerPublicKey || "",
+            }
+            : null;
         const wallet = await this.agentWallet.getWallet(bidderOwnerPublicKey);
         if (!wallet?.publicKey) {
             throw Object.assign(new Error("Managed agent wallet not found for this bidder."), {
@@ -408,6 +414,7 @@ class AuctionEngine {
         return {
             bid,
             auction: await this.getAuction(auctionId),
+            previousHighestBid,
         };
     }
 

@@ -37,6 +37,10 @@ function defaultRuntime(agentId = "") {
             screenHighlights: [],
             watchlistHighlights: [],
             bidFocus: null,
+            plannedAction: null,
+            blockedBy: "",
+            degradedMode: false,
+            wakeReason: "",
         },
         fingerprints: {
             opportunities: "",
@@ -201,6 +205,71 @@ function defaultMandate(agentId = "") {
     };
 }
 
+function defaultObjective(agentId = "") {
+    return {
+        agentId: String(agentId).toUpperCase(),
+        goal: "Grow capital safely through productive RWA opportunities.",
+        style: "balanced",
+        instructions: "",
+        updatedAt: nowSeconds(),
+    };
+}
+
+function mergeObjective(agentId, payload = {}, current = defaultObjective(agentId)) {
+    return {
+        ...current,
+        agentId: String(agentId).toUpperCase(),
+        goal: String(payload.goal ?? current.goal ?? "").trim() || current.goal,
+        style: String(payload.style ?? current.style ?? "balanced").trim() || "balanced",
+        instructions: String(payload.instructions ?? current.instructions ?? "").trim(),
+        updatedAt: nowSeconds(),
+    };
+}
+
+function defaultBrainState(agentId = "") {
+    return {
+        agentId: String(agentId).toUpperCase(),
+        status: "idle",
+        currentThesis: "",
+        nextAction: null,
+        confidence: 0,
+        wakeReason: "",
+        blockedBy: "",
+        degradedMode: false,
+        degradedReason: "",
+        provider: "",
+        model: "",
+        lastModelRunAt: 0,
+        lastDecisionAt: 0,
+        updatedAt: nowSeconds(),
+    };
+}
+
+function defaultJournal(agentId = "") {
+    return {
+        agentId: String(agentId).toUpperCase(),
+        entries: [],
+        updatedAt: nowSeconds(),
+    };
+}
+
+function defaultChatHistory(agentId = "") {
+    return {
+        agentId: String(agentId).toUpperCase(),
+        messages: [],
+        updatedAt: nowSeconds(),
+    };
+}
+
+function defaultMemorySummary(agentId = "") {
+    return {
+        agentId: String(agentId).toUpperCase(),
+        summary: "",
+        sourceCount: 0,
+        updatedAt: nowSeconds(),
+    };
+}
+
 function defaultSavedScreens(agentId = "") {
     return {
         agentId: String(agentId).toUpperCase(),
@@ -320,6 +389,11 @@ class AgentStateService {
         await this.store.upsertRecord(agentKey(agentId, "screens"), defaultSavedScreens(agentId));
         await this.store.upsertRecord(agentKey(agentId, "watchlist"), defaultWatchlist(agentId));
         await this.store.upsertRecord(agentKey(agentId, "runtime"), defaultRuntime(agentId));
+        await this.store.upsertRecord(agentKey(agentId, "objective"), defaultObjective(agentId));
+        await this.store.upsertRecord(agentKey(agentId, "brain"), defaultBrainState(agentId));
+        await this.store.upsertRecord(agentKey(agentId, "journal"), defaultJournal(agentId));
+        await this.store.upsertRecord(agentKey(agentId, "chat"), defaultChatHistory(agentId));
+        await this.store.upsertRecord(agentKey(agentId, "memory-summary"), defaultMemorySummary(agentId));
         return profile;
     }
 
@@ -338,6 +412,97 @@ class AgentStateService {
     async getMandate(agentId) {
         const mandate = await this.store.getRecord(agentKey(agentId, "mandate"));
         return mandate || defaultMandate(agentId);
+    }
+
+    async getObjective(agentId) {
+        const objective = await this.store.getRecord(agentKey(agentId, "objective"));
+        return objective || defaultObjective(agentId);
+    }
+
+    async setObjective(agentId, payload = {}) {
+        const current = await this.getObjective(agentId);
+        const next = mergeObjective(agentId, payload, current);
+        await this.store.upsertRecord(agentKey(agentId, "objective"), next);
+        return next;
+    }
+
+    async getBrainState(agentId) {
+        return (await this.store.getRecord(agentKey(agentId, "brain"))) || defaultBrainState(agentId);
+    }
+
+    async setBrainState(agentId, brain = {}) {
+        const next = {
+            ...(await this.getBrainState(agentId)),
+            ...brain,
+            agentId: String(agentId).toUpperCase(),
+            updatedAt: nowSeconds(),
+        };
+        await this.store.upsertRecord(agentKey(agentId, "brain"), next);
+        return next;
+    }
+
+    async getJournal(agentId, limit = 50) {
+        const journal = await this.store.getRecord(agentKey(agentId, "journal"));
+        const entries = Array.isArray(journal?.entries) ? journal.entries : [];
+        return entries.slice(-Math.max(1, Number(limit) || 50)).reverse();
+    }
+
+    async appendJournal(agentId, entry = {}) {
+        const journal = await this.store.getRecord(agentKey(agentId, "journal")) || defaultJournal(agentId);
+        const nextEntry = {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            ts: Date.now(),
+            kind: entry.kind || "observation",
+            message: entry.message || "",
+            detail: entry.detail || "",
+            rationale: entry.rationale || "",
+            blockedBy: entry.blockedBy || "",
+            proposedAction: entry.proposedAction || null,
+            executedAction: entry.executedAction || null,
+            result: entry.result || null,
+            performanceImpact: entry.performanceImpact || null,
+            metadata: entry.metadata || {},
+        };
+        journal.entries = [...(Array.isArray(journal.entries) ? journal.entries : []), nextEntry].slice(-200);
+        journal.updatedAt = nowSeconds();
+        await this.store.upsertRecord(agentKey(agentId, "journal"), journal);
+        return nextEntry;
+    }
+
+    async getChatMessages(agentId, limit = 30) {
+        const chat = await this.store.getRecord(agentKey(agentId, "chat"));
+        const messages = Array.isArray(chat?.messages) ? chat.messages : [];
+        return messages.slice(-Math.max(1, Number(limit) || 30));
+    }
+
+    async appendChatMessage(agentId, message = {}) {
+        const chat = await this.store.getRecord(agentKey(agentId, "chat")) || defaultChatHistory(agentId);
+        const nextMessage = {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            ts: Date.now(),
+            role: message.role || "assistant",
+            content: message.content || "",
+            metadata: message.metadata || {},
+        };
+        chat.messages = [...(Array.isArray(chat.messages) ? chat.messages : []), nextMessage].slice(-80);
+        chat.updatedAt = nowSeconds();
+        await this.store.upsertRecord(agentKey(agentId, "chat"), chat);
+        return nextMessage;
+    }
+
+    async getMemorySummary(agentId) {
+        return (await this.store.getRecord(agentKey(agentId, "memory-summary"))) || defaultMemorySummary(agentId);
+    }
+
+    async setMemorySummary(agentId, payload = {}) {
+        const next = {
+            ...(await this.getMemorySummary(agentId)),
+            ...payload,
+            agentId: String(agentId).toUpperCase(),
+            updatedAt: nowSeconds(),
+        };
+        await this.store.upsertRecord(agentKey(agentId, "memory-summary"), next);
+        return next;
     }
 
     async getSavedScreens(agentId) {
@@ -685,6 +850,8 @@ module.exports = {
     AgentStateService,
     defaultRuntime,
     defaultMandate,
+    defaultObjective,
     mergeMandate,
     defaultPerformance,
+    defaultBrainState,
 };

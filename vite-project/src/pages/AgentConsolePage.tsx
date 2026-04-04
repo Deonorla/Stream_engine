@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart2, Bot, Copy, Pause, Play,
   RefreshCw, Settings, Store, Target, TrendingUp, Wallet, X,
-  Zap, ChevronDown, ChevronUp, ArrowUpRight, Search, Send,
+  Zap, ChevronDown, ChevronUp, ArrowUpRight,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
-import { useToast } from '../components/ui';
 import { useAgentWallet } from '../hooks/useAgentWallet';
 import { useAgentLoopContext } from '../context/AgentLoopContext';
 import { paymentTokenSymbol, settlementRecipientAddress } from '../contactInfo.js';
 import {
   cancelAgentPaymentSession,
+  chatWithAgent,
   claimMarketYield,
   fetchAgentMandate,
   fetchAgentState,
@@ -24,6 +24,7 @@ import {
   rebalanceMarketTreasury,
   routeMarketYield,
   saveAgentMandate,
+  saveAgentObjective,
   settleAuction,
   tickAgentRuntime,
 } from '../services/rwaApi.js';
@@ -51,6 +52,12 @@ type MandateDraft = {
   allowedTreasuryStrategies: string[];
   maxDrawdownPct: string;
   rebalanceCadenceMinutes: string;
+};
+
+type ObjectiveDraft = {
+  goal: string;
+  style: string;
+  instructions: string;
 };
 
 const ASSET_CLASS_OPTIONS = [
@@ -106,7 +113,8 @@ function LogRow({ entry }: { entry: LogEntry }) {
   const cfg = icons[entry.type] || icons.info;
   const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0 group">
+    <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+      className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0 group">
       <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${cfg.bg}`}>
         <cfg.Icon size={13} className={cfg.color} />
       </div>
@@ -118,9 +126,9 @@ function LogRow({ entry }: { entry: LogEntry }) {
         {entry.amount && (
           <p className={`text-xs font-bold ${entry.amount.startsWith('+') ? 'text-emerald-600' : 'text-red-500'}`}>{entry.amount}</p>
         )}
-        <p className="text-[10px] text-slate-600 mt-0.5">{time}</p>
+        <p className="text-[10px] text-slate-300 mt-0.5">{time}</p>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -188,8 +196,13 @@ export default function AgentConsolePage() {
     maxDrawdownPct: '20',
     rebalanceCadenceMinutes: '60',
   });
+  const [objectiveDraft, setObjectiveDraft] = useState<ObjectiveDraft>({
+    goal: 'Grow capital safely through productive RWA opportunities.',
+    style: 'balanced',
+    instructions: '',
+  });
   const [savingMandate, setSavingMandate] = useState(false);
-  const toast = useToast();
+  const [savingObjective, setSavingObjective] = useState(false);
   const [runtimeActionError, setRuntimeActionError] = useState('');
   const [settlePendingAuctionId, setSettlePendingAuctionId] = useState<number | null>(null);
   const [rebidPendingAuctionId, setRebidPendingAuctionId] = useState<number | null>(null);
@@ -207,23 +220,9 @@ export default function AgentConsolePage() {
   const [yieldClaimError, setYieldClaimError] = useState('');
   const [yieldRouteStatus, setYieldRouteStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
   const [yieldRouteError, setYieldRouteError] = useState('');
-
-  // Due diligence
-  const [diligenceTokenId, setDiligenceTokenId] = useState<string | null>(null);
-  const [diligenceResult, setDiligenceResult] = useState<any>(null);
-  const [diligenceBusy, setDiligenceBusy] = useState(false);
-
-  // Asset transfer
-  const [transferTokenId, setTransferTokenId] = useState<string | null>(null);
-  const [transferTo, setTransferTo] = useState('');
-  const [transferBusy, setTransferBusy] = useState(false);
-  const [transferMsg, setTransferMsg] = useState('');
-
-  // Flash yield advance
-  const [advanceTokenId, setAdvanceTokenId] = useState('');
-  const [advanceAmount, setAdvanceAmount] = useState('');
-  const [advanceBusy, setAdvanceBusy] = useState(false);
-  const [advanceMsg, setAdvanceMsg] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatPending, setChatPending] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   const activeState = contextState || state;
   const runtime = activeState?.runtime || {};
@@ -232,6 +231,7 @@ export default function AgentConsolePage() {
   );
 
   const doRefreshState = useCallback(async () => {
+    if (!agentPublicKey) { setState(null); setWalletSnapshot(null); return; }
     await refreshLoopState(agentPublicKey);
     try {
       const [agentState, assets, mandate, wallet] = await Promise.all([
@@ -258,73 +258,27 @@ export default function AgentConsolePage() {
           rebalanceCadenceMinutes: String(mandate.rebalanceCadenceMinutes ?? 60),
         });
       }
+      if (agentState?.objective) {
+        setObjectiveDraft({
+          goal: String(agentState.objective.goal || 'Grow capital safely through productive RWA opportunities.'),
+          style: String(agentState.objective.style || 'balanced'),
+          instructions: String(agentState.objective.instructions || ''),
+        });
+      }
     } catch (loadError) { console.error(loadError); }
   }, [agentPublicKey, refreshLoopState]);
 
-  const runDiligence = useCallback(async (tokenId: string) => {
-    setDiligenceTokenId(tokenId); setDiligenceResult(null); setDiligenceBusy(true);
-    try {
-      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
-      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
-      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/diligence/${tokenId}`, { headers: { ...agentAuthHeaders() } });
-      setDiligenceResult(await res.json());
-    } catch (e: any) { setDiligenceResult({ error: e.message }); }
-    setDiligenceBusy(false);
-  }, []);
-
-  const runTransfer = useCallback(async () => {
-    if (!transferTokenId || !transferTo) return;
-    setTransferBusy(true); setTransferMsg('');
-    try {
-      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
-      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
-      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/assets/transfer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...agentAuthHeaders() },
-        body: JSON.stringify({ tokenId: transferTokenId, to: transferTo }),
-      });
-      const data = await res.json();
-      setTransferMsg(res.ok ? `✓ Transferred Twin #${transferTokenId}` : (data.error || 'Failed'));
-      if (res.ok) { setTransferTokenId(null); setTransferTo(''); await doRefreshState(); }
-    } catch (e: any) { setTransferMsg(e.message); }
-    setTransferBusy(false);
-  }, [transferTokenId, transferTo, doRefreshState]);
-
-  const runFlashAdvance = useCallback(async () => {
-    if (!advanceTokenId || !advanceAmount) return;
-    setAdvanceBusy(true); setAdvanceMsg('');
-    try {
-      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
-      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
-      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/yield/advance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...agentAuthHeaders() },
-        body: JSON.stringify({ tokenId: advanceTokenId, amount: advanceAmount }),
-      });
-      const data = await res.json();
-      setAdvanceMsg(res.ok ? `✓ Advanced ${advanceAmount} USDC on Twin #${advanceTokenId}` : (data.error || 'Failed'));
-      if (res.ok) await doRefreshState();
-    } catch (e: any) { setAdvanceMsg(e.message); }
-    setAdvanceBusy(false);
-  }, [advanceTokenId, advanceAmount, doRefreshState]);
-
   useEffect(() => { void doRefreshState(); }, [doRefreshState]);
-
-  const [agentStarting, setAgentStarting] = useState(false);
 
   const startAgent = useCallback(async () => {
     if (!agentPublicKey) return;
     setRuntimeActionError('');
-    setAgentStarting(true);
     try {
       await ctxStart(agentPublicKey);
-      await doRefreshState();
     } catch (runtimeError: any) {
       setRuntimeActionError(runtimeError.message || 'Failed to start the managed runtime.');
-    } finally {
-      setAgentStarting(false);
     }
-  }, [agentPublicKey, ctxStart, doRefreshState]);
+  }, [agentPublicKey, ctxStart]);
 
   const pauseAgent = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -365,11 +319,24 @@ export default function AgentConsolePage() {
         rebalanceCadenceMinutes: Number(mandateDraft.rebalanceCadenceMinutes || 60),
       });
       await doRefreshState();
-      toast.success('Mandate saved successfully.', { title: 'Live Mandate' });
     } finally {
       setSavingMandate(false);
     }
-  }, [agentPublicKey, mandateDraft, doRefreshState, toast]);
+  }, [agentPublicKey, mandateDraft, doRefreshState]);
+
+  const saveObjective = useCallback(async () => {
+    if (!agentPublicKey) return;
+    setSavingObjective(true);
+    setChatError('');
+    try {
+      await saveAgentObjective(agentPublicKey, objectiveDraft);
+      await doRefreshState();
+    } catch (objectiveError: any) {
+      setChatError(objectiveError?.message || 'Could not save the agent objective.');
+    } finally {
+      setSavingObjective(false);
+    }
+  }, [agentPublicKey, objectiveDraft, doRefreshState]);
 
   const runTreasuryOptimization = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -479,6 +446,28 @@ export default function AgentConsolePage() {
     } finally { setRebidPendingAuctionId(null); }
   }, [agentPublicKey, doRefreshState, treasurySessionId]);
 
+  const sendAgentChat = useCallback(async () => {
+    if (!agentPublicKey || !chatInput.trim()) return;
+    setChatPending(true);
+    setChatError('');
+    try {
+      const response = await chatWithAgent(agentPublicKey, chatInput.trim());
+      setChatInput('');
+      if (response?.objective) {
+        setObjectiveDraft({
+          goal: String(response.objective.goal || objectiveDraft.goal),
+          style: String(response.objective.style || objectiveDraft.style),
+          instructions: String(response.objective.instructions || objectiveDraft.instructions),
+        });
+      }
+      await doRefreshState();
+    } catch (chatFailure: any) {
+      setChatError(chatFailure?.message || 'Could not send the message to the agent.');
+    } finally {
+      setChatPending(false);
+    }
+  }, [agentPublicKey, chatInput, doRefreshState, objectiveDraft]);
+
   // Use shared context logs (sourced from server decisionLog) — fall back to local state
   const mergedLogs = useMemo<LogEntry[]>(() => {
     if (contextLogs.length > 0) return contextLogs;
@@ -489,8 +478,12 @@ export default function AgentConsolePage() {
   }, [contextLogs, activeState?.decisionLog]);
 
   const performance = activeState?.performance || {};
+  const objective = activeState?.objective || {};
+  const brain = activeState?.brain || {};
   const performanceAttribution = performance.attribution || {};
   const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
+  const journalPreview = Array.isArray(activeState?.journalPreview) ? activeState.journalPreview : [];
+  const chatPreview = Array.isArray(activeState?.chatPreview) ? activeState.chatPreview : [];
   const treasury = activeState?.treasury || { positions: [], summary: {} };
   const treasurySummary = treasury.summary || {};
   const treasuryHealth = treasurySummary.health || {};
@@ -518,6 +511,12 @@ export default function AgentConsolePage() {
   const screenHighlights = Array.isArray(runtime.lastSummary?.screenHighlights) ? runtime.lastSummary.screenHighlights : [];
   const watchlistHighlights = Array.isArray(runtime.lastSummary?.watchlistHighlights) ? runtime.lastSummary.watchlistHighlights : [];
   const bidFocus = runtime.lastSummary?.bidFocus || null;
+  const currentThesis = String(brain.currentThesis || '').trim() || 'The agent has not formed a visible thesis yet.';
+  const nextPlannedAction = String(brain?.nextAction?.actionType || runtime.lastSummary?.plannedAction?.actionType || 'hold').replace(/_/g, ' ');
+  const blockedBy = String(brain.blockedBy || runtime.lastSummary?.blockedBy || '').trim();
+  const wakeReason = String(brain.wakeReason || runtime.lastSummary?.wakeReason || 'scheduled').replace(/_/g, ' ');
+  const degradedMode = Boolean(brain.degradedMode);
+  const degradedReason = String(brain.degradedReason || '').trim();
   const reservationSummary = useMemo(() => ({
     leading: reservationExposure.filter((e: any) => e.isLeading).length,
     outbid: reservationExposure.filter((e: any) => e.status === 'outbid').length,
@@ -607,11 +606,9 @@ export default function AgentConsolePage() {
                 <Pause size={14} /> Pause
               </button>
             ) : (
-              <button onClick={startAgent} disabled={agentStarting}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all disabled:opacity-70">
-                {agentStarting
-                  ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Starting…</>
-                  : <><Play size={14} /> Run Agent</>}
+              <button onClick={startAgent}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">
+                <Play size={14} /> Run Agent
               </button>
             )}
           </div>
@@ -635,35 +632,117 @@ export default function AgentConsolePage() {
 
           {/* Decision Log */}
           <SectionCard title="Decision Log" icon={Activity} iconColor="text-blue-500"
-            action={<span className="text-[10px] font-bold text-slate-600">{mergedLogs.length} entries</span>}>
-            <div className="max-h-80 overflow-y-auto -mx-1 px-1" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>
+            action={
+              <span className="text-[10px] font-bold text-slate-400">{mergedLogs.length} entries</span>
+            }>
+            <div className="max-h-80 overflow-y-auto -mx-1 px-1">
               {mergedLogs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <Activity size={28} className="text-slate-200 mb-2" />
                   <p className="text-sm text-slate-400">No decisions yet — run the agent to start.</p>
                 </div>
-              ) : (
-                <>
-                  {[...mergedLogs].reverse().map(e => <LogRow key={`${e.id}-${e.ts}`} entry={e} />)}
-                </>
-              )}
+              ) : mergedLogs.map(e => <LogRow key={`${e.id}-${e.ts}`} entry={e} />)}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Objective & Chat" icon={Bot} iconColor="text-primary" collapsible
+            action={
+              <button onClick={() => void saveObjective()} disabled={!agentPublicKey || savingObjective}
+                className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
+                {savingObjective ? 'Saving…' : 'Save'}
+              </button>
+            }>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Goal</p>
+                  <textarea value={objectiveDraft.goal}
+                    onChange={e => setObjectiveDraft(c => ({ ...c, goal: e.target.value }))}
+                    rows={3}
+                    className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                </div>
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Style</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {['conservative', 'balanced', 'aggressive'].map(style => (
+                        <button key={style} type="button"
+                          onClick={() => setObjectiveDraft(c => ({ ...c, style }))}
+                          className={cn('rounded-full border px-3 py-1 text-xs font-bold transition-all',
+                            objectiveDraft.style === style ? 'border-blue-200 bg-blue-50 text-primary' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100')}>
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Instructions</p>
+                    <textarea value={objectiveDraft.instructions}
+                      onChange={e => setObjectiveDraft(c => ({ ...c, instructions: e.target.value }))}
+                      rows={4}
+                      placeholder="Prefer short-duration yield, avoid high-risk twins, watch vehicles..."
+                      className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-3">
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Agent Chat</p>
+                    <span className={cn('text-[10px] font-bold uppercase tracking-widest',
+                      degradedMode ? 'text-amber-600' : 'text-emerald-600')}>
+                      {degradedMode ? 'Degraded' : 'Healthy'}
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {chatPreview.length === 0 ? (
+                      <p className="text-sm text-slate-400">Ask the agent what it plans to do, why it held, or how you want it to trade.</p>
+                    ) : chatPreview.map((message: any) => (
+                      <div key={message.id} className={cn('rounded-xl border px-3 py-2',
+                        message.role === 'assistant' ? 'bg-white border-blue-100' : 'bg-white border-slate-100')}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">{message.role}</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{message.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <textarea value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      rows={3}
+                      placeholder="Why didn’t you bid? Focus more on vehicles. Tighten risk."
+                      className="flex-1 bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <button onClick={() => void sendAgentChat()} disabled={!agentPublicKey || chatPending || !chatInput.trim()}
+                      className="self-end rounded-xl bg-primary text-white text-xs font-bold px-3 py-2.5 hover:opacity-90 disabled:opacity-50 transition-all">
+                      {chatPending ? 'Sending…' : 'Send'}
+                    </button>
+                  </div>
+                  {chatError && <p className="text-xs text-red-500">{chatError}</p>}
+                </div>
+
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Objective Snapshot</p>
+                  <KV label="Current Style" value={String(objective.style || objectiveDraft.style || 'balanced')} />
+                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current Goal</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{String(objective.goal || objectiveDraft.goal || 'No goal set yet.')}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Instructions</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{String(objective.instructions || objectiveDraft.instructions || 'No extra strategy instructions yet.')}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionCard>
 
           {/* Mandate */}
           <SectionCard title="Live Mandate" icon={Settings} iconColor="text-primary" collapsible
             action={
-              <div className="flex items-center gap-2">
-                <button onClick={() => setShowSettings(v => !v)}
-                  className={cn('px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all',
-                    showSettings ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50')}>
-                  {showSettings ? 'Done' : 'Edit'}
-                </button>
-                <button onClick={() => void saveMandate()} disabled={!agentPublicKey || savingMandate}
-                  className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
-                  {savingMandate ? 'Saving…' : 'Save'}
-                </button>
-              </div>
+              <button onClick={() => void saveMandate()} disabled={!agentPublicKey || savingMandate}
+                className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
+                {savingMandate ? 'Saving…' : 'Save'}
+              </button>
             }>
             {showSettings && (
               <div className="space-y-4 mb-4">
@@ -742,6 +821,9 @@ export default function AgentConsolePage() {
               <KV label="Asset Classes" value={formatOptionList(activeState?.mandate?.approvedAssetClasses || mandateDraft.approvedAssetClasses, ASSET_CLASS_OPTIONS)} />
               <KV label="Treasury Strategies" value={formatOptionList(activeState?.mandate?.allowedTreasuryStrategies || mandateDraft.allowedTreasuryStrategies, TREASURY_STRATEGY_OPTIONS)} />
             </div>
+            <button onClick={() => setShowSettings(v => !v)} className="mt-3 text-xs font-bold text-slate-400 hover:text-primary transition-colors">
+              {showSettings ? 'Hide fields' : 'Edit fields'}
+            </button>
           </SectionCard>
 
           {/* Wallet + Treasury */}
@@ -888,22 +970,6 @@ export default function AgentConsolePage() {
                 {yieldClaimStatus === 'ok'   && <p className="text-xs text-emerald-600">✓ Yield claimed.</p>}
                 {yieldRouteStatus === 'err'  && <p className="text-xs text-red-500">{yieldRouteError}</p>}
                 {yieldRouteStatus === 'ok'   && <p className="text-xs text-emerald-600">✓ Yield routed.</p>}
-
-                {/* Flash Yield Advance */}
-                <div className="pt-2 border-t border-slate-100 space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Flash Yield Advance</p>
-                  <div className="flex gap-2">
-                    <input type="number" min="0" step="1" value={advanceTokenId} onChange={e => setAdvanceTokenId(e.target.value)}
-                      placeholder="Token ID" className="w-24 shrink-0 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                    <input type="number" min="0" step="0.01" value={advanceAmount} onChange={e => setAdvanceAmount(e.target.value)}
-                      placeholder="Amount USDC" className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                    <button onClick={() => void runFlashAdvance()} disabled={!agentPublicKey || !advanceTokenId || !advanceAmount || advanceBusy}
-                      className="rounded-xl border border-amber-200 text-amber-700 text-xs font-bold hover:bg-amber-50 disabled:opacity-50 px-3 py-2">
-                      {advanceBusy ? '…' : 'Advance'}
-                    </button>
-                  </div>
-                  {advanceMsg && <p className={`text-xs ${advanceMsg.startsWith('✓') ? 'text-emerald-600' : 'text-red-500'}`}>{advanceMsg}</p>}
-                </div>
               </div>
             </div>
 
@@ -950,6 +1016,51 @@ export default function AgentConsolePage() {
 
         {/* ── Right column ── */}
         <div className="space-y-5">
+
+          <SectionCard title="Autonomous Brain" icon={Bot} iconColor="text-primary">
+            <div className="space-y-3">
+              <div className={cn('rounded-xl border px-3 py-2.5 text-xs',
+                degradedMode ? 'border-amber-100 bg-amber-50 text-amber-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700')}>
+                {degradedMode
+                  ? (degradedReason || 'Platform LLM is unavailable, so the agent is using deterministic fallback planning.')
+                  : 'Planner is healthy. The agent is reasoning with the current objective, memory, liquidity, and live market state.'}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KV label="Next Action" value={nextPlannedAction} color="text-primary" />
+                <KV label="Wake Reason" value={wakeReason || 'scheduled'} />
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current Thesis</p>
+                <p className="text-sm text-slate-700 leading-relaxed">{currentThesis}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Why No Action / Blocker</p>
+                <p className="text-sm text-slate-600 leading-relaxed">{blockedBy || 'No blocker recorded. The planner has an executable path.'}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KV label="Confidence" value={`${Number(brain.confidence || 0)}%`} />
+                <KV label="Planner" value={String(brain.provider || 'fallback')} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Journal</p>
+                {journalPreview.length === 0 ? (
+                  <p className="text-sm text-slate-400">No journal entries yet. The next tick will persist the planner’s thesis here.</p>
+                ) : journalPreview.map((entry: any) => (
+                  <div key={entry.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold text-slate-800">{entry.message}</p>
+                      <span className="text-[10px] text-slate-300">
+                        {entry.ts ? new Date(Number(entry.ts)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+                    {(entry.detail || entry.blockedBy) && (
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{entry.detail || entry.blockedBy}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </SectionCard>
 
           {/* Runtime status */}
           <SectionCard title="Runtime" icon={BarChart2} iconColor="text-primary"
@@ -1030,34 +1141,12 @@ export default function AgentConsolePage() {
             {(positions.assets || []).length === 0 ? (
               <p className="text-sm text-slate-400">No asset twins acquired yet.</p>
             ) : (positions.assets || []).slice(0, 4).map((a: any) => (
-              <div key={a.tokenId} className="bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">Twin #{a.tokenId}</p>
-                    <p className="text-[10px] text-slate-400">{a.verificationStatusLabel || a.verificationStatus}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-emerald-600">{formatMoney(Number(a.claimableYield || 0)/1e7)}</span>
-                    <button onClick={() => setTransferTokenId(t => t === String(a.tokenId) ? null : String(a.tokenId))}
-                      className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-all">
-                      <Send size={10} /> Transfer
-                    </button>
-                  </div>
+              <div key={a.tokenId} className="flex items-center justify-between bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Twin #{a.tokenId}</p>
+                  <p className="text-[10px] text-slate-400">{a.verificationStatusLabel || a.verificationStatus}</p>
                 </div>
-                {transferTokenId === String(a.tokenId) && (
-                  <div className="flex gap-2">
-                    <input value={transferTo} onChange={e => setTransferTo(e.target.value)}
-                      placeholder="Destination address (G…)"
-                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200" />
-                    <button onClick={() => void runTransfer()} disabled={transferBusy || !transferTo}
-                      className="rounded-xl bg-primary text-white text-xs font-bold px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
-                      {transferBusy ? '…' : 'Send'}
-                    </button>
-                  </div>
-                )}
-                {transferTokenId === String(a.tokenId) && transferMsg && (
-                  <p className={`text-xs ${transferMsg.startsWith('✓') ? 'text-emerald-600' : 'text-red-500'}`}>{transferMsg}</p>
-                )}
+                <span className="text-xs font-bold text-emerald-600">{formatMoney(Number(a.claimableYield || 0)/1e7)}</span>
               </div>
             ))}
           </SectionCard>
@@ -1201,81 +1290,20 @@ export default function AgentConsolePage() {
               <p className="text-sm text-slate-400">No assets indexed yet.</p>
             ) : marketAssets.slice(0, 5).map((a: any) => (
               <motion.div key={a.tokenId} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                className="bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-bold text-slate-800">{a.publicMetadata?.name || a.name || `Asset #${a.tokenId}`}</p>
-                    <p className="text-[10px] text-slate-400">{a.market?.activeAuction ? `Auction #${a.market.activeAuction.auctionId}` : 'No active auction'}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn('text-[10px] font-bold px-2 py-1 rounded-full',
-                      a.market?.hasActiveAuction ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-500')}>
-                      {a.market?.hasActiveAuction ? 'Live' : 'Browse'}
-                    </span>
-                    <button onClick={() => { setDiligenceResult(null); void runDiligence(String(a.tokenId)); }}
-                      className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-all">
-                      <Search size={10} /> {diligenceBusy && diligenceTokenId === String(a.tokenId) ? '…' : 'Analyse'}
-                    </button>
-                  </div>
+                className="flex items-center justify-between bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2">
+                <div>
+                  <p className="text-xs font-bold text-slate-800">{a.publicMetadata?.name || a.name || `Asset #${a.tokenId}`}</p>
+                  <p className="text-[10px] text-slate-400">{a.market?.activeAuction ? `Auction #${a.market.activeAuction.auctionId}` : 'No active auction'}</p>
                 </div>
+                <span className={cn('text-[10px] font-bold px-2 py-1 rounded-full',
+                  a.market?.hasActiveAuction ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-500')}>
+                  {a.market?.hasActiveAuction ? 'Live' : 'Browse'}
+                </span>
               </motion.div>
             ))}
           </SectionCard>
         </div>
       </div>
-
-      {/* ── Due Diligence Modal ── */}
-      <AnimatePresence>
-        {diligenceResult && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Search size={15} className="text-primary" />
-                  <p className="text-sm font-bold text-slate-900">Due Diligence · Twin #{diligenceTokenId}</p>
-                </div>
-                <button onClick={() => { setDiligenceResult(null); setDiligenceTokenId(null); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
-              </div>
-              {diligenceResult.error ? (
-                <p className="text-xs text-red-500">{diligenceResult.error}</p>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex gap-2">
-                    <span className={cn('text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-widest',
-                      diligenceResult.verdict === 'buy' ? 'bg-emerald-50 text-emerald-600' :
-                      diligenceResult.verdict === 'hold' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600')}>
-                      {diligenceResult.verdict || 'N/A'}
-                    </span>
-                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 uppercase tracking-widest">
-                      Confidence: {diligenceResult.confidence || '—'}
-                    </span>
-                  </div>
-                  {diligenceResult.summary && <p className="text-xs text-slate-600 leading-relaxed">{diligenceResult.summary}</p>}
-                  {(diligenceResult.positives || []).length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Positives</p>
-                      {diligenceResult.positives.map((p: string, i: number) => <p key={i} className="text-xs text-slate-600">· {p}</p>)}
-                    </div>
-                  )}
-                  {(diligenceResult.risks || []).length > 0 && (
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-1">Risks</p>
-                      {diligenceResult.risks.map((r: string, i: number) => <p key={i} className="text-xs text-slate-600">· {r}</p>)}
-                    </div>
-                  )}
-                  {diligenceResult.yieldAssessment && (
-                    <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Yield Assessment</p>
-                      <p className="text-xs text-slate-600">{diligenceResult.yieldAssessment}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* ── Fund modal ── */}
       {showFundModal && agentPublicKey && (

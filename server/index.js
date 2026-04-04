@@ -26,6 +26,7 @@ const { createRuntimeConfig, resolveStellarRuntimeId, DEFAULT_STELLAR_DEPLOYMENT
 const { AgentWalletService } = require("./services/agentWalletService");
 const { AgentAuthService } = require("./services/agentAuthService");
 const { AgentStateService } = require("./services/agentStateService");
+const { AgentBrainService } = require("./services/agentBrainService");
 const { AgentRuntimeService } = require("./services/agentRuntimeService");
 const { AuctionEngine } = require("./services/auctionEngine");
 const { TreasuryManager } = require("./services/treasuryManager");
@@ -247,6 +248,10 @@ async function buildServices(config) {
         });
     }
 
+    if (!services.agentBrain) {
+        services.agentBrain = new AgentBrainService();
+    }
+
     if (!services.treasuryManager) {
         services.treasuryManager = new TreasuryManager({
             runtime: runtimeConfig,
@@ -273,6 +278,7 @@ async function buildServices(config) {
             chainService: services.chainService,
             agentWallet: services.agentWallet,
             agentState: services.agentState,
+            agentBrain: services.agentBrain,
             treasuryManager: services.treasuryManager,
             auctionEngine: services.auctionEngine,
         });
@@ -389,6 +395,7 @@ function createApp(config = defaultConfig) {
         app.locals.services = services;
         app.locals.agentWallet = services.agentWallet;
         app.locals.agentAuth = services.agentAuth;
+        app.locals.agentBrain = services.agentBrain;
         return services;
     });
 
@@ -1011,33 +1018,10 @@ function createApp(config = defaultConfig) {
     }));
 
     app.post("/api/agent/chat", asyncHandler(async (req, res) => {
-        const { message, context = {} } = req.body || {};
-        if (!message) {
-            return res.status(400).json({ error: "message is required" });
-        }
-
-        const apiKey = process.env.GEMINI_API_KEY;
-        if (!apiKey || apiKey === "your_gemini_api_key_here") {
-            return res.json({ reply: "Gemini API key is not configured. Add GEMINI_API_KEY to your .env to enable agent chat." });
-        }
-
-        const { GoogleGenerativeAI } = require("@google/generative-ai");
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-
-        const prompt = `You are Stream Engine Agent — an autonomous AI payment agent running on Stellar testnet.
-You can stream USDC or XLM per-second to any service, rent tokenized real-world assets, and manage payment sessions.
-
-Agent context:
-${JSON.stringify(context, null, 2)}
-
-Human instruction: ${message}
-
-Respond concisely. If the human is asking you to take an action (stream payment, rent asset, cancel session, claim earnings), describe exactly what you would do and what parameters you'd use. If it's a question, answer it directly.`;
-
-        const result = await model.generateContent(prompt);
-        const reply = (await result.response).text();
-        res.json({ reply });
+        res.status(410).json({
+            error: "Standalone agent chat is deprecated. Use the managed agent chat route at /api/agents/:agentId/chat.",
+            code: "agent_chat_deprecated",
+        });
     }));
 
     app.post("/api/rwa/relay", asyncHandler(async (req, res) => {

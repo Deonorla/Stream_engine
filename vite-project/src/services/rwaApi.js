@@ -293,6 +293,42 @@ export async function fetchAgentState(agentId) {
   return response.state || null;
 }
 
+export async function fetchAgentObjective(agentId) {
+  const response = await request(`/api/agents/${agentId}/objective`, {
+    method: 'GET',
+    headers: agentHeaders(),
+  });
+  return response.objective || null;
+}
+
+export async function saveAgentObjective(agentId, payload) {
+  const response = await request(`/api/agents/${agentId}/objective`, {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify(payload),
+  });
+  return response.objective || null;
+}
+
+export async function fetchAgentJournal(agentId, limit = 40) {
+  const response = await request(`/api/agents/${agentId}/journal`, {
+    method: 'GET',
+    headers: agentHeaders(),
+  }, { limit });
+  return {
+    journal: response.journal || [],
+    memorySummary: response.memorySummary || null,
+  };
+}
+
+export async function chatWithAgent(agentId, message) {
+  return request(`/api/agents/${agentId}/chat`, {
+    method: 'POST',
+    headers: agentHeaders(),
+    body: JSON.stringify({ message }),
+  });
+}
+
 export async function openAgentPaymentSession(agentId, payload) {
   return request(`/api/agents/${agentId}/sessions`, {
     method: 'POST',

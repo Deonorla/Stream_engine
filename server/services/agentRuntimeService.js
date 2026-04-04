@@ -31,6 +31,15 @@ function toDisplayAmount(value) {
     return (Number(value || 0) / 1e7).toFixed(2);
 }
 
+function findWalletBalance(walletState = {}, assetCode = "USDC", assetIssuer = "") {
+    const normalizedCode = String(assetCode || "USDC").toUpperCase();
+    const normalizedIssuer = String(assetIssuer || "");
+    return (walletState.balances || []).find((balance) => (
+        String(balance.assetCode || "").toUpperCase() === normalizedCode
+        && String(balance.assetIssuer || "") === normalizedIssuer
+    )) || null;
+}
+
 function fingerprint(value) {
     return crypto.createHash("sha1").update(JSON.stringify(value)).digest("hex");
 }
@@ -84,10 +93,13 @@ class AgentRuntimeService {
         this.chainService = config.chainService;
         this.agentWallet = config.agentWallet;
         this.agentState = config.agentState;
+        this.agentBrain = config.agentBrain;
         this.treasuryManager = config.treasuryManager;
         this.auctionEngine = config.auctionEngine || null;
         this.tickIntervalMs = Math.max(5000, Number(process.env.CONTINUUM_AGENT_TICK_MS || 15000));
         this.intervals = new Map();
+        this.wakeTimers = new Map();
+        this.pendingWakeReasons = new Map();
     }
 
     clearInterval(agentId) {
@@ -97,6 +109,16 @@ class AgentRuntimeService {
             clearInterval(existing);
             this.intervals.delete(key);
         }
+    }
+
+    clearWake(agentId) {
+        const key = String(agentId || "").toUpperCase();
+        const existing = this.wakeTimers.get(key);
+        if (existing) {
+            clearTimeout(existing);
+            this.wakeTimers.delete(key);
+        }
+        this.pendingWakeReasons.delete(key);
     }
 
     schedule(agentId, ownerPublicKey) {
@@ -109,8 +131,55 @@ class AgentRuntimeService {
         this.intervals.set(key, handle);
     }
 
+    async requestWake({ agentId, ownerPublicKey, reason = "event", allowWhenIdle = false }) {
+        const key = String(agentId || "").toUpperCase();
+        this.pendingWakeReasons.set(key, String(reason || "event"));
+        if (this.wakeTimers.has(key)) {
+            return { queued: true, reason: this.pendingWakeReasons.get(key) };
+        }
+
+        const handle = setTimeout(async () => {
+            this.wakeTimers.delete(key);
+            const wakeReason = this.pendingWakeReasons.get(key) || String(reason || "event");
+            this.pendingWakeReasons.delete(key);
+            const currentRuntime = await this.agentState.getRuntime(key);
+            if (!currentRuntime.running && !allowWhenIdle) {
+                await this.agentState.setBrainState(key, {
+                    status: "idle",
+                    wakeReason,
+                });
+                return;
+            }
+            await this.tick({
+                agentId: key,
+                ownerPublicKey,
+                reason: wakeReason,
+                previewOnly: !currentRuntime.running && allowWhenIdle,
+            });
+        }, 25);
+        handle.unref?.();
+        this.wakeTimers.set(key, handle);
+        return { queued: true, reason: this.pendingWakeReasons.get(key) };
+    }
+
+    async refreshMemorySummary(agentId, objective, journalEntries = [], chatMessages = []) {
+        if (!this.agentBrain) {
+            return this.agentState.getMemorySummary(agentId);
+        }
+        const summary = await this.agentBrain.summarize({
+            objective,
+            journal: journalEntries.slice(0, 12),
+            recentMessages: chatMessages.slice(-8),
+        });
+        return this.agentState.setMemorySummary(agentId, {
+            summary,
+            sourceCount: journalEntries.length + chatMessages.length,
+        });
+    }
+
     async start({ agentId, ownerPublicKey, executeTreasury = true, executeClaims = true }) {
         const normalizedAgentId = String(agentId || "").toUpperCase();
+        this.clearWake(normalizedAgentId);
         const runtime = await this.agentState.setRuntime(normalizedAgentId, {
             status: "running",
             running: true,
@@ -134,11 +203,16 @@ class AgentRuntimeService {
     async pause({ agentId }) {
         const normalizedAgentId = String(agentId || "").toUpperCase();
         this.clearInterval(normalizedAgentId);
+        this.clearWake(normalizedAgentId);
         const runtime = await this.agentState.setRuntime(normalizedAgentId, {
             status: "paused",
             running: false,
             pausedAt: nowSeconds(),
             nextTickAt: 0,
+        });
+        await this.agentState.setBrainState(normalizedAgentId, {
+            status: "paused",
+            wakeReason: "paused",
         });
         await this.agentState.appendDecision(normalizedAgentId, {
             type: "info",
@@ -380,7 +454,13 @@ class AgentRuntimeService {
                     tokenId,
                     opportunity,
                     nextBid,
+                    nextBidDisplay: formatStellarAmount(nextBid),
                     eligible: nextBid > 0n && nextBid <= approvalThreshold,
+                    blockedReason: nextBid <= 0n
+                        ? "No valid next bid is available."
+                        : nextBid > approvalThreshold
+                            ? "The next valid bid exceeds the approval threshold."
+                            : "",
                     prioritySource,
                     preferenceScore: Number(opportunity?.score || 0) + preferenceBoost,
                 };
@@ -388,9 +468,231 @@ class AgentRuntimeService {
             .sort((left, right) => right.preferenceScore - left.preferenceScore);
     }
 
-    async tick({ agentId, ownerPublicKey, reason = "manual" }) {
+    buildLiquidityContext({ walletState, mandate, reservations = [], treasury = {} }) {
+        const paymentAssetIssuer = this.chainService?.runtime?.paymentAssetIssuer || "";
+        const balanceRecord = findWalletBalance(walletState, "USDC", paymentAssetIssuer);
+        const walletBalance = normalizeStellarAmount(balanceRecord?.balance || "0");
+        const reservedAmount = reservations.reduce((sum, entry) => sum + BigInt(entry?.reservedAmount || "0"), 0n);
+        const treasuryDeployed = (treasury?.positions || []).reduce(
+            (sum, position) => sum + BigInt(position?.allocatedAmount || "0"),
+            0n,
+        );
+        const capitalBase = normalizeStellarAmount(mandate?.capitalBase || "0");
+        const floorPct = BigInt(Number(mandate?.liquidityFloorPct || 10));
+        const targetPct = BigInt(Number(mandate?.reservePolicy?.targetLiquidPct || 20));
+        const floorAmount = capitalBase > 0n ? (capitalBase * floorPct) / 100n : 0n;
+        const targetAmount = capitalBase > 0n ? (capitalBase * targetPct) / 100n : 0n;
+        const immediateBidHeadroom = walletBalance > floorAmount ? walletBalance - floorAmount : 0n;
+        return {
+            walletBalance: walletBalance.toString(),
+            walletBalanceDisplay: toDisplayAmount(walletBalance),
+            reservedAmount: reservedAmount.toString(),
+            reservedAmountDisplay: toDisplayAmount(reservedAmount),
+            treasuryDeployed: treasuryDeployed.toString(),
+            treasuryDeployedDisplay: toDisplayAmount(treasuryDeployed),
+            liquidityFloorAmount: floorAmount.toString(),
+            liquidityFloorAmountDisplay: toDisplayAmount(floorAmount),
+            targetReserveAmount: targetAmount.toString(),
+            targetReserveAmountDisplay: toDisplayAmount(targetAmount),
+            immediateBidHeadroom: immediateBidHeadroom.toString(),
+            immediateBidHeadroomDisplay: toDisplayAmount(immediateBidHeadroom),
+            outsideTargetBand: walletBalance < floorAmount || walletBalance > targetAmount,
+        };
+    }
+
+    validateDecisionProposal(proposal = {}, context = {}) {
+        const supported = new Set([
+            "analyze",
+            "bid",
+            "settle_auction",
+            "claim_yield",
+            "route_yield",
+            "rebalance_treasury",
+            "watch",
+            "hold",
+        ]);
+        const actionType = String(proposal?.actionType || "hold").trim().toLowerCase();
+        if (!supported.has(actionType)) {
+            return { valid: false, blockedBy: `Model proposed unsupported action "${actionType}".` };
+        }
+
+        if (["hold", "watch", "analyze"].includes(actionType)) {
+            return { valid: true, actionType, actionArgs: proposal.actionArgs || {} };
+        }
+
+        if (actionType === "bid") {
+            const auctionId = Number(proposal?.actionArgs?.auctionId || context?.bidFocus?.auctionId || 0);
+            const amount = String(
+                proposal?.actionArgs?.amount
+                || context?.bidFocus?.nextBidDisplay
+                || context?.bidFocus?.nextBidAmountDisplay
+                || ""
+            ).trim();
+            if (!auctionId || !amount) {
+                return { valid: false, blockedBy: "Bid proposal is missing an auction id or amount." };
+            }
+            if (context?.bidFocus && Number(context.bidFocus.auctionId) === auctionId && context.bidFocus.eligible === false) {
+                return { valid: false, blockedBy: context.bidFocus.blockedReason || "Top auction candidate is outside mandate limits." };
+            }
+            return { valid: true, actionType, actionArgs: { auctionId, amount } };
+        }
+
+        if (actionType === "settle_auction") {
+            const auctionId = Number(proposal?.actionArgs?.auctionId || context?.readySettlements?.[0]?.auctionId || 0);
+            if (!auctionId) {
+                return { valid: false, blockedBy: "No auction is currently ready to settle." };
+            }
+            return { valid: true, actionType, actionArgs: { auctionId } };
+        }
+
+        if (actionType === "claim_yield") {
+            const tokenId = Number(proposal?.actionArgs?.tokenId || context?.claimableAssets?.[0]?.tokenId || 0);
+            if (!tokenId) {
+                return { valid: false, blockedBy: "No claimable yield is currently available." };
+            }
+            return { valid: true, actionType, actionArgs: { tokenId } };
+        }
+
+        if (actionType === "route_yield") {
+            const tokenId = Number(proposal?.actionArgs?.tokenId || context?.claimableAssets?.[0]?.tokenId || 0);
+            return { valid: true, actionType, actionArgs: tokenId ? { tokenId } : {} };
+        }
+
+        if (actionType === "rebalance_treasury") {
+            if (!context?.capabilities?.treasury) {
+                return { valid: false, blockedBy: "Treasury automation is not enabled for this runtime." };
+            }
+            return { valid: true, actionType, actionArgs: {} };
+        }
+
+        return { valid: true, actionType, actionArgs: proposal.actionArgs || {} };
+    }
+
+    async executeDecision({
+        agentId,
+        ownerPublicKey,
+        proposal,
+        context,
+        currentRuntime,
+        previewOnly = false,
+    }) {
+        const actionType = String(proposal.actionType || "hold");
+        const executed = {
+            actionType,
+            actionArgs: proposal.actionArgs || {},
+            outcome: "skipped",
+            details: {},
+        };
+
+        if (["hold", "watch", "analyze"].includes(actionType) || !currentRuntime.running || previewOnly) {
+            return executed;
+        }
+
+        if (actionType === "settle_auction") {
+            const settlement = await this.auctionEngine.settleAuction({
+                auctionId: Number(proposal.actionArgs.auctionId),
+            });
+            return {
+                actionType,
+                actionArgs: proposal.actionArgs,
+                outcome: "executed",
+                details: {
+                    auctionId: Number(proposal.actionArgs.auctionId),
+                    txHash: settlement?.settlement?.txHash || "",
+                    settlement,
+                },
+            };
+        }
+
+        if (actionType === "bid") {
+            const result = await this.auctionEngine.placeBid({
+                auctionId: Number(proposal.actionArgs.auctionId),
+                bidderOwnerPublicKey: ownerPublicKey,
+                amount: proposal.actionArgs.amount,
+                note: "autonomous-brain",
+            });
+            await this.agentState.recordPaidActionFee(agentId, "500000", {
+                action: "auction_bid_auto",
+                auctionId: Number(proposal.actionArgs.auctionId),
+                assetId: Number(result?.auction?.assetId || 0),
+            });
+            return {
+                actionType,
+                actionArgs: proposal.actionArgs,
+                outcome: "executed",
+                details: {
+                    auctionId: Number(proposal.actionArgs.auctionId),
+                    bidId: Number(result?.bid?.bidId || 0),
+                    amount: result?.bid?.amountDisplay || proposal.actionArgs.amount,
+                },
+            };
+        }
+
+        if (actionType === "claim_yield") {
+            const claim = await this.agentWallet.claimYield({
+                owner: ownerPublicKey,
+                tokenId: Number(proposal.actionArgs.tokenId),
+            });
+            await this.agentState.recordRealizedYield(agentId, claim.amount || "0", {
+                message: `Agent auto-claimed yield on twin #${Number(proposal.actionArgs.tokenId)}`,
+                detail: `Transaction ${String(claim.txHash || "").slice(0, 12)}...`,
+            });
+            return {
+                actionType,
+                actionArgs: proposal.actionArgs,
+                outcome: "executed",
+                details: {
+                    tokenId: Number(proposal.actionArgs.tokenId),
+                    amount: claim.amount || "0",
+                    txHash: claim.txHash || "",
+                },
+            };
+        }
+
+        if (actionType === "route_yield") {
+            let claim = null;
+            if (proposal.actionArgs.tokenId) {
+                claim = await this.agentWallet.claimYield({
+                    owner: ownerPublicKey,
+                    tokenId: Number(proposal.actionArgs.tokenId),
+                });
+                await this.agentState.recordRealizedYield(agentId, claim.amount || "0", {
+                    message: `Agent auto-claimed yield on twin #${Number(proposal.actionArgs.tokenId)} before routing`,
+                });
+            }
+            const treasury = await this.treasuryManager.rebalance({ ownerPublicKey, agentId });
+            return {
+                actionType,
+                actionArgs: proposal.actionArgs,
+                outcome: "executed",
+                details: {
+                    tokenId: proposal.actionArgs.tokenId ? Number(proposal.actionArgs.tokenId) : null,
+                    claimAmount: claim?.amount || "0",
+                    treasuryPositions: Number(treasury?.positions?.length || 0),
+                },
+            };
+        }
+
+        if (actionType === "rebalance_treasury") {
+            const treasury = await this.treasuryManager.rebalance({ ownerPublicKey, agentId });
+            return {
+                actionType,
+                actionArgs: proposal.actionArgs,
+                outcome: "executed",
+                details: {
+                    treasuryPositions: Number(treasury?.positions?.length || 0),
+                    objective: treasury?.optimization?.objective || "",
+                },
+            };
+        }
+
+        return executed;
+    }
+
+    async tick({ agentId, ownerPublicKey, reason = "manual", previewOnly = false }) {
         const normalizedAgentId = String(agentId || "").toUpperCase();
         const currentRuntime = await this.agentState.getRuntime(normalizedAgentId);
+        const currentBrainState = await this.agentState.getBrainState(normalizedAgentId);
         const nextTickAt = currentRuntime.running
             ? nowSeconds() + Math.ceil(this.tickIntervalMs / 1000)
             : 0;
@@ -404,8 +706,32 @@ class AgentRuntimeService {
                 });
             }
 
-            const mandate = await this.agentState.getMandate(normalizedAgentId);
-            const [allAssets, ownedAssets, sessions, savedScreens, watchlist, activeAuctions] = await Promise.all([
+            const [
+                mandate,
+                objective,
+                treasury,
+                reservations,
+                walletState,
+                savedScreens,
+                watchlist,
+                recentMessages,
+                memorySummary,
+                recentJournal,
+                allAssets,
+                ownedAssets,
+                sessions,
+                activeAuctions,
+            ] = await Promise.all([
+                this.agentState.getMandate(normalizedAgentId),
+                this.agentState.getObjective(normalizedAgentId),
+                this.agentState.getTreasury(normalizedAgentId),
+                this.agentState.listOpenReservations(normalizedAgentId),
+                this.agentWallet.getBalances({ owner: ownerPublicKey }),
+                this.agentState.getSavedScreens(normalizedAgentId),
+                this.agentState.getWatchlist(normalizedAgentId),
+                this.agentState.getChatMessages(normalizedAgentId, 24),
+                this.agentState.getMemorySummary(normalizedAgentId),
+                this.agentState.getJournal(normalizedAgentId, 16),
                 this.chainService?.isConfigured?.()
                     ? this.chainService.listAssetSnapshots({ limit: 200 })
                     : this.store.listAssets(),
@@ -413,14 +739,10 @@ class AgentRuntimeService {
                     ? this.chainService.listAssetSnapshots({ owner: wallet.publicKey })
                     : this.store.listAssets({ owner: wallet.publicKey }),
                 this.chainService.listSessions({ owner: wallet.publicKey }),
-                this.agentState.getSavedScreens(normalizedAgentId),
-                this.agentState.getWatchlist(normalizedAgentId),
                 this.auctionEngine?.listAuctions
                     ? this.auctionEngine.listAuctions({ status: "active" })
                     : Promise.resolve([]),
             ]);
-
-            const settledAuctions = await this.settleReadyAuctions({ agentId: normalizedAgentId });
 
             const productiveAssets = allAssets.filter(productiveOnly);
             const approvedClasses = new Set(mandate.approvedAssetClasses || []);
@@ -466,31 +788,40 @@ class AgentRuntimeService {
                 maxRisk: 80,
             });
 
-            let autoClaims = 0;
-            if (currentRuntime.executeClaims !== false) {
-                const claimableAssets = ownedAssets
+            const liquidity = this.buildLiquidityContext({
+                walletState,
+                mandate,
+                reservations,
+                treasury,
+            });
+            const cadenceSeconds = Math.max(60, Number(mandate.rebalanceCadenceMinutes || 60) * 60);
+            const shouldRebalanceTreasury = Boolean(
+                currentRuntime.executeTreasury
+                && this.treasuryManager
+                && (
+                    !currentRuntime.lastRebalanceAt
+                    || nowSeconds() - Number(currentRuntime.lastRebalanceAt || 0) >= cadenceSeconds
+                    || liquidity.outsideTargetBand
+                )
+            );
+            const readySettlements = activeAuctions
+                .filter((auction) => Number(auction?.endTime || 0) > 0 && Number(auction.endTime) <= nowSeconds())
+                .map((auction) => ({
+                    auctionId: Number(auction.auctionId),
+                    assetId: Number(auction.assetId),
+                    highestBidder: String(auction.highestBid?.bidder || "").toUpperCase(),
+                    reserveMet: Boolean(auction.reserveMet),
+                }));
+            const claimableAssets = currentRuntime.executeClaims !== false
+                ? ownedAssets
                     .filter((asset) => BigInt(asset.claimableYield || "0") >= 10_000_000n)
-                    .slice(0, 3);
-                for (const asset of claimableAssets) {
-                    const compliance = await checkCompliance(this.chainService, {
-                        walletAddress: wallet.publicKey,
-                        asset,
-                        action: "claim",
-                    });
-                    if (!compliance.allowed) {
-                        continue;
-                    }
-                    const claim = await this.agentWallet.claimYield({
-                        owner: ownerPublicKey,
+                    .slice(0, 3)
+                    .map((asset) => ({
                         tokenId: Number(asset.tokenId),
-                    });
-                    await this.agentState.recordRealizedYield(normalizedAgentId, claim.amount || "0", {
-                        message: `Agent auto-claimed yield on twin #${Number(asset.tokenId)}`,
-                        detail: `Transaction ${String(claim.txHash || "").slice(0, 12)}...`,
-                    });
-                    autoClaims += 1;
-                }
-            }
+                        claimableYield: String(asset.claimableYield || "0"),
+                        claimableYieldDisplay: toDisplayAmount(asset.claimableYield || "0"),
+                    }))
+                : [];
 
             const prioritizedAuctions = this.buildBidFocus({
                 auctions: activeAuctions,
@@ -500,42 +831,222 @@ class AgentRuntimeService {
                 screenSignals,
                 watchlistSignals,
             });
-            const topBidFocus = prioritizedAuctions.find((entry) => entry.eligible) || prioritizedAuctions[0] || null;
-            const autoBids = settledAuctions.length > 0
-                ? []
-                : await this.maybePlaceAuctionBid({
-                    agentId: normalizedAgentId,
-                    ownerPublicKey,
-                    walletPublicKey: wallet.publicKey,
-                    opportunities,
-                    mandate,
-                    activeAuctions,
-                    screenSignals,
-                    watchlistSignals,
-                });
+            const topBidFocusCandidate = prioritizedAuctions[0] || null;
+            const noActionReason = opportunities.length === 0
+                ? "No approved assets currently clear the active mandate floor."
+                : prioritizedAuctions.length === 0
+                    ? "No live auctions match the current objective."
+                    : topBidFocusCandidate?.blockedReason || "The top live auction is outside the current guardrails.";
+            const topBidFocus = topBidFocusCandidate ? {
+                auctionId: Number(topBidFocusCandidate.auction.auctionId),
+                assetId: Number(topBidFocusCandidate.auction.assetId),
+                prioritySource: topBidFocusCandidate.prioritySource,
+                preferenceScore: Number(topBidFocusCandidate.preferenceScore || 0),
+                eligible: Boolean(topBidFocusCandidate.eligible),
+                nextBidDisplay: topBidFocusCandidate.nextBidDisplay,
+                blockedReason: topBidFocusCandidate.blockedReason || "",
+                confidence: Math.min(95, Math.max(45, Math.round(Number(topBidFocusCandidate.opportunity?.score || 0)))),
+            } : null;
 
-            let treasury = null;
-            let treasuryExecuted = false;
-            const cadenceSeconds = Math.max(60, Number(mandate.rebalanceCadenceMinutes || 60) * 60);
-            if (
-                currentRuntime.executeTreasury
-                && this.treasuryManager
-                && (
-                    !currentRuntime.lastRebalanceAt
-                    || nowSeconds() - Number(currentRuntime.lastRebalanceAt || 0) >= cadenceSeconds
-                )
-            ) {
-                treasury = await this.treasuryManager.rebalance({
-                    ownerPublicKey,
-                    agentId: normalizedAgentId,
+            const compactOpportunities = opportunities.slice(0, 5).map((entry) => ({
+                tokenId: Number(entry.tokenId),
+                assetType: assetClassLabel(entry.asset),
+                name: entry.name,
+                score: Number(entry.score || 0),
+                yieldRate: Number(entry.yieldRate || 0),
+                riskScore: Number(entry.riskScore || 0),
+            }));
+
+            const brainContext = {
+                objective,
+                market: {
+                    totalProductiveAssets: productiveAssets.length,
+                    liveAuctionCount: activeAuctions.length,
+                },
+                mandate: {
+                    approvedAssetClasses: mandate.approvedAssetClasses || [],
+                    approvalThreshold: mandate.approvalThreshold,
+                    issuerCapPct: mandate.issuerCapPct,
+                    assetCapPct: mandate.assetCapPct,
+                    liquidityFloorPct: mandate.liquidityFloorPct,
+                    allowedTreasuryStrategies: mandate.allowedTreasuryStrategies || [],
+                },
+                liquidity,
+                positions: {
+                    ownedAssets: ownedAssets.map((asset) => ({
+                        tokenId: Number(asset.tokenId),
+                        claimableYield: String(asset.claimableYield || "0"),
+                        verificationStatus: asset.verificationStatusLabel || asset.verificationStatus,
+                    })),
+                    sessionCount: Number(sessions.length || 0),
+                },
+                opportunities: compactOpportunities,
+                bidFocus: topBidFocus,
+                readySettlements,
+                claimableAssets,
+                screenSignals: screenSignals.slice(0, 4),
+                watchlistSignals: watchlistSignals.slice(0, 4),
+                riskAlerts: riskAlerts.slice(0, 4),
+                rebalanceActions: rebalanceActions.slice(0, 4).map((entry) => ({
+                    type: entry.type,
+                    tokenId: entry.tokenId || null,
+                    sessionId: entry.sessionId || null,
+                })),
+                shouldRebalanceTreasury,
+                treasury: {
+                    summary: treasury.summary || {},
+                    optimization: treasury.optimization || null,
+                },
+                capabilities: {
+                    trade: true,
+                    treasury: Boolean(currentRuntime.executeTreasury),
+                    claimYield: Boolean(currentRuntime.executeClaims),
+                },
+                noActionReason,
+            };
+
+            const decision = this.agentBrain
+                ? await this.agentBrain.decide({
+                    objective,
+                    context: brainContext,
+                    memorySummary: memorySummary.summary || "",
+                    wakeReason: reason,
+                })
+                : {
+                    proposal: {
+                        actionType: "hold",
+                        actionArgs: {},
+                        thesis: "Autonomous brain is unavailable.",
+                        rationale: noActionReason,
+                        confidence: 35,
+                        blockedBy: noActionReason,
+                        requiresHuman: false,
+                        wakeReason: reason,
+                    },
+                    degradedMode: true,
+                    degradedReason: "Agent brain service is unavailable.",
+                    provider: "",
+                    model: "",
+                };
+
+            let proposal = {
+                ...decision.proposal,
+                blockedBy: decision.proposal?.blockedBy || "",
+            };
+            const validation = this.validateDecisionProposal(proposal, brainContext);
+            if (!validation.valid) {
+                proposal = {
+                    ...proposal,
+                    actionType: "hold",
+                    actionArgs: {},
+                    blockedBy: validation.blockedBy,
+                    rationale: proposal.rationale || validation.blockedBy,
+                };
+            } else {
+                proposal = {
+                    ...proposal,
+                    actionType: validation.actionType,
+                    actionArgs: validation.actionArgs,
+                };
+            }
+
+            const executed = await this.executeDecision({
+                agentId: normalizedAgentId,
+                ownerPublicKey,
+                proposal,
+                context: brainContext,
+                currentRuntime,
+                previewOnly,
+            });
+
+            const effectiveBlockedBy = String(
+                proposal.blockedBy
+                || (executed.outcome === "skipped" && proposal.actionType !== "hold" && currentRuntime.running
+                    ? `The proposed ${proposal.actionType.replace(/_/g, " ")} action was recorded but not executed.`
+                    : "")
+            ).trim();
+
+            const nextAction = {
+                actionType: proposal.actionType,
+                actionArgs: proposal.actionArgs || {},
+                previewOnly: Boolean(previewOnly || !currentRuntime.running),
+            };
+            const nextBrainState = await this.agentState.setBrainState(normalizedAgentId, {
+                status: previewOnly || !currentRuntime.running
+                    ? "planned"
+                    : proposal.actionType === "hold"
+                        ? "monitoring"
+                        : "executing",
+                currentThesis: proposal.thesis || currentBrainState.currentThesis || "",
+                nextAction,
+                confidence: Number(proposal.confidence || 0),
+                wakeReason: reason,
+                blockedBy: effectiveBlockedBy,
+                degradedMode: Boolean(decision.degradedMode),
+                degradedReason: decision.degradedReason || "",
+                provider: decision.provider || "",
+                model: decision.model || "",
+                lastModelRunAt: nowSeconds(),
+                lastDecisionAt: nowSeconds(),
+            });
+
+            const decisionChanged = JSON.stringify({
+                thesis: nextBrainState.currentThesis,
+                actionType: nextBrainState.nextAction?.actionType || "hold",
+                blockedBy: nextBrainState.blockedBy || "",
+                degradedMode: nextBrainState.degradedMode,
+            }) !== JSON.stringify({
+                thesis: currentBrainState.currentThesis,
+                actionType: currentBrainState.nextAction?.actionType || "hold",
+                blockedBy: currentBrainState.blockedBy || "",
+                degradedMode: currentBrainState.degradedMode,
+            });
+
+            if (decisionChanged || executed.outcome === "executed") {
+                await this.agentState.appendJournal(normalizedAgentId, {
+                    kind: executed.outcome === "executed" ? "execution" : "plan",
+                    message: executed.outcome === "executed"
+                        ? `Executed ${proposal.actionType.replace(/_/g, " ")}`
+                        : `Planned ${proposal.actionType.replace(/_/g, " ")}`,
+                    detail: proposal.thesis || proposal.rationale || effectiveBlockedBy,
+                    rationale: proposal.rationale || "",
+                    blockedBy: effectiveBlockedBy,
+                    proposedAction: proposal,
+                    executedAction: executed.outcome === "executed" ? executed : null,
+                    result: executed,
+                    performanceImpact: executed.outcome === "executed" ? executed.details || {} : null,
+                    metadata: {
+                        wakeReason: reason,
+                        degradedMode: Boolean(decision.degradedMode),
+                    },
                 });
-                treasuryExecuted = true;
                 await this.agentState.appendDecision(normalizedAgentId, {
-                    type: "decision",
-                    message: "Treasury optimizer executed",
-                    detail: `${(treasury?.positions || []).length} live positions · target reserve ${(mandate.reservePolicy?.targetLiquidPct || 20)}%`,
+                    type: executed.outcome === "executed"
+                        ? "decision"
+                        : effectiveBlockedBy
+                            ? "info"
+                            : "decision",
+                    message: executed.outcome === "executed"
+                        ? `Autonomous agent executed ${proposal.actionType.replace(/_/g, " ")}`
+                        : proposal.actionType === "hold"
+                            ? "Autonomous agent held position"
+                            : `Autonomous agent planned ${proposal.actionType.replace(/_/g, " ")}`,
+                    detail: effectiveBlockedBy
+                        || (
+                            executed.outcome === "executed"
+                            && proposal.actionType === "bid"
+                            && topBidFocus?.prioritySource?.length
+                                ? `focus ${topBidFocus.prioritySource.join(" + ")} · ${proposal.rationale || proposal.thesis || ""}`.trim()
+                                : ""
+                        )
+                        || proposal.rationale
+                        || proposal.thesis
+                        || "The planner updated the next action.",
                 });
             }
+
+            const updatedJournal = await this.agentState.getJournal(normalizedAgentId, 16);
+            await this.refreshMemorySummary(normalizedAgentId, objective, updatedJournal, recentMessages);
 
             const opportunityFingerprint = fingerprint(
                 opportunities.map((entry) => ({
@@ -644,7 +1155,9 @@ class AgentRuntimeService {
                 running: currentRuntime.running,
                 lastTickAt: nowSeconds(),
                 lastScreenedAt: nowSeconds(),
-                lastRebalanceAt: treasuryExecuted ? nowSeconds() : currentRuntime.lastRebalanceAt,
+                lastRebalanceAt: executed.outcome === "executed" && ["rebalance_treasury", "route_yield"].includes(proposal.actionType)
+                    ? nowSeconds()
+                    : currentRuntime.lastRebalanceAt,
                 nextTickAt,
                 lastError: "",
                 lastErrorAt: 0,
@@ -653,21 +1166,19 @@ class AgentRuntimeService {
                     opportunities: opportunities.length,
                     riskAlerts: riskAlerts.length,
                     rebalanceActions: rebalanceActions.length,
-                    autoClaims,
-                    autoBids: autoBids.length,
-                    settledAuctions: settledAuctions.length,
-                    treasuryExecuted,
+                    autoClaims: executed.outcome === "executed" && ["claim_yield", "route_yield"].includes(proposal.actionType) ? 1 : 0,
+                    autoBids: executed.outcome === "executed" && proposal.actionType === "bid" ? 1 : 0,
+                    settledAuctions: executed.outcome === "executed" && proposal.actionType === "settle_auction" ? 1 : 0,
+                    treasuryExecuted: executed.outcome === "executed" && ["rebalance_treasury", "route_yield"].includes(proposal.actionType),
                     screenMatches: screenSignals.reduce((sum, entry) => sum + Number(entry.matches || 0), 0),
                     watchlistSignals: watchlistSignals.length,
                     screenHighlights: screenSignals.filter((entry) => entry.matches > 0).slice(0, 3),
                     watchlistHighlights: watchlistSignals.slice(0, 3),
-                    bidFocus: topBidFocus ? {
-                        auctionId: Number(topBidFocus.auction.auctionId),
-                        assetId: Number(topBidFocus.auction.assetId),
-                        prioritySource: topBidFocus.prioritySource,
-                        preferenceScore: Number(topBidFocus.preferenceScore || 0),
-                        eligible: Boolean(topBidFocus.eligible),
-                    } : null,
+                    bidFocus: topBidFocus,
+                    plannedAction: nextAction,
+                    blockedBy: effectiveBlockedBy,
+                    degradedMode: Boolean(decision.degradedMode),
+                    wakeReason: reason,
                 },
                 fingerprints: {
                     opportunities: opportunityFingerprint,
@@ -680,14 +1191,16 @@ class AgentRuntimeService {
 
             return {
                 runtime,
-                opportunities,
+                brain: nextBrainState,
+                objective,
+                journalPreview: updatedJournal.slice(0, 8),
+                opportunities: compactOpportunities,
                 screenSignals,
                 watchlistSignals,
                 riskAlerts,
                 rebalanceActions,
-                autoBids,
-                settledAuctions,
-                treasury,
+                liquidity,
+                executed,
                 portfolio: portfolio.summary,
             };
         } catch (error) {
@@ -700,6 +1213,20 @@ class AgentRuntimeService {
                 lastErrorAt: nowSeconds(),
                 heartbeatCount: Number(currentRuntime.heartbeatCount || 0) + 1,
             });
+            const brain = await this.agentState.setBrainState(normalizedAgentId, {
+                status: "error",
+                blockedBy: error.message || "Runtime tick failed",
+                wakeReason: reason,
+                lastModelRunAt: nowSeconds(),
+            });
+            await this.agentState.appendJournal(normalizedAgentId, {
+                kind: "error",
+                message: "Autonomous runtime tick failed",
+                detail: error.message || "Unknown runtime error",
+                blockedBy: error.message || "Unknown runtime error",
+                result: { outcome: "error" },
+                metadata: { wakeReason: reason },
+            });
             await this.agentState.appendDecision(normalizedAgentId, {
                 type: "error",
                 message: "Autonomous runtime tick failed",
@@ -707,14 +1234,15 @@ class AgentRuntimeService {
             });
             return {
                 runtime,
+                brain,
+                objective: await this.agentState.getObjective(normalizedAgentId),
+                journalPreview: await this.agentState.getJournal(normalizedAgentId, 8),
                 opportunities: [],
                 screenSignals: [],
                 watchlistSignals: [],
                 riskAlerts: [],
                 rebalanceActions: [],
-                autoBids: [],
-                settledAuctions: [],
-                treasury: null,
+                executed: null,
                 portfolio: null,
             };
         }
