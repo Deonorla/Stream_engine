@@ -81,7 +81,7 @@ const STELLAR_RUNTIME_COMPONENT_DEFAULTS = {
     name: "Stella's Stream Engine Session Meter",
     onchainName: "SessionMeter",
     group: "Payment Rail",
-    address: "CBC4DKMWZTHTA35LHKNWYNC5DNVT4VBRZLR7YF7HMZIDYJTAUECIAMHE",
+    address: "CDS4XG3PAOWRNFVFKMK7LKJEXFQIJXFAMX54F5T3EBNFLNOL3RMGSECX",
     role: "Reusable paid-session rail for x402-compatible API access, rentals, cancellation, and refunds.",
   },
   usdcSac: {
@@ -102,21 +102,21 @@ const STELLAR_RUNTIME_COMPONENT_DEFAULTS = {
     name: "Stella's Stream Engine RWA Registry",
     onchainName: "RwaRegistry",
     group: "RWA Rail",
-    address: "CCONFVNIUX6L7Y6DQVDGPZ53T76JOS6ATOPCCAPMWISRK7DVUXKQOSPV",
+    address: "CCQ7RAHNLTGH2CF5BNNWAGFJLCB6EUV76K5ZQ4CWU42VF3FGZ5PJHNYK",
     role: "Asset identity anchor for rights model, property reference hash, public metadata hash, evidence roots, and verification status.",
   },
   attestationRegistry: {
     name: "Stella's Stream Engine Attestation Registry",
     onchainName: "AttestationRegistry",
     group: "RWA Rail",
-    address: "CBI3Y36NC644R23TXN7LOQGCKPKEVIJYVNBKZZEXXD75HAFBAAOMMPAA",
+    address: "CCSNBJYDCM546LAUAVUFXABRWRCAP7U77TTEU4CKHNXYQMU7BEWTYCGJ",
     role: "Role-based attestation registry for lawyers, inspectors, valuers, insurers, registrars, issuers, and compliance operators.",
   },
   yieldVault: {
     name: "Stella's Stream Engine Yield Vault",
     onchainName: "YieldVault",
     group: "RWA Rail",
-    address: "CDZYOSO3LTHUXC3SL64SAGBT7JPNAMYPVS5EB2H5Y2M2MOLOIYLSQRHR",
+    address: "CBBAIM4NMQEZ5RX3ZIII7SLTZSG5GYZ6DOCEPTQV6N37NYPCYLBL6ZQO",
     role: "Asset-linked revenue engine that keeps future yield coupled to the current twin owner.",
   },
   policyService: {

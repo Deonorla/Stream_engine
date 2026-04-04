@@ -52,7 +52,7 @@ const sdk = new StreamEngineSDK({
 });
 
 const stream = await sdk.createStream(
-  'CBC4DKMWZTHTA35LHKNWYNC5DNVT4VBRZLR7YF7HMZIDYJTAUECIAMHE',
+  'CDS4XG3PAOWRNFVFKMK7LKJEXFQIJXFAMX54F5T3EBNFLNOL3RMGSECX',
   'stellar:usdc-sac',
   'G...provider_address',
   10_0000000n,

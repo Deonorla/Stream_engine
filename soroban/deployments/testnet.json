@@ -4,7 +4,7 @@
     "name": "Stellar Testnet",
     "rpcUrl": "https://soroban-testnet.stellar.org",
     "networkPassphrase": "Test SDF Network ; September 2015",
-    "updatedAt": "2026-03-31T15:40:44.389Z"
+    "updatedAt": "2026-04-04T07:24:42.620Z"
   },
   "operator": {
     "publicKey": "GCMMHHK5ARLWCNHQT7RANX6RGRM44I4LBQUW5NQGCLF34ONS645MXO3V"
@@ -12,25 +12,25 @@
   "contracts": {
     "sessionMeter": {
       "alias": "stream-engine-session-meter",
-      "contractId": "CBC4DKMWZTHTA35LHKNWYNC5DNVT4VBRZLR7YF7HMZIDYJTAUECIAMHE",
+      "contractId": "CDS4XG3PAOWRNFVFKMK7LKJEXFQIJXFAMX54F5T3EBNFLNOL3RMGSECX",
       "wasm": "soroban/dist/session_meter.wasm",
       "packageName": "session_meter"
     },
     "rwaRegistry": {
       "alias": "stream-engine-rwa-registry",
-      "contractId": "CCONFVNIUX6L7Y6DQVDGPZ53T76JOS6ATOPCCAPMWISRK7DVUXKQOSPV",
+      "contractId": "CCQ7RAHNLTGH2CF5BNNWAGFJLCB6EUV76K5ZQ4CWU42VF3FGZ5PJHNYK",
       "wasm": "soroban/dist/rwa_registry.wasm",
       "packageName": "rwa_registry"
     },
     "attestationRegistry": {
       "alias": "stream-engine-attestation-registry",
-      "contractId": "CBI3Y36NC644R23TXN7LOQGCKPKEVIJYVNBKZZEXXD75HAFBAAOMMPAA",
+      "contractId": "CCSNBJYDCM546LAUAVUFXABRWRCAP7U77TTEU4CKHNXYQMU7BEWTYCGJ",
       "wasm": "soroban/dist/attestation_registry.wasm",
       "packageName": "attestation_registry"
     },
     "yieldVault": {
       "alias": "stream-engine-yield-vault",
-      "contractId": "CDZYOSO3LTHUXC3SL64SAGBT7JPNAMYPVS5EB2H5Y2M2MOLOIYLSQRHR",
+      "contractId": "CBBAIM4NMQEZ5RX3ZIII7SLTZSG5GYZ6DOCEPTQV6N37NYPCYLBL6ZQO",
       "wasm": "soroban/dist/yield_vault.wasm",
       "packageName": "yield_vault"
     }

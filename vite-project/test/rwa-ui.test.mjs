@@ -93,21 +93,15 @@ test("Docs page source states the v2 legal boundary clearly", async () => {
   assert.match(source, /raw deeds, tax files, and inspections stay private/i);
 });
 
-test("Marketplace source surfaces autonomous attention and bid guardrails", async () => {
+test("Marketplace source keeps the lighter auction-first layout", async () => {
   const source = await fs.readFile(marketplacePagePath, "utf8");
 
-  assert.match(source, /Autonomous Attention/);
-  assert.match(source, /Agent Outcome Snapshot/);
-  assert.match(source, /Recent Market Outcomes/);
-  assert.match(source, /Recent Decisions/);
-  assert.match(source, /Continuum Session Rail/);
-  assert.match(source, /Open .* Session/);
-  assert.match(source, /End Session/);
-  assert.match(source, /Current Bid Focus/);
-  assert.match(source, /live shortlist hits, watchlist signals, and current bid focus/i);
-  assert.match(source, /Bid Guardrails/);
-  assert.match(source, /Max Guided Bid/);
-  assert.match(source, /Reserve Book/);
+  assert.match(source, /Discover, rent, and trade yield-bearing real-world assets/i);
+  assert.match(source, /Top Agents/);
+  assert.match(source, /My Positions/);
+  assert.match(source, /Premium Analytics/);
+  assert.match(source, /Timed Auction/);
+  assert.match(source, /Available Only/);
 });
 
 test("Agent Console source surfaces the managed session rail and widened mandate controls", async () => {
@@ -119,11 +113,13 @@ test("Agent Console source surfaces the managed session rail and widened mandate
   assert.match(source, /Asset Cap/);
   assert.match(source, /Max Drawdown/);
   assert.match(source, /Approved Asset Classes/);
-  assert.match(source, /Treasury Strategy Families/);
+  assert.match(source, /Treasury Strategies/);
   assert.match(source, /Equipment/);
   assert.match(source, /Blend Lending/);
-  assert.match(source, /Managed Session Rail/);
+  assert.match(source, /Session Rail/);
   assert.match(source, /Open .* Session/);
-  assert.match(source, /End Session/);
-  assert.match(source, /Treasury optimization, yield claim, yield routing, and paid rebids reuse this managed Continuum session/i);
+  assert.match(source, /\bEnd\b/);
+  assert.match(source, /Optimize Treasury/);
+  assert.match(source, /\bClaim\b/);
+  assert.match(source, /\bRoute\b/);
 });
