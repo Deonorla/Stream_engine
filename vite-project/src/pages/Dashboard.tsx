@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TrendingUp, ArrowUpRight, ArrowDownLeft, Store, Plus, Zap, Bot, Activity, Layers, Target, AlertTriangle, RefreshCw, Play, Pause, Wallet, X, KeyRound, PlusCircle, Copy, ShieldCheck, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/cn';
@@ -47,31 +47,30 @@ function MiniStreamRow({ stream, formatEth }) {
 
 function AgentLogRow({ entry }: { entry: any }) {
   const icons: any = {
-    action:   { Icon: Zap,           color: 'text-primary',    bg: 'bg-blue-50' },
-    decision: { Icon: Target,        color: 'text-purple-600', bg: 'bg-purple-50' },
-    info:     { Icon: Activity,      color: 'text-slate-500',  bg: 'bg-slate-100' },
+    action:   { Icon: Zap,           color: 'text-blue-500',   bg: 'bg-blue-50' },
+    decision: { Icon: Bot,           color: 'text-purple-500', bg: 'bg-purple-50' },
+    info:     { Icon: Activity,      color: 'text-slate-400',  bg: 'bg-slate-100' },
     error:    { Icon: AlertTriangle, color: 'text-red-500',    bg: 'bg-red-50' },
-    profit:   { Icon: TrendingUp,    color: 'text-secondary',  bg: 'bg-teal-50' },
+    profit:   { Icon: TrendingUp,    color: 'text-emerald-500',bg: 'bg-emerald-50' },
   };
   const { Icon, color, bg } = icons[entry.type] || icons.info;
   const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return (
-    <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-      className="flex items-start gap-3 py-2.5 border-b border-slate-50 last:border-0">
-      <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${bg}`}>
-        <Icon size={11} className={color} />
+    <div className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0 group">
+      <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${bg}`}>
+        <Icon size={13} className={color} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs text-slate-800 font-medium leading-snug">{entry.message}</p>
-        {entry.detail && <p className="text-[10px] text-slate-400 mt-0.5">{entry.detail}</p>}
+        <p className="text-sm text-slate-800 font-medium leading-snug">{entry.message}</p>
+        {entry.detail && <p className="text-xs text-slate-400 mt-0.5">{entry.detail}</p>}
       </div>
-      <div className="text-right shrink-0">
+      <div className="text-right shrink-0 opacity-60 group-hover:opacity-100 transition-opacity">
         {entry.amount && (
-          <p className={`text-xs font-bold ${entry.amount.startsWith('+') ? 'text-secondary' : 'text-red-500'}`}>{entry.amount}</p>
+          <p className={`text-xs font-bold ${entry.amount.startsWith('+') ? 'text-emerald-600' : 'text-red-500'}`}>{entry.amount}</p>
         )}
         <p className="text-[10px] text-slate-600 mt-0.5">{time}</p>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -139,9 +138,6 @@ export default function Dashboard() {
     .reduce((sum, e) => sum + (parseFloat(e.amount!.replace('+', '')) || 0), 0);
   const agentActions = agentLogs.filter(e => e.type === 'action').length;
   const [marketAssets, setMarketAssets] = useState<any[]>([]);
-  const logRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { logRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [agentLogs]);
   useEffect(() => {
     fetchMarketAssets().then(r => {
       const mine = new Set([walletAddress, agentPublicKey].filter(Boolean).map(k => String(k).trim().toUpperCase()));
@@ -359,7 +355,7 @@ export default function Dashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-y-auto px-5 py-2">
+                <div className="flex-1 overflow-y-auto px-5 py-2" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>
                   {!agentPublicKey ? (
                     <div className="flex flex-col items-center justify-center h-full text-center gap-4 py-8">
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300">
@@ -376,8 +372,7 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <>
-                      {agentLogs.map(e => <AgentLogRow key={e.id} entry={e} />)}
-                      <div ref={logRef} />
+                      {[...agentLogs].reverse().map(e => <AgentLogRow key={e.id} entry={e} />)}
                     </>
                   )}
                 </div>

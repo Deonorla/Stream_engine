@@ -15,12 +15,13 @@ function buildUrl(path, query = {}) {
 }
 
 async function request(path, options = {}, query) {
+  const { headers: optHeaders, ...restOptions } = options;
   const response = await fetch(buildUrl(path, query), {
     headers: {
       'Content-Type': 'application/json',
-      ...(options.headers || {}),
+      ...(optHeaders || {}),
     },
-    ...options,
+    ...restOptions,
   });
 
   const isJson = response.headers.get('content-type')?.includes('application/json');

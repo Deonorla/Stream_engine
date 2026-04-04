@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart2, Bot, Copy, Pause, Play,
   RefreshCw, Settings, Store, Target, TrendingUp, Wallet, X,
-  Zap, ChevronDown, ChevronUp, ArrowUpRight,
+  Zap, ChevronDown, ChevronUp, ArrowUpRight, Search, Send,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
+import { useToast } from '../components/ui';
 import { useAgentWallet } from '../hooks/useAgentWallet';
 import { useAgentLoopContext } from '../context/AgentLoopContext';
 import { paymentTokenSymbol, settlementRecipientAddress } from '../contactInfo.js';
@@ -105,8 +106,7 @@ function LogRow({ entry }: { entry: LogEntry }) {
   const cfg = icons[entry.type] || icons.info;
   const time = new Date(entry.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   return (
-    <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-      className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0 group">
+    <div className="flex items-start gap-3 py-3 border-b border-slate-50 last:border-0 group">
       <div className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${cfg.bg}`}>
         <cfg.Icon size={13} className={cfg.color} />
       </div>
@@ -118,9 +118,9 @@ function LogRow({ entry }: { entry: LogEntry }) {
         {entry.amount && (
           <p className={`text-xs font-bold ${entry.amount.startsWith('+') ? 'text-emerald-600' : 'text-red-500'}`}>{entry.amount}</p>
         )}
-        <p className="text-[10px] text-slate-300 mt-0.5">{time}</p>
+        <p className="text-[10px] text-slate-600 mt-0.5">{time}</p>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -189,6 +189,7 @@ export default function AgentConsolePage() {
     rebalanceCadenceMinutes: '60',
   });
   const [savingMandate, setSavingMandate] = useState(false);
+  const toast = useToast();
   const [runtimeActionError, setRuntimeActionError] = useState('');
   const [settlePendingAuctionId, setSettlePendingAuctionId] = useState<number | null>(null);
   const [rebidPendingAuctionId, setRebidPendingAuctionId] = useState<number | null>(null);
@@ -207,6 +208,23 @@ export default function AgentConsolePage() {
   const [yieldRouteStatus, setYieldRouteStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
   const [yieldRouteError, setYieldRouteError] = useState('');
 
+  // Due diligence
+  const [diligenceTokenId, setDiligenceTokenId] = useState<string | null>(null);
+  const [diligenceResult, setDiligenceResult] = useState<any>(null);
+  const [diligenceBusy, setDiligenceBusy] = useState(false);
+
+  // Asset transfer
+  const [transferTokenId, setTransferTokenId] = useState<string | null>(null);
+  const [transferTo, setTransferTo] = useState('');
+  const [transferBusy, setTransferBusy] = useState(false);
+  const [transferMsg, setTransferMsg] = useState('');
+
+  // Flash yield advance
+  const [advanceTokenId, setAdvanceTokenId] = useState('');
+  const [advanceAmount, setAdvanceAmount] = useState('');
+  const [advanceBusy, setAdvanceBusy] = useState(false);
+  const [advanceMsg, setAdvanceMsg] = useState('');
+
   const activeState = contextState || state;
   const runtime = activeState?.runtime || {};
   const agentStatus: AgentStatus = contextStatus !== 'idle' ? contextStatus : (
@@ -214,7 +232,6 @@ export default function AgentConsolePage() {
   );
 
   const doRefreshState = useCallback(async () => {
-    if (!agentPublicKey) { setState(null); setWalletSnapshot(null); return; }
     await refreshLoopState(agentPublicKey);
     try {
       const [agentState, assets, mandate, wallet] = await Promise.all([
@@ -244,17 +261,70 @@ export default function AgentConsolePage() {
     } catch (loadError) { console.error(loadError); }
   }, [agentPublicKey, refreshLoopState]);
 
+  const runDiligence = useCallback(async (tokenId: string) => {
+    setDiligenceTokenId(tokenId); setDiligenceResult(null); setDiligenceBusy(true);
+    try {
+      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
+      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
+      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/diligence/${tokenId}`, { headers: { ...agentAuthHeaders() } });
+      setDiligenceResult(await res.json());
+    } catch (e: any) { setDiligenceResult({ error: e.message }); }
+    setDiligenceBusy(false);
+  }, []);
+
+  const runTransfer = useCallback(async () => {
+    if (!transferTokenId || !transferTo) return;
+    setTransferBusy(true); setTransferMsg('');
+    try {
+      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
+      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
+      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/assets/transfer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...agentAuthHeaders() },
+        body: JSON.stringify({ tokenId: transferTokenId, to: transferTo }),
+      });
+      const data = await res.json();
+      setTransferMsg(res.ok ? `✓ Transferred Twin #${transferTokenId}` : (data.error || 'Failed'));
+      if (res.ok) { setTransferTokenId(null); setTransferTo(''); await doRefreshState(); }
+    } catch (e: any) { setTransferMsg(e.message); }
+    setTransferBusy(false);
+  }, [transferTokenId, transferTo, doRefreshState]);
+
+  const runFlashAdvance = useCallback(async () => {
+    if (!advanceTokenId || !advanceAmount) return;
+    setAdvanceBusy(true); setAdvanceMsg('');
+    try {
+      const { getRwaApiBaseUrl } = await import('../services/rwaApi.js');
+      const { agentAuthHeaders } = await import('../hooks/useAgentWallet');
+      const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/yield/advance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...agentAuthHeaders() },
+        body: JSON.stringify({ tokenId: advanceTokenId, amount: advanceAmount }),
+      });
+      const data = await res.json();
+      setAdvanceMsg(res.ok ? `✓ Advanced ${advanceAmount} USDC on Twin #${advanceTokenId}` : (data.error || 'Failed'));
+      if (res.ok) await doRefreshState();
+    } catch (e: any) { setAdvanceMsg(e.message); }
+    setAdvanceBusy(false);
+  }, [advanceTokenId, advanceAmount, doRefreshState]);
+
   useEffect(() => { void doRefreshState(); }, [doRefreshState]);
+
+  const [agentStarting, setAgentStarting] = useState(false);
 
   const startAgent = useCallback(async () => {
     if (!agentPublicKey) return;
     setRuntimeActionError('');
+    setAgentStarting(true);
     try {
       await ctxStart(agentPublicKey);
+      await doRefreshState();
     } catch (runtimeError: any) {
       setRuntimeActionError(runtimeError.message || 'Failed to start the managed runtime.');
+    } finally {
+      setAgentStarting(false);
     }
-  }, [agentPublicKey, ctxStart]);
+  }, [agentPublicKey, ctxStart, doRefreshState]);
 
   const pauseAgent = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -295,10 +365,11 @@ export default function AgentConsolePage() {
         rebalanceCadenceMinutes: Number(mandateDraft.rebalanceCadenceMinutes || 60),
       });
       await doRefreshState();
+      toast.success('Mandate saved successfully.', { title: 'Live Mandate' });
     } finally {
       setSavingMandate(false);
     }
-  }, [agentPublicKey, mandateDraft, doRefreshState]);
+  }, [agentPublicKey, mandateDraft, doRefreshState, toast]);
 
   const runTreasuryOptimization = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -536,9 +607,11 @@ export default function AgentConsolePage() {
                 <Pause size={14} /> Pause
               </button>
             ) : (
-              <button onClick={startAgent}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">
-                <Play size={14} /> Run Agent
+              <button onClick={startAgent} disabled={agentStarting}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all disabled:opacity-70">
+                {agentStarting
+                  ? <><span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Starting…</>
+                  : <><Play size={14} /> Run Agent</>}
               </button>
             )}
           </div>
@@ -562,26 +635,35 @@ export default function AgentConsolePage() {
 
           {/* Decision Log */}
           <SectionCard title="Decision Log" icon={Activity} iconColor="text-blue-500"
-            action={
-              <span className="text-[10px] font-bold text-slate-400">{mergedLogs.length} entries</span>
-            }>
-            <div className="max-h-80 overflow-y-auto -mx-1 px-1">
+            action={<span className="text-[10px] font-bold text-slate-600">{mergedLogs.length} entries</span>}>
+            <div className="max-h-80 overflow-y-auto -mx-1 px-1" ref={(el) => { if (el) el.scrollTop = el.scrollHeight; }}>
               {mergedLogs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <Activity size={28} className="text-slate-200 mb-2" />
                   <p className="text-sm text-slate-400">No decisions yet — run the agent to start.</p>
                 </div>
-              ) : mergedLogs.map(e => <LogRow key={`${e.id}-${e.ts}`} entry={e} />)}
+              ) : (
+                <>
+                  {[...mergedLogs].reverse().map(e => <LogRow key={`${e.id}-${e.ts}`} entry={e} />)}
+                </>
+              )}
             </div>
           </SectionCard>
 
           {/* Mandate */}
           <SectionCard title="Live Mandate" icon={Settings} iconColor="text-primary" collapsible
             action={
-              <button onClick={() => void saveMandate()} disabled={!agentPublicKey || savingMandate}
-                className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
-                {savingMandate ? 'Saving…' : 'Save'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setShowSettings(v => !v)}
+                  className={cn('px-3 py-1.5 rounded-xl text-[10px] font-bold border transition-all',
+                    showSettings ? 'border-slate-200 bg-slate-100 text-slate-600' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50')}>
+                  {showSettings ? 'Done' : 'Edit'}
+                </button>
+                <button onClick={() => void saveMandate()} disabled={!agentPublicKey || savingMandate}
+                  className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
+                  {savingMandate ? 'Saving…' : 'Save'}
+                </button>
+              </div>
             }>
             {showSettings && (
               <div className="space-y-4 mb-4">
@@ -660,9 +742,6 @@ export default function AgentConsolePage() {
               <KV label="Asset Classes" value={formatOptionList(activeState?.mandate?.approvedAssetClasses || mandateDraft.approvedAssetClasses, ASSET_CLASS_OPTIONS)} />
               <KV label="Treasury Strategies" value={formatOptionList(activeState?.mandate?.allowedTreasuryStrategies || mandateDraft.allowedTreasuryStrategies, TREASURY_STRATEGY_OPTIONS)} />
             </div>
-            <button onClick={() => setShowSettings(v => !v)} className="mt-3 text-xs font-bold text-slate-400 hover:text-primary transition-colors">
-              {showSettings ? 'Hide fields' : 'Edit fields'}
-            </button>
           </SectionCard>
 
           {/* Wallet + Treasury */}
@@ -809,6 +888,22 @@ export default function AgentConsolePage() {
                 {yieldClaimStatus === 'ok'   && <p className="text-xs text-emerald-600">✓ Yield claimed.</p>}
                 {yieldRouteStatus === 'err'  && <p className="text-xs text-red-500">{yieldRouteError}</p>}
                 {yieldRouteStatus === 'ok'   && <p className="text-xs text-emerald-600">✓ Yield routed.</p>}
+
+                {/* Flash Yield Advance */}
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Flash Yield Advance</p>
+                  <div className="flex gap-2">
+                    <input type="number" min="0" step="1" value={advanceTokenId} onChange={e => setAdvanceTokenId(e.target.value)}
+                      placeholder="Token ID" className="w-24 shrink-0 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <input type="number" min="0" step="0.01" value={advanceAmount} onChange={e => setAdvanceAmount(e.target.value)}
+                      placeholder="Amount USDC" className="flex-1 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <button onClick={() => void runFlashAdvance()} disabled={!agentPublicKey || !advanceTokenId || !advanceAmount || advanceBusy}
+                      className="rounded-xl border border-amber-200 text-amber-700 text-xs font-bold hover:bg-amber-50 disabled:opacity-50 px-3 py-2">
+                      {advanceBusy ? '…' : 'Advance'}
+                    </button>
+                  </div>
+                  {advanceMsg && <p className={`text-xs ${advanceMsg.startsWith('✓') ? 'text-emerald-600' : 'text-red-500'}`}>{advanceMsg}</p>}
+                </div>
               </div>
             </div>
 
@@ -935,12 +1030,34 @@ export default function AgentConsolePage() {
             {(positions.assets || []).length === 0 ? (
               <p className="text-sm text-slate-400">No asset twins acquired yet.</p>
             ) : (positions.assets || []).slice(0, 4).map((a: any) => (
-              <div key={a.tokenId} className="flex items-center justify-between bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2">
-                <div>
-                  <p className="text-xs font-bold text-slate-800">Twin #{a.tokenId}</p>
-                  <p className="text-[10px] text-slate-400">{a.verificationStatusLabel || a.verificationStatus}</p>
+              <div key={a.tokenId} className="bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">Twin #{a.tokenId}</p>
+                    <p className="text-[10px] text-slate-400">{a.verificationStatusLabel || a.verificationStatus}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-emerald-600">{formatMoney(Number(a.claimableYield || 0)/1e7)}</span>
+                    <button onClick={() => setTransferTokenId(t => t === String(a.tokenId) ? null : String(a.tokenId))}
+                      className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-all">
+                      <Send size={10} /> Transfer
+                    </button>
+                  </div>
                 </div>
-                <span className="text-xs font-bold text-emerald-600">{formatMoney(Number(a.claimableYield || 0)/1e7)}</span>
+                {transferTokenId === String(a.tokenId) && (
+                  <div className="flex gap-2">
+                    <input value={transferTo} onChange={e => setTransferTo(e.target.value)}
+                      placeholder="Destination address (G…)"
+                      className="flex-1 bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <button onClick={() => void runTransfer()} disabled={transferBusy || !transferTo}
+                      className="rounded-xl bg-primary text-white text-xs font-bold px-3 py-1.5 hover:opacity-90 disabled:opacity-50">
+                      {transferBusy ? '…' : 'Send'}
+                    </button>
+                  </div>
+                )}
+                {transferTokenId === String(a.tokenId) && transferMsg && (
+                  <p className={`text-xs ${transferMsg.startsWith('✓') ? 'text-emerald-600' : 'text-red-500'}`}>{transferMsg}</p>
+                )}
               </div>
             ))}
           </SectionCard>
@@ -1084,20 +1201,81 @@ export default function AgentConsolePage() {
               <p className="text-sm text-slate-400">No assets indexed yet.</p>
             ) : marketAssets.slice(0, 5).map((a: any) => (
               <motion.div key={a.tokenId} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-                className="flex items-center justify-between bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2">
-                <div>
-                  <p className="text-xs font-bold text-slate-800">{a.publicMetadata?.name || a.name || `Asset #${a.tokenId}`}</p>
-                  <p className="text-[10px] text-slate-400">{a.market?.activeAuction ? `Auction #${a.market.activeAuction.auctionId}` : 'No active auction'}</p>
+                className="bg-slate-50 rounded-xl border border-slate-100 px-3 py-2.5 mb-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">{a.publicMetadata?.name || a.name || `Asset #${a.tokenId}`}</p>
+                    <p className="text-[10px] text-slate-400">{a.market?.activeAuction ? `Auction #${a.market.activeAuction.auctionId}` : 'No active auction'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn('text-[10px] font-bold px-2 py-1 rounded-full',
+                      a.market?.hasActiveAuction ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-500')}>
+                      {a.market?.hasActiveAuction ? 'Live' : 'Browse'}
+                    </span>
+                    <button onClick={() => { setDiligenceResult(null); void runDiligence(String(a.tokenId)); }}
+                      className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg border border-slate-200 text-slate-500 hover:border-primary hover:text-primary transition-all">
+                      <Search size={10} /> {diligenceBusy && diligenceTokenId === String(a.tokenId) ? '…' : 'Analyse'}
+                    </button>
+                  </div>
                 </div>
-                <span className={cn('text-[10px] font-bold px-2 py-1 rounded-full',
-                  a.market?.hasActiveAuction ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-500')}>
-                  {a.market?.hasActiveAuction ? 'Live' : 'Browse'}
-                </span>
               </motion.div>
             ))}
           </SectionCard>
         </div>
       </div>
+
+      {/* ── Due Diligence Modal ── */}
+      <AnimatePresence>
+        {diligenceResult && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+            <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Search size={15} className="text-primary" />
+                  <p className="text-sm font-bold text-slate-900">Due Diligence · Twin #{diligenceTokenId}</p>
+                </div>
+                <button onClick={() => { setDiligenceResult(null); setDiligenceTokenId(null); }} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+              </div>
+              {diligenceResult.error ? (
+                <p className="text-xs text-red-500">{diligenceResult.error}</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <span className={cn('text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-widest',
+                      diligenceResult.verdict === 'buy' ? 'bg-emerald-50 text-emerald-600' :
+                      diligenceResult.verdict === 'hold' ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600')}>
+                      {diligenceResult.verdict || 'N/A'}
+                    </span>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 uppercase tracking-widest">
+                      Confidence: {diligenceResult.confidence || '—'}
+                    </span>
+                  </div>
+                  {diligenceResult.summary && <p className="text-xs text-slate-600 leading-relaxed">{diligenceResult.summary}</p>}
+                  {(diligenceResult.positives || []).length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 mb-1">Positives</p>
+                      {diligenceResult.positives.map((p: string, i: number) => <p key={i} className="text-xs text-slate-600">· {p}</p>)}
+                    </div>
+                  )}
+                  {(diligenceResult.risks || []).length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-red-500 mb-1">Risks</p>
+                      {diligenceResult.risks.map((r: string, i: number) => <p key={i} className="text-xs text-slate-600">· {r}</p>)}
+                    </div>
+                  )}
+                  {diligenceResult.yieldAssessment && (
+                    <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">Yield Assessment</p>
+                      <p className="text-xs text-slate-600">{diligenceResult.yieldAssessment}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* ── Fund modal ── */}
       {showFundModal && agentPublicKey && (

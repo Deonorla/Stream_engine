@@ -125,7 +125,7 @@ class AgentRuntimeService {
         await this.agentState.appendDecision(normalizedAgentId, {
             type: "info",
             message: "Autonomous Continuum runtime started",
-            detail: `Treasury ${executeTreasury ? "enabled" : "disabled"} · Auto-claims ${executeClaims ? "enabled" : "disabled"}`,
+            detail: `Treasury ${executeTreasury ? "enabled" : "disabled"} · Auto-claims ${executeClaims ? "enabled" : "disabled"} · Tick interval ${Math.ceil(this.tickIntervalMs / 1000)}s · First scan running now…`,
         });
         this.schedule(normalizedAgentId, ownerPublicKey);
         return this.tick({ agentId: normalizedAgentId, ownerPublicKey, reason: "start" });
@@ -575,16 +575,23 @@ class AgentRuntimeService {
                 }))
             );
 
+            // Always log a tick heartbeat so the owner sees the agent is alive
+            await this.agentState.appendDecision(normalizedAgentId, {
+                type: "info",
+                message: `Tick #${Number(currentRuntime.heartbeatCount || 0) + 1} · scanned ${productiveAssets.length} assets · ${activeAuctions.length} live auction(s)`,
+                detail: `${opportunities.length} opportunit${opportunities.length === 1 ? "y" : "ies"} cleared mandate · ${riskAlerts.length} risk alert(s) · ${sessions.length} active session(s)`,
+            });
+
             if (opportunityFingerprint !== currentRuntime.fingerprints?.opportunities) {
                 const topOpportunity = opportunities[0];
                 await this.agentState.appendDecision(normalizedAgentId, topOpportunity ? {
                     type: "decision",
-                    message: `Top opportunity spotted: twin #${topOpportunity.tokenId}`,
-                    detail: `${Number(topOpportunity.yieldRate || 0).toFixed(2)}% yield · risk ${topOpportunity.riskScore}/100`,
+                    message: `Top opportunity: twin #${topOpportunity.tokenId} — ${topOpportunity.asset?.publicMetadata?.name || topOpportunity.asset?.name || ""}`,
+                    detail: `${Number(topOpportunity.yieldRate || 0).toFixed(2)}% yield · risk ${topOpportunity.riskScore}/100 · ${topOpportunity.asset?.publicMetadata?.location || ""}`,
                 } : {
                     type: "info",
-                    message: "Opportunity scan complete",
-                    detail: "No approved assets currently clear the active mandate floor.",
+                    message: "Market scan complete — no opportunities cleared mandate floor",
+                    detail: `Mandate requires ≥${mandate.targetReturnMinPct || 0}% yield · approved classes: ${(mandate.approvedAssetClasses || []).join(", ")}`,
                 });
             }
 

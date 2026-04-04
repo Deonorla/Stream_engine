@@ -59,7 +59,7 @@ export function AgentLoopProvider({ children }: { children: ReactNode }) {
     await refreshState(agentPublicKey);
     // poll every 10s while running
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => refreshState(agentPublicKey), 10000);
+    pollRef.current = setInterval(() => refreshState(agentPublicKey), 5000);
   }, [refreshState]);
 
   const pauseAgent = useCallback(async (agentPublicKey: string) => {
