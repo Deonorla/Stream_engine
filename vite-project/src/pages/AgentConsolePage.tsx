@@ -13,6 +13,7 @@ import { useAgentLoopContext } from '../context/AgentLoopContext';
 import { paymentTokenSymbol, settlementRecipientAddress } from '../contactInfo.js';
 import {
   cancelAgentPaymentSession,
+  chatWithAgent,
   claimMarketYield,
   fetchAgentMandate,
   fetchAgentState,
@@ -23,6 +24,7 @@ import {
   rebalanceMarketTreasury,
   routeMarketYield,
   saveAgentMandate,
+  saveAgentObjective,
   settleAuction,
   tickAgentRuntime,
 } from '../services/rwaApi.js';
@@ -50,6 +52,12 @@ type MandateDraft = {
   allowedTreasuryStrategies: string[];
   maxDrawdownPct: string;
   rebalanceCadenceMinutes: string;
+};
+
+type ObjectiveDraft = {
+  goal: string;
+  style: string;
+  instructions: string;
 };
 
 const ASSET_CLASS_OPTIONS = [
@@ -188,7 +196,13 @@ export default function AgentConsolePage() {
     maxDrawdownPct: '20',
     rebalanceCadenceMinutes: '60',
   });
+  const [objectiveDraft, setObjectiveDraft] = useState<ObjectiveDraft>({
+    goal: 'Grow capital safely through productive RWA opportunities.',
+    style: 'balanced',
+    instructions: '',
+  });
   const [savingMandate, setSavingMandate] = useState(false);
+  const [savingObjective, setSavingObjective] = useState(false);
   const [runtimeActionError, setRuntimeActionError] = useState('');
   const [settlePendingAuctionId, setSettlePendingAuctionId] = useState<number | null>(null);
   const [rebidPendingAuctionId, setRebidPendingAuctionId] = useState<number | null>(null);
@@ -206,6 +220,9 @@ export default function AgentConsolePage() {
   const [yieldClaimError, setYieldClaimError] = useState('');
   const [yieldRouteStatus, setYieldRouteStatus] = useState<'idle' | 'loading' | 'ok' | '402' | 'err'>('idle');
   const [yieldRouteError, setYieldRouteError] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatPending, setChatPending] = useState(false);
+  const [chatError, setChatError] = useState('');
 
   const activeState = contextState || state;
   const runtime = activeState?.runtime || {};
@@ -239,6 +256,13 @@ export default function AgentConsolePage() {
           allowedTreasuryStrategies: Array.isArray(mandate.allowedTreasuryStrategies) && mandate.allowedTreasuryStrategies.length ? mandate.allowedTreasuryStrategies : ['safe_yield', 'blend_lending', 'stellar_amm'],
           maxDrawdownPct: String(mandate.maxDrawdownPct ?? 20),
           rebalanceCadenceMinutes: String(mandate.rebalanceCadenceMinutes ?? 60),
+        });
+      }
+      if (agentState?.objective) {
+        setObjectiveDraft({
+          goal: String(agentState.objective.goal || 'Grow capital safely through productive RWA opportunities.'),
+          style: String(agentState.objective.style || 'balanced'),
+          instructions: String(agentState.objective.instructions || ''),
         });
       }
     } catch (loadError) { console.error(loadError); }
@@ -299,6 +323,20 @@ export default function AgentConsolePage() {
       setSavingMandate(false);
     }
   }, [agentPublicKey, mandateDraft, doRefreshState]);
+
+  const saveObjective = useCallback(async () => {
+    if (!agentPublicKey) return;
+    setSavingObjective(true);
+    setChatError('');
+    try {
+      await saveAgentObjective(agentPublicKey, objectiveDraft);
+      await doRefreshState();
+    } catch (objectiveError: any) {
+      setChatError(objectiveError?.message || 'Could not save the agent objective.');
+    } finally {
+      setSavingObjective(false);
+    }
+  }, [agentPublicKey, objectiveDraft, doRefreshState]);
 
   const runTreasuryOptimization = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -408,6 +446,28 @@ export default function AgentConsolePage() {
     } finally { setRebidPendingAuctionId(null); }
   }, [agentPublicKey, doRefreshState, treasurySessionId]);
 
+  const sendAgentChat = useCallback(async () => {
+    if (!agentPublicKey || !chatInput.trim()) return;
+    setChatPending(true);
+    setChatError('');
+    try {
+      const response = await chatWithAgent(agentPublicKey, chatInput.trim());
+      setChatInput('');
+      if (response?.objective) {
+        setObjectiveDraft({
+          goal: String(response.objective.goal || objectiveDraft.goal),
+          style: String(response.objective.style || objectiveDraft.style),
+          instructions: String(response.objective.instructions || objectiveDraft.instructions),
+        });
+      }
+      await doRefreshState();
+    } catch (chatFailure: any) {
+      setChatError(chatFailure?.message || 'Could not send the message to the agent.');
+    } finally {
+      setChatPending(false);
+    }
+  }, [agentPublicKey, chatInput, doRefreshState, objectiveDraft]);
+
   // Use shared context logs (sourced from server decisionLog) — fall back to local state
   const mergedLogs = useMemo<LogEntry[]>(() => {
     if (contextLogs.length > 0) return contextLogs;
@@ -418,8 +478,12 @@ export default function AgentConsolePage() {
   }, [contextLogs, activeState?.decisionLog]);
 
   const performance = activeState?.performance || {};
+  const objective = activeState?.objective || {};
+  const brain = activeState?.brain || {};
   const performanceAttribution = performance.attribution || {};
   const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
+  const journalPreview = Array.isArray(activeState?.journalPreview) ? activeState.journalPreview : [];
+  const chatPreview = Array.isArray(activeState?.chatPreview) ? activeState.chatPreview : [];
   const treasury = activeState?.treasury || { positions: [], summary: {} };
   const treasurySummary = treasury.summary || {};
   const treasuryHealth = treasurySummary.health || {};
@@ -447,6 +511,12 @@ export default function AgentConsolePage() {
   const screenHighlights = Array.isArray(runtime.lastSummary?.screenHighlights) ? runtime.lastSummary.screenHighlights : [];
   const watchlistHighlights = Array.isArray(runtime.lastSummary?.watchlistHighlights) ? runtime.lastSummary.watchlistHighlights : [];
   const bidFocus = runtime.lastSummary?.bidFocus || null;
+  const currentThesis = String(brain.currentThesis || '').trim() || 'The agent has not formed a visible thesis yet.';
+  const nextPlannedAction = String(brain?.nextAction?.actionType || runtime.lastSummary?.plannedAction?.actionType || 'hold').replace(/_/g, ' ');
+  const blockedBy = String(brain.blockedBy || runtime.lastSummary?.blockedBy || '').trim();
+  const wakeReason = String(brain.wakeReason || runtime.lastSummary?.wakeReason || 'scheduled').replace(/_/g, ' ');
+  const degradedMode = Boolean(brain.degradedMode);
+  const degradedReason = String(brain.degradedReason || '').trim();
   const reservationSummary = useMemo(() => ({
     leading: reservationExposure.filter((e: any) => e.isLeading).length,
     outbid: reservationExposure.filter((e: any) => e.status === 'outbid').length,
@@ -572,6 +642,97 @@ export default function AgentConsolePage() {
                   <p className="text-sm text-slate-400">No decisions yet — run the agent to start.</p>
                 </div>
               ) : mergedLogs.map(e => <LogRow key={`${e.id}-${e.ts}`} entry={e} />)}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Objective & Chat" icon={Bot} iconColor="text-primary" collapsible
+            action={
+              <button onClick={() => void saveObjective()} disabled={!agentPublicKey || savingObjective}
+                className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
+                {savingObjective ? 'Saving…' : 'Save'}
+              </button>
+            }>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Goal</p>
+                  <textarea value={objectiveDraft.goal}
+                    onChange={e => setObjectiveDraft(c => ({ ...c, goal: e.target.value }))}
+                    rows={3}
+                    className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                </div>
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Style</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {['conservative', 'balanced', 'aggressive'].map(style => (
+                        <button key={style} type="button"
+                          onClick={() => setObjectiveDraft(c => ({ ...c, style }))}
+                          className={cn('rounded-full border px-3 py-1 text-xs font-bold transition-all',
+                            objectiveDraft.style === style ? 'border-blue-200 bg-blue-50 text-primary' : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-100')}>
+                          {style}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Instructions</p>
+                    <textarea value={objectiveDraft.instructions}
+                      onChange={e => setObjectiveDraft(c => ({ ...c, instructions: e.target.value }))}
+                      rows={4}
+                      placeholder="Prefer short-duration yield, avoid high-risk twins, watch vehicles..."
+                      className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-3">
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Agent Chat</p>
+                    <span className={cn('text-[10px] font-bold uppercase tracking-widest',
+                      degradedMode ? 'text-amber-600' : 'text-emerald-600')}>
+                      {degradedMode ? 'Degraded' : 'Healthy'}
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {chatPreview.length === 0 ? (
+                      <p className="text-sm text-slate-400">Ask the agent what it plans to do, why it held, or how you want it to trade.</p>
+                    ) : chatPreview.map((message: any) => (
+                      <div key={message.id} className={cn('rounded-xl border px-3 py-2',
+                        message.role === 'assistant' ? 'bg-white border-blue-100' : 'bg-white border-slate-100')}>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-1">{message.role}</p>
+                        <p className="text-sm text-slate-700 leading-relaxed">{message.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <textarea value={chatInput}
+                      onChange={e => setChatInput(e.target.value)}
+                      rows={3}
+                      placeholder="Why didn’t you bid? Focus more on vehicles. Tighten risk."
+                      className="flex-1 bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                    <button onClick={() => void sendAgentChat()} disabled={!agentPublicKey || chatPending || !chatInput.trim()}
+                      className="self-end rounded-xl bg-primary text-white text-xs font-bold px-3 py-2.5 hover:opacity-90 disabled:opacity-50 transition-all">
+                      {chatPending ? 'Sending…' : 'Send'}
+                    </button>
+                  </div>
+                  {chatError && <p className="text-xs text-red-500">{chatError}</p>}
+                </div>
+
+                <div className="bg-slate-50 rounded-xl border border-slate-100 p-3 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Objective Snapshot</p>
+                  <KV label="Current Style" value={String(objective.style || objectiveDraft.style || 'balanced')} />
+                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current Goal</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{String(objective.goal || objectiveDraft.goal || 'No goal set yet.')}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-white px-3 py-3">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Instructions</p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{String(objective.instructions || objectiveDraft.instructions || 'No extra strategy instructions yet.')}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </SectionCard>
 
@@ -855,6 +1016,51 @@ export default function AgentConsolePage() {
 
         {/* ── Right column ── */}
         <div className="space-y-5">
+
+          <SectionCard title="Autonomous Brain" icon={Bot} iconColor="text-primary">
+            <div className="space-y-3">
+              <div className={cn('rounded-xl border px-3 py-2.5 text-xs',
+                degradedMode ? 'border-amber-100 bg-amber-50 text-amber-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700')}>
+                {degradedMode
+                  ? (degradedReason || 'Platform LLM is unavailable, so the agent is using deterministic fallback planning.')
+                  : 'Planner is healthy. The agent is reasoning with the current objective, memory, liquidity, and live market state.'}
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KV label="Next Action" value={nextPlannedAction} color="text-primary" />
+                <KV label="Wake Reason" value={wakeReason || 'scheduled'} />
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Current Thesis</p>
+                <p className="text-sm text-slate-700 leading-relaxed">{currentThesis}</p>
+              </div>
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">Why No Action / Blocker</p>
+                <p className="text-sm text-slate-600 leading-relaxed">{blockedBy || 'No blocker recorded. The planner has an executable path.'}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <KV label="Confidence" value={`${Number(brain.confidence || 0)}%`} />
+                <KV label="Planner" value={String(brain.provider || 'fallback')} />
+              </div>
+              <div className="space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Journal</p>
+                {journalPreview.length === 0 ? (
+                  <p className="text-sm text-slate-400">No journal entries yet. The next tick will persist the planner’s thesis here.</p>
+                ) : journalPreview.map((entry: any) => (
+                  <div key={entry.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs font-bold text-slate-800">{entry.message}</p>
+                      <span className="text-[10px] text-slate-300">
+                        {entry.ts ? new Date(Number(entry.ts)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                      </span>
+                    </div>
+                    {(entry.detail || entry.blockedBy) && (
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">{entry.detail || entry.blockedBy}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </SectionCard>
 
           {/* Runtime status */}
           <SectionCard title="Runtime" icon={BarChart2} iconColor="text-primary"

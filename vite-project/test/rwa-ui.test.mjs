@@ -107,6 +107,12 @@ test("Marketplace source keeps the lighter auction-first layout", async () => {
 test("Agent Console source surfaces the managed session rail and widened mandate controls", async () => {
   const source = await fs.readFile(agentConsolePagePath, "utf8");
 
+  assert.match(source, /Autonomous Brain/);
+  assert.match(source, /Current Thesis/);
+  assert.match(source, /Why No Action \/ Blocker/);
+  assert.match(source, /Objective & Chat/);
+  assert.match(source, /Agent Chat/);
+  assert.match(source, /Current Goal/);
   assert.match(source, /Live Mandate/);
   assert.match(source, /Capital Base/);
   assert.match(source, /Issuer Cap/);

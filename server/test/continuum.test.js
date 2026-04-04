@@ -52,6 +52,26 @@ describe("Continuum API Integration", function () {
         return response.body;
     }
 
+    function installAgentBrain(stub) {
+        services.agentBrain = stub;
+        if (services.agentRuntime) {
+            services.agentRuntime.agentBrain = stub;
+        }
+        if (app?.locals) {
+            app.locals.agentBrain = stub;
+            if (app.locals.services) {
+                app.locals.services.agentBrain = stub;
+                if (app.locals.services.agentRuntime) {
+                    app.locals.services.agentRuntime.agentBrain = stub;
+                }
+            }
+        }
+    }
+
+    async function waitForWake(ms = 80) {
+        await new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
     beforeEach(async () => {
         store = new MemoryIndexerStore();
         await store.init();
@@ -954,6 +974,9 @@ describe("Continuum API Integration", function () {
             .expect(200);
 
         expect(stateResponse.body.state.runtime.running).to.equal(true);
+        expect(stateResponse.body.state.brain.degradedMode).to.equal(true);
+        expect(stateResponse.body.state.degradedMode).to.equal(true);
+        expect(stateResponse.body.state.lastWakeReason).to.equal("manual");
         expect(stateResponse.body.state.performance.realizedYield).to.equal("7000000");
         expect(stateResponse.body.state.performance.attribution.yieldContribution).to.equal("7000000");
         expect(stateResponse.body.state.performance.attribution.grossPositivePnL).to.equal("7000000");
@@ -973,6 +996,141 @@ describe("Continuum API Integration", function () {
         expect(pauseResponse.body.code).to.equal("agent_runtime_paused");
         expect(pauseResponse.body.runtime.running).to.equal(false);
         expect(pauseResponse.body.runtime.status).to.equal("paused");
+    });
+
+    it("updates the real objective and plans immediately when the objective changes", async () => {
+        installAgentBrain({
+            async decide({ objective, wakeReason }) {
+                return {
+                    proposal: {
+                        actionType: "watch",
+                        actionArgs: {},
+                        thesis: `Stay patient and wait for discounted warehouse entries that match "${objective.goal}".`,
+                        rationale: "No live auction beats the new strategy yet, so keep monitoring.",
+                        confidence: 74,
+                        blockedBy: "No live auction currently clears the updated objective.",
+                        requiresHuman: false,
+                        wakeReason,
+                    },
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "stub",
+                    model: "test-planner",
+                };
+            },
+            async chat() {
+                throw new Error("chat should not be called in this objective test");
+            },
+            async summarize({ objective }) {
+                return `Goal: ${objective.goal}`;
+            },
+        });
+
+        const response = await request(app)
+            .post(`/api/agents/${agentId}/objective`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                goal: "Accumulate discounted warehouse opportunities and preserve 20% liquidity.",
+                style: "aggressive",
+                instructions: "Prioritize warehouse auctions but wait if spreads are thin.",
+            })
+            .expect(200);
+
+        expect(response.body.code).to.equal("agent_objective_updated");
+        expect(response.body.objective.style).to.equal("aggressive");
+        expect(response.body.wake.queued).to.equal(true);
+
+        await waitForWake();
+
+        const stateResponse = await request(app)
+            .get(`/api/agents/${agentId}/state`)
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(stateResponse.body.state.objective.goal).to.include("discounted warehouse");
+        expect(stateResponse.body.state.objective.style).to.equal("aggressive");
+        expect(stateResponse.body.state.brain.currentThesis).to.include("discounted warehouse");
+        expect(stateResponse.body.state.brain.nextAction.actionType).to.equal("watch");
+        expect(stateResponse.body.state.brain.degradedMode).to.equal(false);
+        expect(stateResponse.body.state.lastWakeReason).to.equal("objective_changed");
+        expect(stateResponse.body.state.brain.provider).to.equal("stub");
+        expect(stateResponse.body.state.journalPreview[0].message).to.include("Planned watch");
+    });
+
+    it("uses the managed chat route to update strategy, persist memory, and expose the journal", async () => {
+        installAgentBrain({
+            async decide({ objective, wakeReason }) {
+                return {
+                    proposal: {
+                        actionType: "hold",
+                        actionArgs: {},
+                        thesis: `Focus remains on ${objective.goal}`,
+                        rationale: "The shortlist is thin, so monitoring is better than forcing a trade.",
+                        confidence: 68,
+                        blockedBy: "No shortlist candidate currently beats the liquidity floor.",
+                        requiresHuman: false,
+                        wakeReason,
+                    },
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "stub",
+                    model: "test-planner",
+                };
+            },
+            async chat({ message }) {
+                return {
+                    reply: "I updated the plan toward an aggressive warehouse accumulation strategy and will watch for a cleaner entry before bidding.",
+                    objectivePatch: {
+                        goal: "Build a discounted warehouse position with tight liquidity discipline.",
+                        style: "aggressive",
+                        instructions: message,
+                    },
+                    wakeReason: "chat_objective_update",
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "stub",
+                    model: "test-planner",
+                };
+            },
+            async summarize({ objective, recentMessages }) {
+                return `Goal: ${objective.goal} · Recent chat turns: ${recentMessages.length}`;
+            },
+        });
+
+        const chatResponse = await request(app)
+            .post(`/api/agents/${agentId}/chat`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                message: "Shift to an aggressive warehouse strategy but keep tight liquidity discipline.",
+            })
+            .expect(200);
+
+        expect(chatResponse.body.code).to.equal("agent_chat_complete");
+        expect(chatResponse.body.reply).to.include("aggressive warehouse accumulation strategy");
+        expect(chatResponse.body.objective.style).to.equal("aggressive");
+        expect(chatResponse.body.degradedMode).to.equal(false);
+        expect(chatResponse.body.wake.reason).to.equal("chat_objective_update");
+
+        await waitForWake();
+
+        const [stateResponse, journalResponse] = await Promise.all([
+            request(app)
+                .get(`/api/agents/${agentId}/state`)
+                .set("Authorization", `Bearer ${token}`)
+                .expect(200),
+            request(app)
+                .get(`/api/agents/${agentId}/journal`)
+                .set("Authorization", `Bearer ${token}`)
+                .expect(200),
+        ]);
+
+        expect(stateResponse.body.state.objective.goal).to.include("warehouse position");
+        expect(stateResponse.body.state.chatPreview.some((entry) => entry.role === "assistant")).to.equal(true);
+        expect(stateResponse.body.state.brain.nextAction.actionType).to.equal("hold");
+        expect(stateResponse.body.state.lastWakeReason).to.equal("chat_objective_update");
+        expect(journalResponse.body.memorySummary.summary).to.include("Goal:");
+        expect(journalResponse.body.journal.some((entry) => entry.kind === "conversation")).to.equal(true);
+        expect(journalResponse.body.journal.some((entry) => entry.message.includes("Agent conversation updated"))).to.equal(true);
     });
 
     it("lets the managed runtime prioritize shortlisted auctions before settling", async () => {
