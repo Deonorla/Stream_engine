@@ -1,9 +1,9 @@
-import { ArrowUpRight, Globe, X, MapPin, Clock, Shield, Zap, Building2, Car, Package } from 'lucide-react';
+import { ArrowUpRight, Globe, X, MapPin, Clock, Shield, Zap, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { StrKey } from '@stellar/stellar-sdk';
 import { TYPE_META } from '../pages/rwa/rwaData';
 
-export const TYPE_ICON = { real_estate: Building2, vehicle: Car, commodity: Package };
+export const TYPE_ICON = { real_estate: Building2, land: MapPin };
 
 // Curated Unsplash photo IDs per asset type
 const ASSET_IMAGES: Record<string, string[]> = {
@@ -15,25 +15,11 @@ const ASSET_IMAGES: Record<string, string[]> = {
     'photo-1600585154340-be6161a56a0c', // real estate exterior
     'photo-1580587771525-78b9dba3b914', // white modern house
   ],
-  vehicle: [
-    'photo-1494976388531-d1058494cdd8', // sports car
-    'photo-1533473359331-0135ef1b58bf', // luxury sedan
-    'photo-1552519507-da3b142c6e3d', // muscle car
-    'photo-1542362567-b07e54358753', // SUV
-    'photo-1511919884226-fd3cad34687c', // truck
-    'photo-1580274455191-1c62238fa333', // electric vehicle
-  ],
-  equipment: [
-    'photo-1504328345606-18bbc8c9d7d1', // industrial equipment
-    'photo-1581091226825-a6a2a5aee158', // machinery
-    'photo-1565043589221-1a6fd9ae45c7', // construction equipment
-    'photo-1558618666-fcd25c85cd64', // heavy machinery
-  ],
-  commodity: [
-    'photo-1610375461246-83df859d849d', // gold bars
-    'photo-1618044733300-9472054094ee', // commodities
-    'photo-1559526324-593bc073d938', // warehouse goods
-    'photo-1586528116311-ad8dd3c8310d', // storage
+  land: [
+    'photo-1500382017468-9049fed747ef', // open land
+    'photo-1469474968028-56623f02e42e', // green parcel
+    'photo-1472396961693-142e6e269027', // acreage
+    'photo-1500530855697-b586d89ba3ee', // site landscape
   ],
 };
 
@@ -52,8 +38,7 @@ export function getAssetImage(type: string, id: string | number, w = 600, h = 45
 /** @deprecated use getAssetImage */
 export const IMAGE_SEEDS = {
   real_estate: 'villa',
-  vehicle: 'tech',
-  commodity: 'cyber',
+  land: 'terrain',
 };
 
 function resolveRentalReadiness(asset) {
@@ -77,6 +62,12 @@ export function AssetCard({ asset, onDetails }) {
   const Icon = TYPE_ICON[asset.type] || Building2;
   const rentalReadiness = resolveRentalReadiness(asset);
   const isRentalReady = Boolean(rentalReadiness.ready);
+  const rentalActivity = asset.rentalActivity || {
+    currentlyRented: false,
+    label: isRentalReady ? 'Ready To Rent' : 'Not Rental Ready',
+    reason: rentalReadiness.reason,
+  };
+  const isCurrentlyRented = Boolean(rentalActivity.currentlyRented);
   const agentSignals = asset.agentSignals || null;
 
   return (
@@ -115,6 +106,17 @@ export function AssetCard({ asset, onDetails }) {
         </div>
         <h3 className="text-xl font-headline font-bold text-slate-900 mb-2">{asset.name}</h3>
         <p className="text-sm text-slate-500 line-clamp-2 mb-4">{asset.description}</p>
+        <div className={`mb-4 flex items-center gap-2 text-xs ${
+          isCurrentlyRented ? 'text-emerald-600' : isRentalReady ? 'text-slate-500' : 'text-amber-700'
+        }`}>
+          <Clock size={12} />
+          <span className="font-medium">{rentalActivity.label}</span>
+          {rentalActivity.activeRevenueStream && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
+              Revenue Live
+            </span>
+          )}
+        </div>
         {agentSignals && (agentSignals.bidFocus || agentSignals.watchSignal || agentSignals.screenHit || agentSignals.watched) && (
           <div className="flex flex-wrap gap-2 mb-6">
             {agentSignals.bidFocus && (
@@ -163,6 +165,12 @@ export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
   const Icon = TYPE_ICON[asset.type] || Building2;
   const rentalReadiness = resolveRentalReadiness(asset);
   const isRentalReady = Boolean(rentalReadiness.ready);
+  const rentalActivity = asset.rentalActivity || {
+    currentlyRented: false,
+    label: isRentalReady ? 'Ready To Rent' : 'Not Rental Ready',
+    reason: rentalReadiness.reason,
+  };
+  const isCurrentlyRented = Boolean(rentalActivity.currentlyRented);
 
   return (
     <motion.div
@@ -224,6 +232,18 @@ export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
               {rentalReadiness.reason}
             </div>
           )}
+
+          <div className={`rounded-2xl border px-4 py-3 text-xs ${
+            isCurrentlyRented
+              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+              : isRentalReady
+                ? 'border-slate-200 bg-slate-50 text-slate-600'
+                : 'border-amber-100 bg-amber-50 text-amber-700'
+          }`}>
+            <span className="font-bold uppercase tracking-widest text-[10px] mr-2">Rent Status</span>
+            {rentalActivity.label}
+            {rentalActivity.reason ? ` · ${rentalActivity.reason}` : ''}
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             {[

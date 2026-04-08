@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Search, Filter, Building2, Car, Package } from 'lucide-react';
+import { Search, Filter, Building2, MapPin } from 'lucide-react';
 import { PORTFOLIO_ASSETS, mapApiAssetToUiAsset } from './rwa/rwaData';
 import { AssetCard, AssetDetailPortal } from '../components/AssetCard';
 import RentalSessionComposer from '../components/RentalSessionComposer.tsx';
@@ -18,7 +18,13 @@ export default function RentPage() {
     try {
       setIsLoading(true);
       const liveAssets = await fetchRwaAssets();
-      setAssets(liveAssets.length ? liveAssets.map(mapApiAssetToUiAsset) : []);
+      setAssets(
+        liveAssets.length
+          ? liveAssets
+              .map(mapApiAssetToUiAsset)
+              .filter((asset) => ['real_estate', 'land'].includes(asset.type))
+          : [],
+      );
     } catch (error) {
       console.error('Failed to load live rental assets:', error);
       toast.warning(
@@ -59,7 +65,7 @@ export default function RentPage() {
         <div>
           <h2 className="text-4xl font-headline font-bold tracking-tight text-on-surface">Asset Marketplace</h2>
           <p className="mt-2 font-body text-on-surface-variant">
-            Browse verified real-world assets and stream rent directly to owners.
+            Browse verified real estate and land twins and stream rent directly to owners.
           </p>
         </div>
         <div className="flex w-full items-center gap-3 md:w-auto">
@@ -77,8 +83,7 @@ export default function RentPage() {
             {[
               { key: 'all', Icon: Filter },
               { key: 'real_estate', Icon: Building2 },
-              { key: 'vehicle', Icon: Car },
-              { key: 'commodity', Icon: Package },
+              { key: 'land', Icon: MapPin },
             ].map(({ key, Icon }) => (
               <button
                 key={key}

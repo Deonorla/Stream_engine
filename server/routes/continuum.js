@@ -3,6 +3,7 @@ const { ethers } = require("ethers");
 const { generateDueDiligence, aggregateMarketIntel } = require("../services/assetIntelligence");
 const { screenAssets, parseGoal } = require("../services/assetScreener");
 const { formatStellarAmount, normalizeStellarAmount } = require("../services/stellarAnchorService");
+const { inferMarketAssetClass, isSupportedProductiveTwin } = require("../services/rwaAssetScope");
 
 const router = express.Router();
 
@@ -75,25 +76,29 @@ async function hydrateAsset(services, asset) {
 }
 
 function productiveOnly(asset) {
-    return [1, 2, 3].includes(Number(asset?.assetType || 0));
+    return isSupportedProductiveTwin(asset);
 }
 
 const MARKET_TYPE_TO_CHAIN_ASSET_TYPE = {
     real_estate: 1,
-    vehicle: 2,
-    commodity: 3,
+    land: 1,
 };
 
-function assetTypeKey(assetType) {
+function assetTypeKey(assetType, asset = null) {
+    if (asset) {
+        return inferMarketAssetClass(asset);
+    }
     const numericType = Number(assetType || 0);
     if (numericType === 1) return "real_estate";
-    if (numericType === 2) return "vehicle";
-    return "commodity";
+    return "unsupported";
 }
 
 function marketAssetSummary(asset, auction) {
     return {
         ...asset,
+        marketAssetClass: inferMarketAssetClass(asset),
+        rentalActivity: asset.rentalActivity || null,
+        currentlyRented: Boolean(asset.rentalActivity?.currentlyRented),
         market: {
             activeAuction: auction || null,
             hasActiveAuction: Boolean(auction && auction.status === "active"),
@@ -199,6 +204,9 @@ function applyMarketBrowseFilters(assets = [], browseFilters = {}) {
     const baseFiltered = assets.filter((asset) => {
         if (!assetMatchesSearch(asset, browseFilters.search)) return false;
         if (browseFilters.hasAuction && !asset.market?.hasActiveAuction) return false;
+        if (browseFilters.appliedFilters?.type && browseFilters.appliedFilters.type !== "all") {
+            return inferMarketAssetClass(asset) === browseFilters.appliedFilters.type;
+        }
         return true;
     });
 
@@ -583,15 +591,15 @@ function enrichAuction(auction) {
 function buildMarketSummary(assets = [], activeAuctions = [], rankedAssets = [], browseFilters = {}, universeCount = assets.length) {
     const marketIntel = aggregateMarketIntel(assets);
     const totalClaimableYield = sumStringAmounts(assets.map((asset) => asset.claimableYield || "0"));
+    const currentRentalCount = assets.filter((asset) => asset.rentalActivity?.currentlyRented).length;
     const typeBreakdown = {
-        real_estate: Number(marketIntel.sectorBreakdown?.[1] || 0),
-        vehicle: Number(marketIntel.sectorBreakdown?.[2] || 0),
-        commodity: Number(marketIntel.sectorBreakdown?.[3] || 0),
+        real_estate: assets.filter((asset) => inferMarketAssetClass(asset) === "real_estate").length,
+        land: assets.filter((asset) => inferMarketAssetClass(asset) === "land").length,
     };
     const topOpportunities = (rankedAssets.length ? rankedAssets : (marketIntel.topPerformers || [])).slice(0, 3).map((entry) => ({
         tokenId: entry.tokenId,
         name: entry.name || `Asset #${entry.tokenId}`,
-        assetType: assetTypeKey(entry.assetType),
+        assetType: assetTypeKey(entry.assetType, entry.asset || null),
         yieldRate: Number(entry.yieldRate || 0),
         riskScore: Number(entry.riskScore || 0),
         score: Number(entry.score || 0),
@@ -619,6 +627,8 @@ function buildMarketSummary(assets = [], activeAuctions = [], rankedAssets = [],
         verifiedSharePct: percentage(marketIntel.verifiedCount, marketIntel.totalAssets),
         rentalReadyCount: Number(marketIntel.rentalReadyCount || 0),
         rentalReadySharePct: percentage(marketIntel.rentalReadyCount, marketIntel.totalAssets),
+        currentRentalCount,
+        currentRentalSharePct: percentage(currentRentalCount, marketIntel.totalAssets),
         avgYield: Number(marketIntel.avgYield || 0),
         avgRisk: Number(marketIntel.avgRisk || 0),
         topYield: Number(marketIntel.maxYield || 0),
@@ -637,7 +647,7 @@ function buildMarketSummary(assets = [], activeAuctions = [], rankedAssets = [],
 function defaultSavedScreenName(filters = {}, summary = {}) {
     const parts = [];
     if (filters.type && filters.type !== "all") {
-        parts.push(assetTypeKey(MARKET_TYPE_TO_CHAIN_ASSET_TYPE[filters.type] || filters.type).replace("_", " "));
+        parts.push(String(filters.type).replace("_", " "));
     }
     if (filters.verifiedOnly) parts.push("verified");
     if (filters.rentalReady) parts.push("rental ready");
@@ -818,6 +828,7 @@ router.get("/market/assets/:assetId/analytics", requirePaidAction("0.10", "Premi
             lastWinningBid: winningAuction?.highestBidDisplay || null,
             activityCount: activity.length,
             rentalReady: Boolean(asset.rentalReady),
+            rentalActivity: asset.rentalActivity || null,
             verdict: dueDiligence.verdict,
             confidence: dueDiligence.confidence,
             summary: dueDiligence.summary,
@@ -829,6 +840,10 @@ router.get("/market/assets/:assetId/analytics", requirePaidAction("0.10", "Premi
                 totalProductiveTwins: marketIntel.totalAssets || 0,
                 verifiedSharePct: percentage(marketIntel.verifiedCount, marketIntel.totalAssets),
                 rentalReadySharePct: percentage(marketIntel.rentalReadyCount, marketIntel.totalAssets),
+                currentRentalSharePct: percentage(
+                    productiveAssets.filter((entry) => entry.rentalActivity?.currentlyRented).length,
+                    marketIntel.totalAssets,
+                ),
                 avgYield: marketIntel.avgYield || 0,
                 avgRisk: marketIntel.avgRisk || 0,
                 topYield: marketIntel.maxYield || 0,

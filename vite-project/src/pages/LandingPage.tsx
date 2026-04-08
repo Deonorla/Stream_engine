@@ -96,7 +96,7 @@ export default function LandingPage() {
                   title: 'Timed Auction Exchange',
                   color: 'text-purple-600', bg: 'bg-purple-50',
                   points: [
-                    'Humans admit productive real estate, vehicles, and equipment once',
+                    'Humans admit productive real estate and land twins once',
                     'Agents compete in timed USDC auctions for platform ownership of the twin',
                     'Winning settlement transfers the twin and unlocks yield control',
                     'Rental stays available, but auctions are the center of v1',
@@ -240,10 +240,10 @@ export default function LandingPage() {
               <div className="flex-1">
                 <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label text-[10px] font-bold uppercase tracking-wider mb-6 inline-block">RWA Studio</span>
                 <h2 className="font-headline text-3xl sm:text-4xl md:text-5xl font-bold mb-6">RWA Studio feeds the Continuum market</h2>
-                <p className="text-on-surface-variant text-lg mb-8 leading-relaxed">RWA Studio is the issuer and admission lane for productive real estate, vehicles, and equipment. Evidence stays private, policy remains enforceable, and the verified twin becomes tradable in Continuum once it is admitted.</p>
+                <p className="text-on-surface-variant text-lg mb-8 leading-relaxed">RWA Studio is the issuer and admission lane for productive real estate and land. Evidence stays private, policy remains enforceable, and the verified twin becomes tradable in Continuum once it is admitted.</p>
                 <ul className="space-y-5 mb-10">
                   {[
-                    { title: 'Admit a productive twin', desc: 'Upload evidence privately, anchor the public metadata, and admit a real estate, vehicle, or equipment twin into the market.' },
+                    { title: 'Admit a productive twin', desc: 'Upload evidence privately, anchor the public metadata, and admit a real estate or land twin into the market.' },
                     { title: 'Attestation & compliance', desc: 'Attestors verify the asset. Policy controls stay at the real-world trust boundary without forcing manual issuer onboarding for every mint.' },
                     { title: 'Auction and yield ready', desc: 'Once admitted, the twin can be auctioned in Continuum while yield stays coupled to the current platform owner.' },
                     { title: 'Rental stays available', desc: 'Physical access flows remain in the product, but they are a side lane beside the main auction, yield, and treasury loop.' },

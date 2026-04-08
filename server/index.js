@@ -30,6 +30,7 @@ const { AgentBrainService } = require("./services/agentBrainService");
 const { AgentRuntimeService } = require("./services/agentRuntimeService");
 const { AuctionEngine } = require("./services/auctionEngine");
 const { TreasuryManager } = require("./services/treasuryManager");
+const { isSupportedProductiveTwin } = require("./services/rwaAssetScope");
 const agentRoutes = require("./routes/agent");
 const continuumRoutes = require("./routes/continuum");
 
@@ -565,10 +566,11 @@ function createApp(config = defaultConfig) {
         const rawAssets = services.chainService?.isConfigured?.()
             ? await services.chainService.listAssetSnapshots({ owner: req.query.owner, limit: 200 })
             : await services.store.listAssets({ owner: req.query.owner });
-        for (const asset of rawAssets) {
+        const supportedAssets = rawAssets.filter(isSupportedProductiveTwin);
+        for (const asset of supportedAssets) {
             await services.store.upsertAsset(asset);
         }
-        const assets = await Promise.all(rawAssets.map((asset) => hydrateAssetMetadata(services, asset)));
+        const assets = await Promise.all(supportedAssets.map((asset) => hydrateAssetMetadata(services, asset)));
         res.json({
             assets,
             code: "assets_listed",

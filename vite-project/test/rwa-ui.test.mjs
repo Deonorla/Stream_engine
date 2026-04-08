@@ -81,7 +81,7 @@ test("RWA page source still exposes the active Stellar studio layout", async () 
   assert.match(source, /RWA Studio/);
   assert.match(source, /My Portfolio/);
   assert.match(source, /Stellar network/i);
-  assert.match(source, /Equipment/);
+  assert.match(source, /Land/);
   assert.match(source, /mintRwaAsset\(/);
 });
 
@@ -96,7 +96,7 @@ test("Docs page source states the v2 legal boundary clearly", async () => {
 test("Marketplace source keeps the lighter auction-first layout", async () => {
   const source = await fs.readFile(marketplacePagePath, "utf8");
 
-  assert.match(source, /Discover, rent, and trade yield-bearing real-world assets/i);
+  assert.match(source, /Discover, rent, and trade productive real estate and land twins/i);
   assert.match(source, /Top Agents/);
   assert.match(source, /My Positions/);
   assert.match(source, /Premium Analytics/);
@@ -120,7 +120,7 @@ test("Agent Console source surfaces the managed session rail and widened mandate
   assert.match(source, /Max Drawdown/);
   assert.match(source, /Approved Asset Classes/);
   assert.match(source, /Treasury Strategies/);
-  assert.match(source, /Equipment/);
+  assert.match(source, /Land/);
   assert.match(source, /Blend Lending/);
   assert.match(source, /Session Rail/);
   assert.match(source, /Open .* Session/);

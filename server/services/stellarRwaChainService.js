@@ -13,6 +13,7 @@ const {
 } = require("./rwaModel");
 const { StellarAnchorService, formatStellarAmount } = require("./stellarAnchorService");
 const { StellarSorobanContractService } = require("./stellarSorobanContractService");
+const { deriveRentalActivity } = require("./rwaAssetScope");
 const { resolveStellarRuntimeId, DEFAULT_STELLAR_DEPLOYMENTS } = require("../../utils/runtimeConfig");
 
 const DEFAULT_ATTESTATION_POLICIES = {
@@ -385,6 +386,12 @@ function applyRentalReadiness(asset) {
     asset.readinessCode = rentalReadiness.code;
     asset.readinessLabel = rentalReadiness.label;
     asset.readinessReason = rentalReadiness.reason;
+    return asset;
+}
+
+function applyRentalActivity(asset, sessions = []) {
+    asset.rentalActivity = deriveRentalActivity(asset, sessions);
+    asset.currentlyRented = Boolean(asset.rentalActivity.currentlyRented);
     return asset;
 }
 
@@ -1748,7 +1755,7 @@ class StellarRWAChainService {
         return session.claimableInitial || "0";
     }
 
-    async getAssetSnapshot(tokenId) {
+    async getAssetSnapshot(tokenId, options = {}) {
         try {
             const rawAsset = await this.contractService.invokeView({
                 contractId: this.assetRegistryAddress,
@@ -1820,6 +1827,17 @@ class StellarRWAChainService {
             asset.activeStreamId = latestYieldStreamId;
             this.recomputeAssetStatus(asset);
             applyRentalReadiness(asset);
+            let sessions = [];
+            if (Array.isArray(options.sessions)) {
+                sessions = options.sessions;
+            } else {
+                try {
+                    sessions = await this.listSessions();
+                } catch {
+                    sessions = [];
+                }
+            }
+            applyRentalActivity(asset, sessions);
             await this.store.upsertAsset(asset);
             return asset;
         } catch (error) {
@@ -1834,11 +1852,28 @@ class StellarRWAChainService {
             };
             this.recomputeAssetStatus(cloned);
             applyRentalReadiness(cloned);
+            let sessions = [];
+            if (Array.isArray(options.sessions)) {
+                sessions = options.sessions;
+            } else {
+                try {
+                    sessions = await this.listSessions();
+                } catch {
+                    sessions = [];
+                }
+            }
+            applyRentalActivity(cloned, sessions);
             return cloned;
         }
     }
 
     async listAssetSnapshots({ owner, limit = 200 } = {}) {
+        let sessions = [];
+        try {
+            sessions = await this.listSessions();
+        } catch {
+            sessions = [];
+        }
         try {
             if (owner) {
                 const tokenIds = await this.contractService.invokeView({
@@ -1850,7 +1885,7 @@ class StellarRWAChainService {
                 });
                 const hydrated = [];
                 for (const tokenId of (tokenIds || []).slice(0, limit)) {
-                    hydrated.push(await this.getAssetSnapshot(Number(tokenId)));
+                    hydrated.push(await this.getAssetSnapshot(Number(tokenId), { sessions }));
                 }
                 return hydrated.filter(Boolean);
             }
@@ -1866,7 +1901,7 @@ class StellarRWAChainService {
                 const startTokenId = Math.max(1, lastTokenId - Number(limit) + 1);
                 const hydrated = [];
                 for (let tokenId = startTokenId; tokenId <= lastTokenId; tokenId += 1) {
-                    hydrated.push(await this.getAssetSnapshot(tokenId));
+                    hydrated.push(await this.getAssetSnapshot(tokenId, { sessions }));
                 }
                 return hydrated.filter(Boolean);
             }
@@ -1877,7 +1912,7 @@ class StellarRWAChainService {
         const assets = await this.store.listAssets({ owner });
         const hydrated = [];
         for (const asset of assets.slice(0, limit)) {
-            hydrated.push(await this.getAssetSnapshot(asset.tokenId));
+            hydrated.push(await this.getAssetSnapshot(asset.tokenId, { sessions }));
         }
         return hydrated.filter(Boolean);
     }

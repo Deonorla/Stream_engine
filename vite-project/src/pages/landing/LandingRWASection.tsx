@@ -12,8 +12,8 @@ function YieldTicker({ base, color }) {
 
 const ASSETS = [
   { icon: '🏢', name: 'Lagos Commercial Plaza', nft: '#4821', access: 'Smart lock · Floor 3–8', color: '#3b82f6', base: 0.0042 },
-  { icon: '🚗', name: 'Tesla Model S Fleet',    nft: '#2103', access: 'IoT ignition unlock',   color: '#a855f7', base: 0.0139 },
-  { icon: '⚙️', name: 'Industrial CNC Machinery',nft: '#9034', access: 'PLC controller unlock', color: '#10b981', base: 0.0028 },
+  { icon: '🌍', name: 'Lekki Waterfront Parcel', nft: '#2103', access: 'Survey marker · Parcel gate', color: '#10b981', base: 0.0034 },
+  { icon: '🏘️', name: 'Abuja Residential Estate', nft: '#9034', access: 'Smart lock · Community gate', color: '#a855f7', base: 0.0028 },
 ];
 
 export default function LandingRWASection({ tokenSymbol = 'USDC', assetCount = 0 }) {
@@ -29,7 +29,7 @@ export default function LandingRWASection({ tokenSymbol = 'USDC', assetCount = 0
               Own the asset.<br />Stream the access.
             </h2>
             <p className="text-surface-300 leading-relaxed">
-              Create verified rental twins for real estate, vehicles, and machinery. Keep the twin and the revenue rights. Renters fund metered {tokenSymbol} access that unlocks smart locks, IoT ignition, and PLC controllers.
+              Create verified rental twins for real estate and land. Keep the twin and the revenue rights. Renters fund metered {tokenSymbol} access that unlocks smart locks, parcel controls, and verified site access.
             </p>
             <div className="inline-flex items-center gap-2 rounded-full border border-success-500/20 bg-success-500/10 px-3 py-1 text-xs font-mono text-success-300">
               <span className="h-1.5 w-1.5 rounded-full bg-success-400" />
@@ -40,7 +40,7 @@ export default function LandingRWASection({ tokenSymbol = 'USDC', assetCount = 0
                 { label: 'Owner keeps NFT + yield + flash loan rights', color: 'text-success-400' },
                 { label: `Renter streams ${tokenSymbol} → physical access unlocks instantly`, color: 'text-success-400' },
                 { label: `Cancel anytime — unspent ${tokenSymbol} refunded immediately`, color: 'text-success-400' },
-                { label: 'Fleet Control — freeze any asset to pause stream + access', color: 'text-warning-400' },
+                { label: 'Policy controls can freeze any twin to pause stream + access', color: 'text-warning-400' },
               ].map(item => (
                 <li key={item.label} className="flex items-center gap-3">
                   <span className={`text-base ${item.color}`} aria-hidden="true">✓</span>

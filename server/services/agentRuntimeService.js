@@ -5,26 +5,23 @@ const { monitorRisks } = require("./assetIntelligence");
 const { buildPortfolio, computeRebalanceActions } = require("./portfolioManager");
 const { checkCompliance } = require("./complianceChecker");
 const { formatStellarAmount, normalizeStellarAmount } = require("./stellarAnchorService");
+const { inferMarketAssetClass, isSupportedProductiveTwin } = require("./rwaAssetScope");
 
 function nowSeconds() {
     return Math.floor(Date.now() / 1000);
 }
 
 function productiveOnly(asset) {
-    return [1, 2, 3].includes(Number(asset?.assetType || 0));
+    return isSupportedProductiveTwin(asset);
 }
 
 const MARKET_TYPE_TO_CHAIN_ASSET_TYPE = {
     real_estate: 1,
-    vehicle: 2,
-    commodity: 3,
+    land: 1,
 };
 
 function assetClassLabel(asset) {
-    const assetType = Number(asset?.assetType || 0);
-    if (assetType === 1) return "real_estate";
-    if (assetType === 2) return "vehicle";
-    return "commodity";
+    return inferMarketAssetClass(asset);
 }
 
 function toDisplayAmount(value) {

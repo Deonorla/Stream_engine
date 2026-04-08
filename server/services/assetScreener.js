@@ -145,9 +145,14 @@ function parseGoal(goal = '') {
     if (riskMatch) criteria.maxRisk = parseInt(riskMatch[1]);
 
     const assetTypes = [];
-    if (text.includes('real estate') || text.includes('property') || text.includes('rental')) assetTypes.push(1);
-    if (text.includes('vehicle')) assetTypes.push(2);
-    if (text.includes('equipment')) assetTypes.push(3);
+    if (
+        text.includes('real estate')
+        || text.includes('property')
+        || text.includes('rental')
+        || text.includes('land')
+        || text.includes('plot')
+        || text.includes('parcel')
+    ) assetTypes.push(1);
     if (assetTypes.length) criteria.assetTypes = [...new Set(assetTypes)];
 
     if (text.includes('verified only') || text.includes('verified assets')) criteria.verifiedOnly = true;

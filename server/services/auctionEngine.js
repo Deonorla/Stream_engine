@@ -1,4 +1,5 @@
 const { formatStellarAmount, normalizeStellarAmount } = require("./stellarAnchorService");
+const { inferMarketAssetClass, isSupportedProductiveTwin } = require("./rwaAssetScope");
 
 function nowSeconds() {
     return Math.floor(Date.now() / 1000);
@@ -25,10 +26,7 @@ function assetAuctionIndexKey(tokenId) {
 }
 
 function assetTypeLabel(asset) {
-    const assetType = Number(asset?.assetType || 0);
-    if (assetType === 1) return "real_estate";
-    if (assetType === 2) return "vehicle";
-    return "commodity";
+    return inferMarketAssetClass(asset);
 }
 
 function normalizeAmount(value) {
@@ -36,8 +34,7 @@ function normalizeAmount(value) {
 }
 
 function ensureProductiveAsset(asset) {
-    const assetType = Number(asset?.assetType || 0);
-    if (![1, 2, 3].includes(assetType)) {
+    if (!isSupportedProductiveTwin(asset)) {
         const error = new Error("Only productive RWA twins can enter Continuum auctions.");
         error.status = 400;
         error.code = "asset_type_not_supported";

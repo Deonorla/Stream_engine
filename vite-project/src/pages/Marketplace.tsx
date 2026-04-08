@@ -35,7 +35,7 @@ const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest' },
 ];
 
-const TYPE_FILTERS = ['all', 'real_estate', 'vehicle', 'commodity'];
+const TYPE_FILTERS = ['all', 'real_estate', 'land'];
 
 function buildUiAsset(asset: any) {
   return {
@@ -391,14 +391,13 @@ function AgentLeaderboard({ assets }: { assets: any[] }) {
 
 function MarketStats({ assets }: { assets: any[] }) {
   const totalYield = assets.reduce((sum, asset) => sum + (asset.yieldBalance || 0), 0);
-  const liveAuctions = assets.filter((asset) => asset.market?.hasActiveAuction).length;
-  const activeRentals = assets.filter((asset) => Number(asset.activeStreamId) > 0).length;
+  const activeRentals = assets.filter((asset) => asset.rentalActivity?.currentlyRented).length;
 
   return (
     <div className="grid grid-cols-3 gap-4">
       {[
         { icon: Store, label: 'Listed Assets', value: assets.length, suffix: '', color: 'text-primary' },
-        { icon: Zap, label: 'Live Auctions', value: liveAuctions || activeRentals, suffix: '', color: 'text-secondary' },
+        { icon: Zap, label: 'Active Rentals', value: activeRentals, suffix: '', color: 'text-secondary' },
         { icon: TrendingUp, label: 'Total Yield', value: totalYield.toFixed(2), suffix: ' USDC', color: 'text-purple-600' },
       ].map(({ icon: Icon, label, value, suffix, color }) => (
         <div key={label} className="bg-white rounded-2xl border border-slate-100 p-4 shadow-sm">
@@ -459,7 +458,7 @@ export default function Marketplace() {
   const filtered = useMemo(() => sortAssets(
     allAssets.filter((asset) => {
       if (typeFilter !== 'all' && asset.type !== typeFilter) return false;
-      if (onlyAvailable && Number(asset.activeStreamId) > 0) return false;
+      if (onlyAvailable && asset.rentalActivity?.currentlyRented) return false;
       if (search) {
         const query = search.toLowerCase();
         return (
@@ -489,7 +488,7 @@ export default function Marketplace() {
         <div>
           <h2 className="text-4xl font-headline font-bold tracking-tight text-on-surface">Marketplace</h2>
           <p className="mt-1 text-sm text-on-surface-variant">
-            Discover, rent, and trade yield-bearing real-world assets.
+            Discover, rent, and trade productive real estate and land twins.
           </p>
         </div>
         <button

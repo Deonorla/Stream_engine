@@ -62,8 +62,7 @@ type ObjectiveDraft = {
 
 const ASSET_CLASS_OPTIONS = [
   { value: 'real_estate', label: 'Real Estate' },
-  { value: 'vehicle',     label: 'Vehicle' },
-  { value: 'commodity',   label: 'Equipment' },
+  { value: 'land',        label: 'Land' },
 ];
 
 const TREASURY_STRATEGY_OPTIONS = [
@@ -185,7 +184,7 @@ export default function AgentConsolePage() {
   const [marketAssets, setMarketAssets] = useState<any[]>([]);
   const [mandateDraft, setMandateDraft] = useState<MandateDraft>({
     capitalBase: '1000',
-    approvedAssetClasses: ['real_estate', 'vehicle', 'commodity'],
+    approvedAssetClasses: ['real_estate', 'land'],
     issuerCapPct: '40',
     assetCapPct: '25',
     targetReturnMinPct: '8',
@@ -246,7 +245,7 @@ export default function AgentConsolePage() {
       if (mandate) {
         setMandateDraft({
           capitalBase: String(mandate.capitalBase ?? 1000),
-          approvedAssetClasses: Array.isArray(mandate.approvedAssetClasses) && mandate.approvedAssetClasses.length ? mandate.approvedAssetClasses : ['real_estate', 'vehicle', 'commodity'],
+          approvedAssetClasses: Array.isArray(mandate.approvedAssetClasses) && mandate.approvedAssetClasses.length ? mandate.approvedAssetClasses : ['real_estate', 'land'],
           issuerCapPct: String(mandate.issuerCapPct ?? 40),
           assetCapPct: String(mandate.assetCapPct ?? 25),
           targetReturnMinPct: String(mandate.targetReturnMinPct ?? 8),
@@ -680,7 +679,7 @@ export default function AgentConsolePage() {
                     <textarea value={objectiveDraft.instructions}
                       onChange={e => setObjectiveDraft(c => ({ ...c, instructions: e.target.value }))}
                       rows={4}
-                      placeholder="Prefer short-duration yield, avoid high-risk twins, watch vehicles..."
+                      placeholder="Prefer income-producing land and real estate, avoid high-risk twins..."
                       className="w-full bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
                   </div>
                 </div>
@@ -710,7 +709,7 @@ export default function AgentConsolePage() {
                     <textarea value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
                       rows={3}
-                      placeholder="Why didn’t you bid? Focus more on vehicles. Tighten risk."
+                      placeholder="Why didn’t you bid? Focus more on land. Tighten risk."
                       className="flex-1 bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
                     <button onClick={() => void sendAgentChat()} disabled={!agentPublicKey || chatPending || !chatInput.trim()}
                       className="self-end rounded-xl bg-primary text-white text-xs font-bold px-3 py-2.5 hover:opacity-90 disabled:opacity-50 transition-all">

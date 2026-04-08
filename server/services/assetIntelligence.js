@@ -16,7 +16,7 @@ async function generateDueDiligence(asset, apiKey) {
 
 Asset Data:
 - Token ID: ${asset.tokenId}
-- Asset Type: ${asset.assetType} (1=real estate, 2=vehicle, 3=equipment)
+- Asset Type: ${asset.assetType} (1=real estate or land)
 - Verification Status: ${asset.verificationStatusLabel}
 - Status Reason: ${asset.statusReason || "none"}
 - Issuer: ${asset.issuer}
@@ -27,6 +27,7 @@ Asset Data:
 - Total Yield Deposited: ${asset.totalYieldDeposited} USDC
 - Flash Advance Outstanding: ${asset.flashAdvanceOutstanding} USDC
 - Rental Ready: ${asset.rentalReady}
+- Currently Rented: ${Boolean(asset.rentalActivity?.currentlyRented)}
 - Estimated Yield Rate: ${extractYieldRate(asset).toFixed(2)}%
 - Risk Score: ${estimateRiskScore(asset)}/100
 
@@ -86,6 +87,7 @@ function aggregateMarketIntel(assets) {
 
     const verified = assets.filter(a => a.verificationStatusLabel === "verified");
     const rentalReady = assets.filter(a => a.rentalReady);
+    const currentlyRented = assets.filter(a => a.rentalActivity?.currentlyRented);
     const withYield = assets.filter(a => extractYieldRate(a) > 0);
     const yields = withYield.map(a => extractYieldRate(a));
     const risks = assets.map(a => estimateRiskScore(a));
@@ -113,6 +115,7 @@ function aggregateMarketIntel(assets) {
         totalAssets: assets.length,
         verifiedCount: verified.length,
         rentalReadyCount: rentalReady.length,
+        currentRentalCount: currentlyRented.length,
         avgYield: yields.length ? Math.round(yields.reduce((a, b) => a + b, 0) / yields.length * 100) / 100 : 0,
         maxYield: yields.length ? Math.round(Math.max(...yields) * 100) / 100 : 0,
         avgRisk: Math.round(risks.reduce((a, b) => a + b, 0) / risks.length),

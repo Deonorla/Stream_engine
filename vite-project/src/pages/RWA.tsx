@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Building2,
-  Car,
   CheckCircle2,
   CircleAlert,
-  Cpu,
   FilePenLine,
   FileText,
   Info,
+  MapPin,
   ShieldCheck,
   UploadCloud,
   WalletCards,
@@ -47,8 +46,7 @@ import {
 
 const ASSET_CATEGORIES = [
   { key: 'real_estate', label: 'Real Estate', Icon: Building2 },
-  { key: 'vehicle', label: 'Vehicle', Icon: Car },
-  { key: 'commodity', label: 'Equipment', Icon: Cpu },
+  { key: 'land', label: 'Land', Icon: MapPin },
 ];
 
 const DEFAULT_FORM = {
@@ -62,8 +60,7 @@ const RIGHTS_MODEL = 'verified_rental_asset';
 const DOCUMENT_ORDER = ['deed', 'survey', 'valuation', 'inspection', 'insurance', 'tax', 'tenancy', 'encumbrance'];
 const ACCESS_MECHANISMS = {
   real_estate: 'Smart lock + concierge verification',
-  vehicle: 'IoT ignition unlock',
-  commodity: 'Telematics unlock + operator dispatch',
+  land: 'Survey marker verification + gated site access',
 };
 const DOCUMENT_LABELS = {
   deed: 'Title deed',
@@ -153,7 +150,7 @@ function slugify(value) {
 }
 
 function buildPropertyRef(name, location, category) {
-  const categoryCode = category === 'commodity' ? 'EQP' : category === 'vehicle' ? 'VEH' : 'REA';
+  const categoryCode = category === 'land' ? 'LND' : 'REA';
   const nameSlug = slugify(name) || 'ASSET';
   const locationSlug = slugify(location).slice(0, 12) || 'GLOBAL';
   return `STREAM-${categoryCode}-${nameSlug}-${locationSlug}`;
@@ -1264,7 +1261,11 @@ export default function RWA() {
     try {
       setIsPortfolioLoading(true);
       const assets = await fetchRwaAssets(walletAddress);
-      setPortfolioAssets(assets.map(mapApiAssetToUiAsset));
+      setPortfolioAssets(
+        assets
+          .map(mapApiAssetToUiAsset)
+          .filter((asset) => ['real_estate', 'land'].includes(asset.type)),
+      );
     } catch (error) {
       console.error('Failed to load live RWA portfolio:', error);
       toast.warning(
@@ -1306,7 +1307,7 @@ export default function RWA() {
 
   const indexedAssets = portfolioAssets.length;
   const totalMinted = formatCompactNumber(indexedAssets);
-  const activeRentals = portfolioAssets.filter((asset) => Number(asset.activeStreamId || 0) > 0).length;
+  const activeRentals = portfolioAssets.filter((asset) => asset.rentalActivity?.currentlyRented).length;
 
   return (
     <div className="mx-auto max-w-[1600px] p-4 sm:p-8 lg:p-12">
@@ -1314,7 +1315,7 @@ export default function RWA() {
         <div>
           <h2 className="text-4xl font-headline font-bold tracking-tight text-on-surface"> Studio</h2>
           <p className="mt-2 max-w-md font-body text-on-surface-variant">
-            Mint, manage and attest tokenized real-world assets on Stellar.
+            Mint, manage and attest tokenized real estate and land twins on Stellar.
           </p>
         </div>
         <div className="glass-card mt-3 flex items-center gap-3 rounded-full px-4 py-2 md:mt-0">
@@ -1346,7 +1347,7 @@ export default function RWA() {
               {
                 label: 'Active Rentals',
                 value: activeRentals.toLocaleString(),
-                sub: 'Yield vault sessions',
+                sub: 'Live rental sessions',
                 subColor: 'text-secondary',
                 color: 'text-purple-600',
                 pulse: true,

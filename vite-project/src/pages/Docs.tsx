@@ -810,7 +810,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       summary:
         "How the rental asset side works now: minting a verified rental twin, anchoring private evidence, collecting attestations, renting, and managing yield.",
       plainEnglish:
-        "RWA Studio turns a house, vehicle, or machine into a verified productive rental twin. The NFT is not pretending to be a court-ready deed transfer. It is the onchain asset twin plus the future rental-yield record, while raw deeds, tax files, and inspections stay private by default.",
+        "RWA Studio turns a piece of real estate or land into a verified productive rental twin. The NFT is not pretending to be a court-ready deed transfer. It is the onchain asset twin plus the future rental-yield record, while raw deeds, tax files, and inspections stay private by default.",
       takeaways: [
         "The NFT is the verified rental twin, not the physical asset itself.",
         "Renting means paying for access, not buying ownership.",
@@ -1113,7 +1113,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           question: `What happens with a smart rented car if the ${stellar ? "session" : "stream"} ends?`,
           answer:
-            `That is one of the strongest real-world examples for this model. A smart vehicle can watch the ${stellar ? "session" : "stream"} state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.`,
+            `That is one of the strongest real-world examples for this model. A smart property or gated parcel can watch the ${stellar ? "session" : "stream"} state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.`,
         },
       ],
     },
@@ -1162,7 +1162,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "Why we only care about productive assets here",
-          body: "Gold, silver, and passive commodity wrappers can be tokenized, but they do not naturally produce rental cash flow. Stella's Stream Engine focuses on houses, fleets, heavy machinery, and other rent-producing assets because those assets justify streaming, refund logic, live metering, and ownership-linked yield.",
+          body: "Gold, silver, and passive commodity wrappers can be tokenized, but they do not naturally produce rental cash flow. Stella's Stream Engine focuses on real estate and land because those assets justify streaming, refund logic, live metering, and ownership-linked yield.",
         },
         {
           title: "IoT and machine enforcement",

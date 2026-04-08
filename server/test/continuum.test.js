@@ -149,12 +149,13 @@ describe("Continuum API Integration", function () {
             store,
             ipfsService: {
                 async fetchJSON(uri) {
+                    const source = String(uri);
                     return {
                         uri,
                         metadata: {
-                            name: String(uri).includes("vehicle") ? "Truck Beta" : "Warehouse Alpha",
-                            description: String(uri).includes("vehicle") ? "Fleet vehicle" : "Lagos logistics facility",
-                            category: String(uri).includes("vehicle") ? "vehicle" : "real_estate",
+                            name: source.includes("land") ? "Lekki Parcel Beta" : "Warehouse Alpha",
+                            description: source.includes("land") ? "Income-producing land parcel" : "Lagos logistics facility",
+                            category: source.includes("land") ? "land" : "real_estate",
                         },
                     };
                 },
@@ -517,6 +518,7 @@ describe("Continuum API Integration", function () {
         expect(response.body.summary.liveAuctions).to.equal(1);
         expect(response.body.summary.verifiedSharePct).to.equal(100);
         expect(response.body.summary.typeBreakdown.real_estate).to.equal(1);
+        expect(response.body.summary.currentRentalCount).to.equal(0);
         expect(response.body.summary.highlights.topOpportunities).to.have.length(1);
         expect(response.body.summary.highlights.auctionsClosingSoon).to.have.length(1);
     });
@@ -1136,14 +1138,14 @@ describe("Continuum API Integration", function () {
     it("lets the managed runtime prioritize shortlisted auctions before settling", async () => {
         await store.upsertAsset({
             tokenId: 8,
-            assetType: 2,
+            assetType: 1,
             currentOwner: competitorAgentKeypair.publicKey(),
             issuer: issuerKeypair.publicKey(),
             verificationStatusLabel: "verified",
             claimableYield: "1500000",
             totalYieldDeposited: "10000000",
             rentalReady: true,
-            publicMetadataURI: "ipfs://vehicle-beta",
+            publicMetadataURI: "ipfs://land-beta",
             stream: {
                 flowRate: "5000",
             },
@@ -1168,19 +1170,19 @@ describe("Continuum API Integration", function () {
             highestBid: null,
             highestBidDisplay: null,
             reserveMet: false,
-            assetType: "vehicle",
-            title: "Truck Beta",
+            assetType: "land",
+            title: "Lekki Parcel Beta",
         };
         await store.upsertAsset({
             tokenId: 9,
-            assetType: 2,
+            assetType: 1,
             currentOwner: competitorAgentKeypair.publicKey(),
             issuer: issuerKeypair.publicKey(),
             verificationStatusLabel: "verified",
             claimableYield: "6000000",
             totalYieldDeposited: "10000000",
             rentalReady: true,
-            publicMetadataURI: "ipfs://bulldozer-gamma",
+            publicMetadataURI: "ipfs://estate-gamma",
             stream: {
                 flowRate: "9000",
             },
@@ -1205,18 +1207,18 @@ describe("Continuum API Integration", function () {
             highestBid: null,
             highestBidDisplay: null,
             reserveMet: false,
-            assetType: "vehicle",
-            title: "Bulldozer Gamma",
+            assetType: "real_estate",
+            title: "Estate Gamma",
         };
 
         await request(app)
             .post(`/api/agents/${agentId}/screens`)
             .set("Authorization", `Bearer ${token}`)
             .send({
-                name: "Vehicle shortlist",
+                name: "Land shortlist",
                 filters: {
-                    search: "vehicle",
-                    type: "vehicle",
+                    search: "land",
+                    type: "land",
                     minYield: 10,
                     maxRisk: 40,
                     verifiedOnly: true,
@@ -1234,8 +1236,8 @@ describe("Continuum API Integration", function () {
             .set("Authorization", `Bearer ${token}`)
             .send({
                 tokenId: 8,
-                name: "Truck Beta",
-                assetType: "vehicle",
+                name: "Lekki Parcel Beta",
+                assetType: "land",
                 verificationStatus: "verified",
                 yieldRate: 15,
                 riskScore: 30,

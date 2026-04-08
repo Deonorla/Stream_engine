@@ -183,7 +183,7 @@ function defaultMandate(agentId = "") {
     return {
         agentId: String(agentId).toUpperCase(),
         capitalBase: "1000",
-        approvedAssetClasses: ["real_estate", "vehicle", "commodity"],
+        approvedAssetClasses: ["real_estate", "land"],
         issuerCapPct: 40,
         assetCapPct: 25,
         liquidityFloorPct: 10,

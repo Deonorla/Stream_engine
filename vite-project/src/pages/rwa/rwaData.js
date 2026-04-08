@@ -9,6 +9,14 @@ export const TYPE_META = {
     gradient: 'from-blue-600/20 to-cyan-600/20',
     border: 'border-blue-500/30',
   },
+  land: {
+    label: 'Land',
+    rentLabel: 'Land',
+    color: 'text-emerald-500',
+    dot: 'bg-emerald-500',
+    gradient: 'from-emerald-600/20 to-teal-600/20',
+    border: 'border-emerald-500/30',
+  },
   vehicle: {
     label: 'Vehicle',
     rentLabel: 'Vehicles',
@@ -29,6 +37,7 @@ export const TYPE_META = {
 
 export const TYPE_TO_CHAIN_ASSET_TYPE = {
   real_estate: 1,
+  land: 1,
   vehicle: 2,
   commodity: 3,
 };
@@ -38,6 +47,8 @@ export const CHAIN_ASSET_TYPE_TO_UI_TYPE = {
   2: 'vehicle',
   3: 'commodity',
 };
+
+export const SUPPORTED_PRODUCT_TYPES = ['real_estate', 'land'];
 
 export const RIGHTS_MODEL_LABELS = {
   verified_rental_asset: 'Verified Rental Twin',
@@ -454,7 +465,7 @@ function enrichAsset(asset, index) {
   };
 }
 
-export const PORTFOLIO_ASSETS = RAW_ASSETS.map(enrichAsset);
+export const PORTFOLIO_ASSETS = RAW_ASSETS.map(enrichAsset).filter((asset) => SUPPORTED_PRODUCT_TYPES.includes(asset.type));
 export const MOCK_ASSETS = PORTFOLIO_ASSETS;
 
 export function formatAssetTypeLabel(type) {
@@ -604,6 +615,23 @@ function resolveMetadataType(metadata, assetType) {
     return attrType;
   }
 
+  const freeText = [
+    metadata?.name,
+    metadata?.title,
+    metadata?.description,
+    metadata?.location,
+    metadata?.category,
+    metadata?.assetType,
+    metadata?.asset_type,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (['land', 'plot', 'parcel', 'acre', 'lot', 'site', 'farmland'].some((keyword) => freeText.includes(keyword))) {
+    return 'land';
+  }
+
   return normalizeUiAssetType(assetType);
 }
 
@@ -613,6 +641,30 @@ function parseUnits(value, decimals = 6) {
     return 0;
   }
   return numeric / 10 ** decimals;
+}
+
+function resolveRentalActivity(asset = {}, stream = {}) {
+  const activity = asset.rentalActivity || null;
+  if (activity && typeof activity === 'object') {
+    return {
+      currentlyRented: Boolean(activity.currentlyRented),
+      activeRevenueStream: Boolean(activity.activeRevenueStream),
+      status: activity.status || (activity.currentlyRented ? 'rented' : 'idle'),
+      label: activity.label || (activity.currentlyRented ? 'Currently Rented' : 'Rental Idle'),
+      reason: activity.reason || '',
+      sessionId: Number(activity.sessionId || 0),
+    };
+  }
+
+  const currentlyRented = Number(asset.activeStreamId || 0) > 0 && Boolean(stream?.isActive);
+  return {
+    currentlyRented,
+    activeRevenueStream: Boolean(stream?.isActive),
+    status: currentlyRented ? 'rented' : (asset.rentalReady ? 'ready' : 'not_ready'),
+    label: currentlyRented ? 'Currently Rented' : (asset.rentalReady ? 'Ready To Rent' : 'Not Rental Ready'),
+    reason: asset.readinessReason || '',
+    sessionId: Number(asset.activeStreamId || 0),
+  };
 }
 
 export function mapApiAssetToUiAsset(asset = {}) {
@@ -639,6 +691,7 @@ export function mapApiAssetToUiAsset(asset = {}) {
   const statusLabel = VERIFICATION_STATUS_LABELS[verificationStatus] || verificationStatus;
   const evidenceSummary = asset.evidenceSummary || asset.evidenceBundle?.evidenceSummary || null;
   const rentalReadiness = asset.rentalReadiness || null;
+  const rentalActivity = resolveRentalActivity(asset, stream);
 
   return {
     id: String(asset.tokenId),
@@ -687,6 +740,8 @@ export function mapApiAssetToUiAsset(asset = {}) {
     assetPolicy: asset.assetPolicy || null,
     rentalReady: Boolean(asset.rentalReady ?? rentalReadiness?.ready),
     rentalReadiness,
+    rentalActivity,
+    currentlyRented: Boolean(rentalActivity.currentlyRented),
     readinessCode: asset.readinessCode || rentalReadiness?.code || '',
     readinessLabel: asset.readinessLabel || rentalReadiness?.label || '',
     readinessReason: asset.readinessReason || rentalReadiness?.reason || '',
