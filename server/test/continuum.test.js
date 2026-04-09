@@ -503,6 +503,36 @@ describe("Continuum API Integration", function () {
         });
 
         await bootstrapManagedAgent();
+        installAgentBrain({
+            async decide({ wakeReason }) {
+                return {
+                    proposal: {
+                        actionType: "hold",
+                        actionArgs: {},
+                        thesis: "Default test planner is monitoring the market.",
+                        rationale: "No deterministic test opportunity requires action.",
+                        confidence: 60,
+                        blockedBy: "No deterministic test opportunity requires action.",
+                        requiresHuman: false,
+                        wakeReason,
+                    },
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "stub",
+                    model: "test-planner",
+                };
+            },
+            async chat() {
+                return {
+                    reply: "Default test planner chat reply.",
+                    objectivePatch: null,
+                    wakeReason: "chat_message",
+                };
+            },
+            async summarize({ objective }) {
+                return `Goal: ${objective?.goal || "test objective"}`;
+            },
+        });
     });
 
     it("lists productive market assets with active auction state", async () => {
@@ -1136,6 +1166,58 @@ describe("Continuum API Integration", function () {
     });
 
     it("lets the managed runtime prioritize shortlisted auctions before settling", async () => {
+        installAgentBrain({
+            async decide({ context, wakeReason }) {
+                const readySettlement = Array.isArray(context?.readySettlements) ? context.readySettlements[0] : null;
+                const bidFocus = context?.topBidFocus || context?.bidFocus || context?.topBidCandidate || null;
+                return {
+                    proposal: {
+                        actionType: readySettlement
+                            ? "settle_auction"
+                            : bidFocus?.eligible
+                                ? "bid"
+                                : "hold",
+                        actionArgs: readySettlement
+                            ? { auctionId: Number(readySettlement.auctionId) }
+                            : bidFocus?.eligible
+                            ? {
+                                auctionId: Number(bidFocus.auctionId),
+                                amount: String(bidFocus.nextBidDisplay || bidFocus.nextBidAmountDisplay || ""),
+                            }
+                            : {},
+                        thesis: readySettlement
+                            ? `Settle closed auction #${Number(readySettlement.auctionId)}.`
+                            : bidFocus?.eligible
+                            ? `Bid on shortlisted auction #${Number(bidFocus.auctionId)}.`
+                            : "No shortlisted auction clears the mandate yet.",
+                        rationale: readySettlement
+                            ? "Closed shortlisted auction is ready for settlement."
+                            : bidFocus?.eligible
+                            ? `Priority signal: ${(bidFocus.prioritySource || []).join(" + ")}`
+                            : "No shortlisted auction clears the mandate yet.",
+                        confidence: 79,
+                        blockedBy: readySettlement || bidFocus?.eligible ? "" : "No shortlisted auction clears the mandate yet.",
+                        requiresHuman: false,
+                        wakeReason,
+                    },
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "stub",
+                    model: "test-planner",
+                };
+            },
+            async chat() {
+                return {
+                    reply: "Shortlist auction planner test stub.",
+                    objectivePatch: null,
+                    wakeReason: "chat_message",
+                };
+            },
+            async summarize({ objective }) {
+                return `Goal: ${objective?.goal || "test objective"}`;
+            },
+        });
+
         await store.upsertAsset({
             tokenId: 8,
             assetType: 1,

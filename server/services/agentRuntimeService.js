@@ -84,6 +84,56 @@ function buildScreenCriteria(filters = {}) {
     return criteria;
 }
 
+function plannerIdentity(brain = {}) {
+    return {
+        provider: String(brain?.provider || "").trim(),
+        model: String(brain?.model || "").trim(),
+        degradedMode: Boolean(brain?.degradedMode),
+        degradedReason: String(brain?.degradedReason || "").trim(),
+    };
+}
+
+function buildPlannerHealthDecision(currentBrain = {}, nextBrain = {}, wakeReason = "") {
+    const previous = plannerIdentity(currentBrain);
+    const next = plannerIdentity(nextBrain);
+
+    const changed =
+        previous.provider !== next.provider
+        || previous.model !== next.model
+        || previous.degradedMode !== next.degradedMode
+        || previous.degradedReason !== next.degradedReason;
+
+    if (!changed) {
+        return null;
+    }
+
+    const providerLabel = next.provider || "fallback";
+    const modelLabel = next.model ? ` · ${next.model}` : "";
+    const wakeLabel = wakeReason ? ` · wake ${String(wakeReason).replace(/_/g, " ")}` : "";
+
+    if (next.degradedMode) {
+        return {
+            type: "info",
+            message: "Planner fell back to deterministic mode",
+            detail: `${providerLabel}${modelLabel}${wakeLabel}${next.degradedReason ? ` · ${next.degradedReason}` : ""}`,
+        };
+    }
+
+    if (previous.degradedMode && !next.degradedMode) {
+        return {
+            type: "decision",
+            message: `Planner recovered with ${providerLabel}`,
+            detail: `Model ${next.model || "configured default"}${wakeLabel}`,
+        };
+    }
+
+    return {
+        type: "info",
+        message: `Planner using ${providerLabel}`,
+        detail: `Model ${next.model || "configured default"}${wakeLabel}`,
+    };
+}
+
 class AgentRuntimeService {
     constructor(config = {}) {
         this.store = config.store;
@@ -1002,6 +1052,15 @@ class AgentRuntimeService {
                 lastDecisionAt: nowSeconds(),
             });
 
+            const plannerHealthDecision = buildPlannerHealthDecision(
+                currentBrainState,
+                nextBrainState,
+                reason,
+            );
+            if (plannerHealthDecision) {
+                await this.agentState.appendDecision(normalizedAgentId, plannerHealthDecision);
+            }
+
             const decisionChanged = JSON.stringify({
                 thesis: nextBrainState.currentThesis,
                 actionType: nextBrainState.nextAction?.actionType || "hold",
@@ -1263,4 +1322,5 @@ class AgentRuntimeService {
 
 module.exports = {
     AgentRuntimeService,
+    buildPlannerHealthDecision,
 };
