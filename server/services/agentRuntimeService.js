@@ -160,8 +160,23 @@ class AgentRuntimeService {
     }
 
     async refreshMemorySummary(agentId, objective, journalEntries = [], chatMessages = []) {
+        const currentSummary = await this.agentState.getMemorySummary(agentId);
+        const sourceCount = journalEntries.length + chatMessages.length;
+        const minIntervalSeconds = Math.max(
+            60,
+            Number(process.env.AGENT_MEMORY_SUMMARY_MIN_SECONDS || 300),
+        );
+
+        if (
+            currentSummary?.summary
+            && Number(currentSummary.sourceCount || 0) === sourceCount
+            && nowSeconds() - Number(currentSummary.updatedAt || 0) < minIntervalSeconds
+        ) {
+            return currentSummary;
+        }
+
         if (!this.agentBrain) {
-            return this.agentState.getMemorySummary(agentId);
+            return currentSummary;
         }
         const summary = await this.agentBrain.summarize({
             objective,
@@ -170,7 +185,7 @@ class AgentRuntimeService {
         });
         return this.agentState.setMemorySummary(agentId, {
             summary,
-            sourceCount: journalEntries.length + chatMessages.length,
+            sourceCount,
         });
     }
 

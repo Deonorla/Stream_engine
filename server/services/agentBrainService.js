@@ -247,6 +247,7 @@ function buildFallbackSummary({ objective = {}, journal = [], recentMessages = [
 
 class GeminiAgentModelProvider {
     constructor(config = {}) {
+        this.name = "gemini";
         this.apiKey = normalizeText(config.apiKey || "");
         this.modelName = normalizeText(config.modelName || "gemini-2.5-flash");
     }
@@ -378,35 +379,346 @@ ${JSON.stringify(recentMessages || [], null, 2)}
     }
 }
 
+function parseProviderPriority(value = "gemini") {
+    const normalized = normalizeText(value).toLowerCase();
+    if (!normalized) return ["gemini"];
+    if (normalized === "auto") {
+        return ["gemini", "groq", "openrouter"];
+    }
+    return Array.from(
+        new Set(
+            normalized
+                .split(",")
+                .map((item) => item.trim())
+                .filter(Boolean),
+        ),
+    );
+}
+
+function defaultModelForProvider(name, fallbackModel = "") {
+    if (name === "groq") return "llama-3.3-70b-versatile";
+    if (name === "openrouter") return "openai/gpt-4.1-mini";
+    return fallbackModel || "gemini-2.5-flash";
+}
+
+function extractProviderErrorMessage(payload, response) {
+    return normalizeText(
+        payload?.error?.message
+        || payload?.error?.error
+        || payload?.message
+        || response?.statusText
+        || "Provider request failed."
+    );
+}
+
+function buildProviderError(providerName, response, payload) {
+    const error = new Error(extractProviderErrorMessage(payload, response));
+    error.status = Number(response?.status || 0);
+    error.provider = providerName;
+    return error;
+}
+
+function isRateLimitFailure(error) {
+    const message = normalizeText(error?.message || "").toLowerCase();
+    return Number(error?.status || 0) === 429
+        || message.includes("rate limit")
+        || message.includes("too many requests")
+        || message.includes("quota");
+}
+
+function isAuthFailure(error) {
+    const message = normalizeText(error?.message || "").toLowerCase();
+    return [401, 403].includes(Number(error?.status || 0))
+        || message.includes("invalid api key")
+        || message.includes("incorrect api key")
+        || message.includes("authentication")
+        || message.includes("unauthorized");
+}
+
+class OpenAICompatibleAgentModelProvider {
+    constructor(config = {}) {
+        this.name = normalizeText(config.name || "openai-compatible").toLowerCase();
+        this.apiKey = normalizeText(config.apiKey || "");
+        this.modelName = normalizeText(config.modelName || "");
+        this.baseUrl = normalizeText(config.baseUrl || "");
+        this.siteUrl = normalizeText(config.siteUrl || "");
+        this.appName = normalizeText(config.appName || "Continuum");
+        this.extraHeaders = config.extraHeaders || {};
+    }
+
+    isAvailable() {
+        return Boolean(this.apiKey && this.baseUrl && this.modelName);
+    }
+
+    async sendChat(messages = [], { responseFormat = null, temperature = 0.1 } = {}) {
+        if (!this.isAvailable()) {
+            throw new Error(`${this.name} API key is not configured.`);
+        }
+
+        const headers = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+            ...this.extraHeaders,
+        };
+        if (this.name === "openrouter") {
+            if (this.siteUrl) headers["HTTP-Referer"] = this.siteUrl;
+            if (this.appName) headers["X-Title"] = this.appName;
+        }
+
+        const response = await fetch(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+                model: this.modelName,
+                messages,
+                temperature,
+                ...(responseFormat ? { response_format: responseFormat } : {}),
+            }),
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+            throw buildProviderError(this.name, response, payload);
+        }
+        const content = payload?.choices?.[0]?.message?.content;
+        if (!content) {
+            throw new Error(`${this.name} returned an empty completion.`);
+        }
+        return String(content);
+    }
+
+    async generateJson(prompt) {
+        const text = await this.sendChat(
+            [{ role: "user", content: prompt }],
+            { responseFormat: { type: "json_object" }, temperature: 0.1 },
+        );
+        const parsed = parseJsonObject(text);
+        if (!parsed) {
+            throw new Error(`${this.name} did not return valid JSON.`);
+        }
+        return parsed;
+    }
+
+    async decide({ objective, context, memorySummary, wakeReason }) {
+        const prompt = `You are the autonomous market planner for Continuum, an agent-first RWA marketplace.
+Return JSON only.
+
+Rules:
+- Choose exactly one next action.
+- Allowed actions: analyze, bid, settle_auction, claim_yield, route_yield, rebalance_treasury, watch, hold.
+- Never propose minting, physical rental actions, or anything outside trade + treasury scope.
+- If an action is blocked by guardrails, return hold with blockedBy.
+- Keep rationale concise and operator-readable.
+
+Objective:
+${JSON.stringify(objective || {}, null, 2)}
+
+Wake reason: ${wakeReason || "scheduled"}
+
+Memory summary:
+${memorySummary || "No memory summary yet."}
+
+Runtime context:
+${JSON.stringify(context || {}, null, 2)}
+
+Response shape:
+{
+  "actionType": "bid",
+  "actionArgs": {},
+  "thesis": "short thesis",
+  "rationale": "why",
+  "confidence": 0,
+  "blockedBy": "",
+  "requiresHuman": false,
+  "wakeReason": "${wakeReason || "scheduled"}"
+}`;
+        return normalizeProposal(await this.generateJson(prompt), wakeReason);
+    }
+
+    async chat({ message, objective, brainState, context, recentMessages, memorySummary }) {
+        const prompt = `You are the live autonomous agent for Continuum.
+Reply in JSON only.
+
+Rules:
+- Explain your real current thesis, blocker, liquidity, and next action.
+- You may update the objective only if the human is clearly changing strategy or goals.
+- Do not promise actions outside the mandate or outside trade + treasury scope.
+
+Current objective:
+${JSON.stringify(objective || {}, null, 2)}
+
+Current brain state:
+${JSON.stringify(brainState || {}, null, 2)}
+
+Memory summary:
+${memorySummary || "No memory summary yet."}
+
+Recent chat:
+${JSON.stringify(recentMessages || [], null, 2)}
+
+Runtime context:
+${JSON.stringify(context || {}, null, 2)}
+
+User message:
+${message}
+
+Response shape:
+{
+  "reply": "assistant reply",
+  "objectivePatch": {
+    "goal": "",
+    "style": "",
+    "instructions": ""
+  },
+  "wakeReason": "chat_message"
+}`;
+        const parsed = await this.generateJson(prompt);
+        return {
+            reply: normalizeText(parsed.reply || ""),
+            objectivePatch: parsed.objectivePatch && typeof parsed.objectivePatch === "object"
+                ? parsed.objectivePatch
+                : null,
+            wakeReason: normalizeText(parsed.wakeReason || "chat_message"),
+        };
+    }
+
+    async summarize({ objective, journal, recentMessages }) {
+        const prompt = `Summarize this autonomous agent memory into 5 concise sentences max.
+Focus on current objective, strategy, recent wins/losses, blockers, and next likely action.
+
+Objective:
+${JSON.stringify(objective || {}, null, 2)}
+
+Journal:
+${JSON.stringify(journal || [], null, 2)}
+
+Recent chat:
+${JSON.stringify(recentMessages || [], null, 2)}
+`;
+        return normalizeText(await this.sendChat([{ role: "user", content: prompt }], { temperature: 0.1 }));
+    }
+}
+
 class AgentBrainService {
     constructor(config = {}) {
         this.enabled = config.enabled ?? String(process.env.AGENT_LLM_ENABLED || "true").toLowerCase() !== "false";
-        this.providerName = normalizeText(config.providerName || process.env.AGENT_LLM_PROVIDER || "gemini") || "gemini";
+        this.providerNames = parseProviderPriority(config.providerName || process.env.AGENT_LLM_PROVIDER || "gemini");
+        this.providerName = this.providerNames[0] || "gemini";
         this.modelName = normalizeText(config.modelName || process.env.AGENT_LLM_MODEL || "gemini-2.5-flash") || "gemini-2.5-flash";
-        this.provider = config.provider || this.createProvider();
+        this.providers = Array.isArray(config.providers) && config.providers.length
+            ? config.providers
+            : [config.provider || null, ...this.createProviders()].filter(Boolean);
+        this.providerCooldownMs = Math.max(15_000, Number(config.providerCooldownMs || process.env.AGENT_LLM_PROVIDER_COOLDOWN_MS || 60_000));
+        this.authFailureCooldownMs = Math.max(this.providerCooldownMs, Number(process.env.AGENT_LLM_AUTH_COOLDOWN_MS || 300_000));
+        this.cooldowns = new Map();
     }
 
-    createProvider() {
-        if (this.providerName === "gemini") {
+    createProviderByName(name) {
+        const normalized = normalizeText(name).toLowerCase();
+        const modelName = normalizeText(
+            normalized === "gemini"
+                ? (process.env.GEMINI_MODEL || "")
+                : normalized === "groq"
+                    ? (process.env.GROQ_MODEL || "")
+                    : normalized === "openrouter"
+                        ? (process.env.OPENROUTER_MODEL || "")
+                        : "",
+        ) || (this.providerNames.length === 1 ? this.modelName : defaultModelForProvider(normalized, this.modelName));
+
+        if (normalized === "gemini") {
             return new GeminiAgentModelProvider({
                 apiKey: process.env.GEMINI_API_KEY || "",
-                modelName: this.modelName,
+                modelName,
+            });
+        }
+        if (normalized === "groq") {
+            return new OpenAICompatibleAgentModelProvider({
+                name: "groq",
+                apiKey: process.env.GROQ_API_KEY || "",
+                modelName,
+                baseUrl: process.env.GROQ_BASE_URL || "https://api.groq.com/openai/v1",
+            });
+        }
+        if (normalized === "openrouter") {
+            return new OpenAICompatibleAgentModelProvider({
+                name: "openrouter",
+                apiKey: process.env.OPENROUTER_API_KEY || "",
+                modelName,
+                baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
+                siteUrl: process.env.OPENROUTER_SITE_URL || process.env.STREAM_ENGINE_APP_BASE_URL || "",
+                appName: process.env.OPENROUTER_APP_NAME || "Continuum",
             });
         }
         return null;
     }
 
+    createProviders() {
+        return this.providerNames
+            .map((name) => this.createProviderByName(name))
+            .filter(Boolean);
+    }
+
+    isProviderReady(provider) {
+        if (!provider?.isAvailable?.()) {
+            return false;
+        }
+        const cooldownUntil = Number(this.cooldowns.get(provider.name) || 0);
+        return cooldownUntil <= Date.now();
+    }
+
+    noteProviderFailure(provider, error) {
+        if (!provider?.name) return;
+        const cooldownMs = isAuthFailure(error)
+            ? this.authFailureCooldownMs
+            : isRateLimitFailure(error)
+                ? this.providerCooldownMs
+                : Math.min(this.providerCooldownMs, 30_000);
+        this.cooldowns.set(provider.name, Date.now() + cooldownMs);
+    }
+
+    firstReadyProvider() {
+        return this.providers.find((provider) => this.isProviderReady(provider)) || null;
+    }
+
     getProviderStatus() {
-        const available = Boolean(this.enabled && this.provider?.isAvailable?.());
+        const provider = this.enabled ? this.firstReadyProvider() : null;
+        const available = Boolean(provider);
         return {
             enabled: Boolean(this.enabled),
-            provider: this.providerName,
-            model: this.modelName,
+            provider: provider?.name || this.providerName,
+            model: provider?.modelName || this.modelName,
             available,
             degradedMode: Boolean(this.enabled && !available),
             degradedReason: this.enabled && !available
-                ? "Platform LLM is unavailable, so the agent is using deterministic fallback planning."
+                ? "No configured agent LLM provider is currently available, so the agent is using deterministic fallback planning."
                 : "",
+        };
+    }
+
+    async callProviders(methodName, args) {
+        const attempted = [];
+        for (const provider of this.providers) {
+            if (!this.isProviderReady(provider)) {
+                attempted.push(`${provider?.name || "unknown"} unavailable`);
+                continue;
+            }
+            try {
+                const result = await provider[methodName](args);
+                this.cooldowns.delete(provider.name);
+                return {
+                    ok: true,
+                    result,
+                    provider: provider.name,
+                    model: provider.modelName || this.modelName,
+                    attempted,
+                };
+            } catch (error) {
+                this.noteProviderFailure(provider, error);
+                attempted.push(`${provider.name}: ${error.message || "request failed"}`);
+            }
+        }
+        return {
+            ok: false,
+            attempted,
         };
     }
 
@@ -423,27 +735,31 @@ class AgentBrainService {
             };
         }
 
-        try {
-            const proposal = normalizeProposal(
-                await this.provider.decide({ objective, context, memorySummary, wakeReason }),
-                wakeReason,
-            );
+        const attempt = await this.callProviders("decide", {
+            objective,
+            context,
+            memorySummary,
+            wakeReason,
+        });
+        if (attempt.ok) {
+            const proposal = normalizeProposal(attempt.result, wakeReason);
             return {
                 proposal,
                 degradedMode: false,
                 degradedReason: "",
-                provider: status.provider,
-                model: status.model,
-            };
-        } catch (error) {
-            return {
-                proposal: fallback,
-                degradedMode: true,
-                degradedReason: `Platform LLM planning failed: ${error.message || "unknown error"}`,
-                provider: status.provider,
-                model: status.model,
+                provider: attempt.provider,
+                model: attempt.model,
             };
         }
+        return {
+            proposal: fallback,
+            degradedMode: true,
+            degradedReason: attempt.attempted.length
+                ? `Platform LLM planning failed across providers: ${attempt.attempted.join(" · ")}`
+                : status.degradedReason,
+            provider: status.provider,
+            model: status.model,
+        };
     }
 
     async chat({ message, objective, brainState, context, recentMessages, memorySummary }) {
@@ -459,33 +775,35 @@ class AgentBrainService {
             };
         }
 
-        try {
-            const response = await this.provider.chat({
-                message,
-                objective,
-                brainState,
-                context,
-                recentMessages,
-                memorySummary,
-            });
+        const attempt = await this.callProviders("chat", {
+            message,
+            objective,
+            brainState,
+            context,
+            recentMessages,
+            memorySummary,
+        });
+        if (attempt.ok) {
+            const response = attempt.result;
             return {
                 reply: normalizeText(response.reply || fallback.reply),
                 objectivePatch: response.objectivePatch || null,
                 wakeReason: normalizeText(response.wakeReason || fallback.wakeReason),
                 degradedMode: false,
                 degradedReason: "",
-                provider: status.provider,
-                model: status.model,
-            };
-        } catch (error) {
-            return {
-                ...fallback,
-                degradedMode: true,
-                degradedReason: `Platform LLM chat failed: ${error.message || "unknown error"}`,
-                provider: status.provider,
-                model: status.model,
+                provider: attempt.provider,
+                model: attempt.model,
             };
         }
+        return {
+            ...fallback,
+            degradedMode: true,
+            degradedReason: attempt.attempted.length
+                ? `Platform LLM chat failed across providers: ${attempt.attempted.join(" · ")}`
+                : status.degradedReason,
+            provider: status.provider,
+            model: status.model,
+        };
     }
 
     async summarize({ objective, journal, recentMessages }) {
@@ -493,11 +811,10 @@ class AgentBrainService {
         if (!status.enabled || !status.available) {
             return buildFallbackSummary({ objective, journal, recentMessages });
         }
-        try {
-            return await this.provider.summarize({ objective, journal, recentMessages });
-        } catch {
-            return buildFallbackSummary({ objective, journal, recentMessages });
-        }
+        const attempt = await this.callProviders("summarize", { objective, journal, recentMessages });
+        return attempt.ok
+            ? attempt.result
+            : buildFallbackSummary({ objective, journal, recentMessages });
     }
 }
 

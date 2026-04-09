@@ -680,11 +680,6 @@ function createApp(config = defaultConfig) {
 
         let mintResult;
         try {
-            // Ensure issuer is approved on-chain before minting
-            const existingApproval = await chainService.getIssuerApproval(issuer).catch(() => null);
-            if (!existingApproval?.approved) {
-                await chainService.setIssuerApproval({ issuer, approved: true, note: "auto-approved on first mint" });
-            }
             mintResult = await chainService.mintAsset({
                 publicMetadataURI: resolvedPublicMetadataURI,
                 assetType,
