@@ -93,10 +93,31 @@ class AgentRuntimeService {
         this.agentBrain = config.agentBrain;
         this.treasuryManager = config.treasuryManager;
         this.auctionEngine = config.auctionEngine || null;
-        this.tickIntervalMs = Math.max(5000, Number(process.env.CONTINUUM_AGENT_TICK_MS || 15000));
+        this.tickIntervalMs = Math.max(5000, Number(process.env.CONTINUUM_AGENT_TICK_MS || 120000));
+        // Safety cap: max LLM calls per day per agent (2 calls/tick × cap = daily RPD budget)
+        this.llmDailyCapPerAgent = Math.floor(Number(process.env.CONTINUUM_LLM_DAILY_CAP || 600) / 2);
+        this.llmCallCounts = new Map(); // agentId -> { count, resetAt }
         this.intervals = new Map();
         this.wakeTimers = new Map();
         this.pendingWakeReasons = new Map();
+    }
+
+    isLlmBudgetExhausted(agentId) {
+        const key = String(agentId || '').toUpperCase();
+        const now = Date.now();
+        const entry = this.llmCallCounts.get(key) || { count: 0, resetAt: now + 86400000 };
+        if (now >= entry.resetAt) {
+            this.llmCallCounts.set(key, { count: 0, resetAt: now + 86400000 });
+            return false;
+        }
+        return entry.count >= this.llmDailyCapPerAgent;
+    }
+
+    incrementLlmCount(agentId) {
+        const key = String(agentId || '').toUpperCase();
+        const now = Date.now();
+        const entry = this.llmCallCounts.get(key) || { count: 0, resetAt: now + 86400000 };
+        this.llmCallCounts.set(key, { ...entry, count: entry.count + 1 });
     }
 
     clearInterval(agentId) {
@@ -160,9 +181,10 @@ class AgentRuntimeService {
     }
 
     async refreshMemorySummary(agentId, objective, journalEntries = [], chatMessages = []) {
-        if (!this.agentBrain) {
+        if (!this.agentBrain || this.isLlmBudgetExhausted(agentId)) {
             return this.agentState.getMemorySummary(agentId);
         }
+        this.incrementLlmCount(agentId);
         const summary = await this.agentBrain.summarize({
             objective,
             journal: journalEntries.slice(0, 12),
@@ -902,18 +924,18 @@ class AgentRuntimeService {
                 noActionReason,
             };
 
-            const decision = this.agentBrain
-                ? await this.agentBrain.decide({
+            const decision = this.agentBrain && !this.isLlmBudgetExhausted(agentId)
+                ? (this.incrementLlmCount(agentId), await this.agentBrain.decide({
                     objective,
                     context: brainContext,
                     memorySummary: memorySummary.summary || "",
                     wakeReason: reason,
-                })
+                }))
                 : {
                     proposal: {
                         actionType: "hold",
                         actionArgs: {},
-                        thesis: "Autonomous brain is unavailable.",
+                        thesis: this.isLlmBudgetExhausted(agentId) ? "Daily LLM budget exhausted. Holding until reset." : "Autonomous brain is unavailable.",
                         rationale: noActionReason,
                         confidence: 35,
                         blockedBy: noActionReason,
@@ -921,7 +943,7 @@ class AgentRuntimeService {
                         wakeReason: reason,
                     },
                     degradedMode: true,
-                    degradedReason: "Agent brain service is unavailable.",
+                    degradedReason: this.isLlmBudgetExhausted(agentId) ? "Daily LLM call budget exhausted." : "Agent brain service is unavailable.",
                     provider: "",
                     model: "",
                 };

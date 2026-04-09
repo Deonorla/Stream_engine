@@ -64,6 +64,7 @@ export default function RentalSessionComposer({ asset, onStarted }) {
   const [assetSymbol, setAssetSymbol] = useState(
     supportedPaymentAssets[0]?.symbol || 'USDC',
   );
+  const [started, setStarted] = useState(false);
 
   useEffect(() => {
     setDurationSeconds(DURATION_OPTIONS[0].seconds);
@@ -108,12 +109,18 @@ export default function RentalSessionComposer({ asset, onStarted }) {
     </div>
   );
 
+  const availableNumeric = selectedAsset?.symbol === 'XLM'
+    ? parseFloat(xlmBalance || '0')
+    : parseFloat(paymentBalance || '0');
+
   const canStart = Boolean(
     walletAddress
     && hasValidRecipient
     && !isOwner
     && !linkedSessionActive
-    && budgetAmount > 0,
+    && budgetAmount > 0
+    && availableNumeric >= budgetAmount
+    && !started,
   );
 
   const handleStart = async () => {
@@ -151,6 +158,7 @@ export default function RentalSessionComposer({ asset, onStarted }) {
     );
 
     if (streamId !== null && streamId !== undefined) {
+      setStarted(true);
       await refreshStreams?.();
       onStarted?.(streamId);
     }
@@ -167,6 +175,16 @@ export default function RentalSessionComposer({ asset, onStarted }) {
   const availableBalance = selectedAsset?.symbol === 'XLM'
     ? `${parseFloat(xlmBalance || '0').toFixed(4)} XLM`
     : `${parseFloat(paymentBalance || '0').toFixed(4)} ${selectedAsset?.symbol || paymentTokenSymbol}`;
+
+  useEffect(() => {
+    if (!walletAddress || budgetAmount <= 0) return;
+    if (availableNumeric < budgetAmount) {
+      toast.warning(
+        `You need ${budgetAmount.toFixed(4)} ${selectedAsset?.symbol} but only have ${availableNumeric.toFixed(4)} ${selectedAsset?.symbol}.`,
+        { title: 'Insufficient Balance' },
+      );
+    }
+  }, [assetSymbol, durationSeconds]);
 
   return (
     <div className="space-y-3">

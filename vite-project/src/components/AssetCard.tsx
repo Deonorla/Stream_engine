@@ -92,12 +92,15 @@ export function AssetCard({ asset, onDetails }) {
           </span>
         </div>
         <div className={`absolute bottom-4 left-4 rounded-full border px-3 py-1.5 text-[9px] font-bold uppercase tracking-widest shadow-lg ${
-          isRentalReady
-            ? 'border-emerald-200 bg-emerald-50/95 text-emerald-600'
-            : 'border-amber-200 bg-amber-50/95 text-amber-700'
+          isCurrentlyRented
+            ? 'border-yellow-300 bg-yellow-50/95 text-yellow-600'
+            : isRentalReady
+              ? 'border-emerald-200 bg-emerald-50/95 text-emerald-600'
+              : 'border-amber-200 bg-amber-50/95 text-amber-700'
         }`}>
-          {rentalReadiness.label}
+          { isCurrentlyRented ? 'Currently Rented' : rentalReadiness.label }
         </div>
+       
       </div>
       <div className="p-8">
         <div className="flex items-center gap-2 mb-3">
@@ -212,12 +215,13 @@ export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
               <MapPin size={14} />
               <span className="text-sm">{asset.location}</span>
             </div>
-            <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${
+            <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${ isCurrentlyRented
+            ? 'border-yellow-300 bg-yellow-50/95 text-yellow-600' :
               isRentalReady
                 ? 'border-emerald-100 bg-emerald-50 text-emerald-600'
                 : 'border-amber-100 bg-amber-50 text-amber-700'
             }`}>
-              <Shield size={11} /> {rentalReadiness.label}
+              <Shield size={11} /> { isCurrentlyRented ? 'Currently Rented' : rentalReadiness.label }
             </span>
           </div>
 

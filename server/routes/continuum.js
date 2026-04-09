@@ -749,15 +749,17 @@ function requirePaidAction(price, description) {
 router.get("/market/assets", asyncHandler(async (req, res) => {
     const services = await req.app.locals.ready;
     const browseFilters = buildMarketBrowseFilters(req.query || {});
-    const rawAssets = services.chainService?.isConfigured?.()
-        ? await services.chainService.listAssetSnapshots({ limit: 200 })
-        : await services.store.listAssets();
-    const productiveAssets = rawAssets.filter(productiveOnly);
-    const activeAuctions = (await services.auctionEngine.listAuctions({ status: "active" }))
-        .map((auction) => enrichAuction(auction));
 
-    // Build set of tokenIds that have an active rental session
-    const allSessions = await services.store.listSessions().catch(() => []);
+    const [rawAssets, auctionList, allSessions] = await Promise.all([
+        services.chainService?.isConfigured?.()
+            ? services.chainService.listAssetSnapshots({ limit: 200 })
+            : services.store.listAssets(),
+        services.auctionEngine.listAuctions({ status: "active" }),
+        services.store.listSessions().catch(() => []),
+    ]);
+
+    const productiveAssets = rawAssets.filter(productiveOnly);
+    const activeAuctions = auctionList.map((auction) => enrichAuction(auction));
     const now = Math.floor(Date.now() / 1000);
     const rentedTokenIds = new Set(
         (allSessions || [])

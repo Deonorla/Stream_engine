@@ -9,6 +9,37 @@ const SUPPORTED_ACTIONS = new Set([
     "hold",
 ]);
 
+async function retryWithBackoff(fn, retries = 3, delayMs = 1000) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fn();
+        } catch (err) {
+            const isRetryable = String(err?.message || '').includes('503') || String(err?.message || '').includes('429');
+            if (!isRetryable || i === retries - 1) throw err;
+            await new Promise(r => setTimeout(r, delayMs * 2 ** i));
+        }
+    }
+}
+
+function friendlyLlmError(error) {
+    const msg = String(error?.message || '');
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('Too Many Requests')) {
+        const retryMatch = msg.match(/retry in ([\d.]+)s/i);
+        const retryHint = retryMatch ? ` Try again in ${Math.ceil(Number(retryMatch[1]))} seconds.` : '';
+        return `AI rate limit reached — the free tier quota is exhausted.${retryHint}`;
+    }
+    if (msg.includes('503') || msg.includes('Service Unavailable')) {
+        return 'AI service is temporarily overloaded. The agent will retry automatically.';
+    }
+    if (msg.includes('404') || msg.includes('not found')) {
+        return 'AI model not found. Check AGENT_LLM_MODEL in your .env file.';
+    }
+    if (msg.includes('API key') || msg.includes('403')) {
+        return 'Invalid or missing Gemini API key. Check GEMINI_API_KEY in your .env file.';
+    }
+    return `AI planning unavailable: ${msg.split('\n')[0].slice(0, 120)}`;
+}
+
 function normalizeText(value = "") {
     return String(value || "").trim();
 }
@@ -262,7 +293,7 @@ class GeminiAgentModelProvider {
         const { GoogleGenerativeAI } = require("@google/generative-ai");
         const genAI = new GoogleGenerativeAI(this.apiKey);
         const model = genAI.getGenerativeModel({ model: this.modelName });
-        const result = await model.generateContent(prompt);
+        const result = await retryWithBackoff(() => model.generateContent(prompt));
         const text = (await result.response).text();
         const parsed = parseJsonObject(text);
         if (!parsed) {
@@ -373,7 +404,7 @@ ${JSON.stringify(recentMessages || [], null, 2)}
         const { GoogleGenerativeAI } = require("@google/generative-ai");
         const genAI = new GoogleGenerativeAI(this.apiKey);
         const model = genAI.getGenerativeModel({ model: this.modelName });
-        const result = await model.generateContent(prompt);
+        const result = await retryWithBackoff(() => model.generateContent(prompt));
         return normalizeText((await result.response).text());
     }
 }
@@ -439,7 +470,7 @@ class AgentBrainService {
             return {
                 proposal: fallback,
                 degradedMode: true,
-                degradedReason: `Platform LLM planning failed: ${error.message || "unknown error"}`,
+                degradedReason: `Platform LLM planning failed: ${friendlyLlmError(error)}`,
                 provider: status.provider,
                 model: status.model,
             };
@@ -481,7 +512,7 @@ class AgentBrainService {
             return {
                 ...fallback,
                 degradedMode: true,
-                degradedReason: `Platform LLM chat failed: ${error.message || "unknown error"}`,
+                degradedReason: `Platform LLM chat failed: ${friendlyLlmError(error)}`,
                 provider: status.provider,
                 model: status.model,
             };

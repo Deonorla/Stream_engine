@@ -1883,11 +1883,9 @@ class StellarRWAChainService {
                         { type: "address", value: owner },
                     ],
                 });
-                const hydrated = [];
-                for (const tokenId of (tokenIds || []).slice(0, limit)) {
-                    hydrated.push(await this.getAssetSnapshot(Number(tokenId), { sessions }));
-                }
-                return hydrated.filter(Boolean);
+                return (await Promise.all(
+                    (tokenIds || []).slice(0, limit).map(tokenId => this.getAssetSnapshot(Number(tokenId), { sessions }))
+                )).filter(Boolean);
             }
 
             const lastTokenId = Number(
@@ -1899,22 +1897,19 @@ class StellarRWAChainService {
             );
             if (lastTokenId > 0) {
                 const startTokenId = Math.max(1, lastTokenId - Number(limit) + 1);
-                const hydrated = [];
-                for (let tokenId = startTokenId; tokenId <= lastTokenId; tokenId += 1) {
-                    hydrated.push(await this.getAssetSnapshot(tokenId, { sessions }));
-                }
-                return hydrated.filter(Boolean);
+                const tokenIds = Array.from({ length: lastTokenId - startTokenId + 1 }, (_, i) => startTokenId + i);
+                return (await Promise.all(
+                    tokenIds.map(tokenId => this.getAssetSnapshot(tokenId, { sessions }))
+                )).filter(Boolean);
             }
         } catch {
             // Fall back to cached assets below.
         }
 
         const assets = await this.store.listAssets({ owner });
-        const hydrated = [];
-        for (const asset of assets.slice(0, limit)) {
-            hydrated.push(await this.getAssetSnapshot(asset.tokenId, { sessions }));
-        }
-        return hydrated.filter(Boolean);
+        return (await Promise.all(
+            assets.slice(0, limit).map(asset => this.getAssetSnapshot(asset.tokenId, { sessions }))
+        )).filter(Boolean);
     }
 
     async getVerificationStatus(tokenId, cidHash, tagHash) {

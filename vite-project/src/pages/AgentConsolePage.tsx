@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart2, Bot, Copy, Pause, Play,
   RefreshCw, Settings, Store, Target, TrendingUp, Wallet, X,
-  Zap, ChevronDown, ChevronUp, ArrowUpRight,
+  Zap, ChevronDown, ChevronUp, ArrowUpRight, Loader2,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -203,6 +203,7 @@ export default function AgentConsolePage() {
   const [savingMandate, setSavingMandate] = useState(false);
   const [savingObjective, setSavingObjective] = useState(false);
   const [runtimeActionError, setRuntimeActionError] = useState('');
+  const [agentStarting, setAgentStarting] = useState(false);
   const [settlePendingAuctionId, setSettlePendingAuctionId] = useState<number | null>(null);
   const [rebidPendingAuctionId, setRebidPendingAuctionId] = useState<number | null>(null);
   const [reserveActionStatus, setReserveActionStatus] = useState<'idle' | 'ok' | '402' | 'err'>('idle');
@@ -272,10 +273,13 @@ export default function AgentConsolePage() {
   const startAgent = useCallback(async () => {
     if (!agentPublicKey) return;
     setRuntimeActionError('');
+    setAgentStarting(true);
     try {
       await ctxStart(agentPublicKey);
     } catch (runtimeError: any) {
       setRuntimeActionError(runtimeError.message || 'Failed to start the managed runtime.');
+    } finally {
+      setAgentStarting(false);
     }
   }, [agentPublicKey, ctxStart]);
 
@@ -515,7 +519,24 @@ export default function AgentConsolePage() {
   const blockedBy = String(brain.blockedBy || runtime.lastSummary?.blockedBy || '').trim();
   const wakeReason = String(brain.wakeReason || runtime.lastSummary?.wakeReason || 'scheduled').replace(/_/g, ' ');
   const degradedMode = Boolean(brain.degradedMode);
-  const degradedReason = String(brain.degradedReason || '').trim();
+  const degradedReason = (() => {
+    const raw = String(brain.degradedReason || '').trim();
+    if (raw.includes('429') || raw.toLowerCase().includes('quota') || raw.toLowerCase().includes('too many requests')) {
+      const retryMatch = raw.match(/retry in ([\d.]+)s/i);
+      const retryHint = retryMatch ? ` Try again in ${Math.ceil(Number(retryMatch[1]))} seconds.` : '';
+      return `AI rate limit reached — free tier quota exhausted.${retryHint}`;
+    }
+    if (raw.includes('503') || raw.toLowerCase().includes('service unavailable')) {
+      return 'AI service temporarily overloaded. The agent will retry automatically.';
+    }
+    if (raw.includes('404') || raw.toLowerCase().includes('not found')) {
+      return 'AI model not found. Check AGENT_LLM_MODEL in your .env file.';
+    }
+    if (raw.includes('403') || raw.toLowerCase().includes('api key')) {
+      return 'Invalid or missing Gemini API key. Check GEMINI_API_KEY in your .env file.';
+    }
+    return raw;
+  })();
   const reservationSummary = useMemo(() => ({
     leading: reservationExposure.filter((e: any) => e.isLeading).length,
     outbid: reservationExposure.filter((e: any) => e.status === 'outbid').length,
@@ -605,9 +626,10 @@ export default function AgentConsolePage() {
                 <Pause size={14} /> Pause
               </button>
             ) : (
-              <button onClick={startAgent}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all">
-                <Play size={14} /> Run Agent
+              <button onClick={startAgent} disabled={agentStarting}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-white text-sm font-bold shadow-lg shadow-blue-500/20 hover:scale-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed">
+                {agentStarting ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                {agentStarting ? 'Starting...' : 'Run Agent'}
               </button>
             )}
           </div>

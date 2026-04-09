@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { TrendingUp, ArrowUpRight, ArrowDownLeft, Store, Plus, Zap, Bot, Activity, Layers, Target, AlertTriangle, RefreshCw, Play, Pause, Wallet, X, KeyRound, PlusCircle, Copy, ShieldCheck, HelpCircle } from 'lucide-react';
+import { TrendingUp, ArrowUpRight, ArrowDownLeft, Store, Plus, Zap, Bot, Activity, Layers, Target, AlertTriangle, RefreshCw, Play, Pause, Wallet, X, KeyRound, PlusCircle, Copy, ShieldCheck, HelpCircle, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/cn';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
@@ -90,6 +90,7 @@ export default function Dashboard() {
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showTrustlineModal, setShowTrustlineModal] = useState(false);
   const [trustlineBusy, setTrustlineBusy] = useState(false);
+  const [agentStarting, setAgentStarting] = useState(false);
   const [trustlineMsg, setTrustlineMsg] = useState('');
   const [withdrawAsset, setWithdrawAsset] = useState('USDC');
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -152,7 +153,12 @@ export default function Dashboard() {
 
   const startAgent = useCallback(async () => {
     if (!agentPublicKey) return;
-    await ctxStart(agentPublicKey);
+    setAgentStarting(true);
+    try {
+      await ctxStart(agentPublicKey);
+    } finally {
+      setAgentStarting(false);
+    }
   }, [agentPublicKey, ctxStart]);
 
   const stopAgent = useCallback(async () => {
@@ -207,9 +213,10 @@ export default function Dashboard() {
                   <Pause size={12} /> Pause
                 </button>
               ) : (
-                <button onClick={startAgent} disabled={!agentPublicKey}
+                <button onClick={startAgent} disabled={!agentPublicKey || agentStarting}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-500 text-white text-xs font-bold hover:opacity-90 transition-all disabled:opacity-40">
-                  <Play size={12} /> Run Agent
+                  {agentStarting ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                  {agentStarting ? 'Starting...' : 'Run Agent'}
                 </button>
               )}
               <button onClick={() => setShowFundModal(true)} disabled={!agentPublicKey}
