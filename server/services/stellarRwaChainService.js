@@ -2054,6 +2054,7 @@ class StellarRWAChainService {
             recipient: recipient || existing?.recipient || "",
             assetCode: assetCode || existing?.assetCode || this.runtime.paymentAssetCode || "",
             assetIssuer: assetIssuer || existing?.assetIssuer || this.runtime.paymentAssetIssuer || "",
+            isActive: existing?.isActive !== false ? true : false,
         };
         await this.store.upsertSession(nextSession);
         return this.decorateSession(nextSession);

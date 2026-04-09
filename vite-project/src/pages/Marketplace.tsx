@@ -46,6 +46,7 @@ function buildUiAsset(asset: any) {
     currentOwner: asset.currentOwner,
     publicMetadata: asset.publicMetadata,
     verificationStatusLabel: asset.verificationStatusLabel,
+    isRented: Boolean(asset.isRented),
   };
 }
 

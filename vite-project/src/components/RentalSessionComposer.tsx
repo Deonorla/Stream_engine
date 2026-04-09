@@ -97,6 +97,17 @@ export default function RentalSessionComposer({ asset, onStarted }) {
 
   if (isOwner && walletAddress) return null;
 
+  const isActivelyRented = (Boolean(asset?.isRented) || Number(asset?.activeStreamId || 0) > 0) && !linkedSessionActive;
+  if (isActivelyRented) return (
+    <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
+      <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+      <div>
+        <p className="text-xs font-bold text-blue-700">Currently Rented</p>
+        <p className="text-[10px] text-blue-600 mt-0.5">This asset is under an active rental session. It will be available once the session ends or is cancelled.</p>
+      </div>
+    </div>
+  );
+
   const canStart = Boolean(
     walletAddress
     && hasValidRecipient
@@ -159,6 +170,20 @@ export default function RentalSessionComposer({ asset, onStarted }) {
 
   return (
     <div className="space-y-3">
+      {linkedSessionActive && (
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-emerald-700">Rental Active · Session #{linkedSession.id}</p>
+            <p className="text-[10px] text-emerald-600 mt-0.5">
+              {formatSessionAmount(linkedSession, linkedSession.refundableAmount)} refundable · {formatSessionAmount(linkedSession, linkedSession.consumedAmount ?? Math.max(0, Number(linkedSession.totalAmount || 0) - Number(linkedSession.refundableAmount || 0)))} consumed
+            </p>
+          </div>
+          <button type="button" onClick={() => void refreshStreams?.()} className="text-emerald-500 hover:text-emerald-700">
+            <RefreshCcw size={13} />
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr]">
         <label className="space-y-1">
           <span className="block text-[10px] font-label font-bold uppercase tracking-widest text-slate-400">

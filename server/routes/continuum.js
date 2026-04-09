@@ -755,9 +755,34 @@ router.get("/market/assets", asyncHandler(async (req, res) => {
     const productiveAssets = rawAssets.filter(productiveOnly);
     const activeAuctions = (await services.auctionEngine.listAuctions({ status: "active" }))
         .map((auction) => enrichAuction(auction));
+
+    // Build set of tokenIds that have an active rental session
+    const allSessions = await services.store.listSessions().catch(() => []);
+    const now = Math.floor(Date.now() / 1000);
+    const rentedTokenIds = new Set(
+        (allSessions || [])
+            .filter(s => {
+                if (s.cancelledAt) return false;
+                // active if isActive flag set, or stopTime is in the future, or no stopTime (still open)
+                const active = s.isActive !== false && (
+                    s.isActive === true ||
+                    (s.stopTime && Number(s.stopTime) > now) ||
+                    (!s.stopTime && s.txHash)
+                );
+                if (!active) return false;
+                try { return Boolean(JSON.parse(String(s.metadata || '{}')).assetTokenId); } catch { return false; }
+            })
+            .map(s => {
+                try { return String(JSON.parse(String(s.metadata || '{}')).assetTokenId); } catch { return ''; }
+            })
+            .filter(Boolean)
+    );
+
     const assets = await Promise.all(productiveAssets.map(async (asset) => {
         const auction = activeAuctions.find((entry) => Number(entry.assetId) === Number(asset.tokenId)) || null;
-        return marketAssetSummary(await hydrateAsset(services, asset), auction);
+        const summary = await marketAssetSummary(await hydrateAsset(services, asset), auction);
+        summary.isRented = rentedTokenIds.has(String(asset.tokenId));
+        return summary;
     }));
     const browseResult = applyMarketBrowseFilters(assets, browseFilters);
     res.json({
