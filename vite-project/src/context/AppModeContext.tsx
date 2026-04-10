@@ -17,7 +17,7 @@ interface AppModeContextValue {
   agentPublicKey: string | null;
   agentLoading: boolean;
   agentError: string;
-  activateAgent: (ownerPublicKey: string) => Promise<{ agentPublicKey: string | null; token?: string } | null>;
+  activateAgent: (ownerPublicKey: string) => Promise<{ agentPublicKey: string | null; token?: string; error?: string } | null>;
   silentRestore: (ownerPublicKey: string) => Promise<{ agentPublicKey: string | null; token?: string } | null>;
 }
 
@@ -138,12 +138,9 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
       setAgentOwnerPublicKey(normalizedOwner);
       return data;
     } catch (err: any) {
-      setAgentPublicKey(null);
-      if (agentOwnerPublicKey === normalizedOwner) {
-        setAgentOwnerPublicKey(null);
-      }
-      setAgentError(err.message || 'Activation failed.');
-      return null;
+      const message = err.message || 'Activation failed.';
+      setAgentError(message);
+      return { agentPublicKey: null, error: message };
     } finally {
       setAgentLoading(false);
     }

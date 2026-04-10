@@ -908,7 +908,11 @@ function MintingTab({ onMinted, portfolioCount }) {
       const activation = await activateAgent(walletAddress);
       const managedAgentPublicKey = activation?.agentPublicKey || agentPublicKey || '';
       if (!managedAgentPublicKey) {
-        throw new Error('Managed agent activation failed. Automatic auction listing cannot continue.');
+        throw new Error(
+          activation?.error
+            ? `Managed agent activation failed. ${activation.error}`
+            : 'Managed agent activation failed. Automatic auction listing cannot continue.',
+        );
       }
 
       const evidenceBundle = await buildEvidenceBundle(evidenceFiles, {
