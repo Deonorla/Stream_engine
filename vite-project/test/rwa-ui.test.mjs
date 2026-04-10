@@ -15,6 +15,7 @@ const docsPagePath = path.resolve(__dirname, "../src/pages/Docs.tsx");
 const marketplacePagePath = path.resolve(__dirname, "../src/pages/Marketplace.tsx");
 const agentConsolePagePath = path.resolve(__dirname, "../src/pages/AgentConsolePage.tsx");
 const stellarContractsPath = path.resolve(__dirname, "../src/lib/stellarRwaContracts.ts");
+const agentAuthStoragePath = path.resolve(__dirname, "../src/lib/agentAuthStorage.ts");
 
 test("mapApiAssetToUiAsset preserves v2 verification fields", () => {
   const mapped = mapApiAssetToUiAsset({
@@ -140,4 +141,14 @@ test("Stellar RWA contract client prefers the live backend catalog over stale en
   assert.match(source, /fetchProtocolCatalog/);
   assert.match(source, /resolveRuntimeContractIds/);
   assert.match(source, /catalog\?\.rwa\?\.assetRegistryAddress/);
+});
+
+test("Agent auth storage source keeps per-owner managed agent sessions", async () => {
+  const source = await fs.readFile(agentAuthStoragePath, "utf8");
+
+  assert.match(source, /agent_session_tokens_by_owner/);
+  assert.match(source, /agent_session_active_owner/);
+  assert.match(source, /getAgentTokenOwner/);
+  assert.match(source, /setActiveAgentOwner/);
+  assert.match(source, /getPreferredAgentAuthToken\(ownerPublicKey\?: string \| null\)/);
 });

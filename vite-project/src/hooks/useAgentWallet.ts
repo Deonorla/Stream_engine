@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAppMode } from '../context/AppModeContext';
 import { useWallet } from '../context/WalletContext';
-import { getPreferredAgentAuthToken } from '../lib/agentAuthStorage';
+import { getPreferredAgentAuthToken, setActiveAgentOwner } from '../lib/agentAuthStorage';
 
 export function useAgentWallet(_ownerPublicKey?: string | null) {
   const { agentPublicKey, agentLoading, agentError, activateAgent, silentRestore } = useAppMode();
@@ -9,8 +9,10 @@ export function useAgentWallet(_ownerPublicKey?: string | null) {
 
   // When wallet connects, silently restore existing agent wallet (no UI prompt)
   useEffect(() => {
-    if (walletAddress) silentRestore(walletAddress);
-  }, [walletAddress]); // eslint-disable-line
+    if (!walletAddress) return;
+    setActiveAgentOwner(walletAddress);
+    silentRestore(walletAddress);
+  }, [silentRestore, walletAddress]);
 
   const activate = () => {
     if (walletAddress) activateAgent(walletAddress);
@@ -19,11 +21,11 @@ export function useAgentWallet(_ownerPublicKey?: string | null) {
   return { agentPublicKey, loading: agentLoading, error: agentError, activate };
 }
 
-export function getAgentToken(): string | null {
-  return getPreferredAgentAuthToken();
+export function getAgentToken(ownerPublicKey?: string | null): string | null {
+  return getPreferredAgentAuthToken(ownerPublicKey);
 }
 
-export function agentAuthHeaders(): Record<string, string> {
-  const token = getAgentToken();
+export function agentAuthHeaders(ownerPublicKey?: string | null): Record<string, string> {
+  const token = getAgentToken(ownerPublicKey);
   return token ? { Authorization: `Bearer ${token}` } : {};
 }

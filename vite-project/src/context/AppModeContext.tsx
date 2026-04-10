@@ -2,8 +2,10 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { getRwaApiBaseUrl } from '../services/rwaApi';
 import {
   clearAgentSessionToken,
+  getAgentTokenOwner,
   getExternalAgentAuthToken,
   getPreferredAgentAuthToken,
+  setActiveAgentOwner,
   storeAgentSessionToken,
 } from '../lib/agentAuthStorage';
 
@@ -38,6 +40,7 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
     setModeState(m);
   }, []);
   const [agentPublicKey, setAgentPublicKey] = useState<string | null>(null);
+  const [agentOwnerPublicKey, setAgentOwnerPublicKey] = useState<string | null>(null);
   const [agentLoading, setAgentLoading] = useState(false);
   const [agentError, setAgentError] = useState('');
 
@@ -45,21 +48,55 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const token = getPreferredAgentAuthToken();
     if (!token) return;
+    const tokenOwner = getAgentTokenOwner(token);
+    if (tokenOwner) {
+      setActiveAgentOwner(tokenOwner);
+      setAgentOwnerPublicKey(tokenOwner);
+    }
     fetch(`${getRwaApiBaseUrl()}/api/agent/wallet`, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.publicKey) setAgentPublicKey(data.publicKey); else clearAgentSessionToken(); })
+      .then(data => {
+        if (data?.publicKey) {
+          setAgentPublicKey(data.publicKey);
+        } else {
+          clearAgentSessionToken(tokenOwner || undefined);
+          setAgentPublicKey(null);
+          setAgentOwnerPublicKey(null);
+        }
+      })
       .catch(() => {});
   }, []);
 
   // When owner connects and no token exists, silently get a fresh token
   // (server returns existing wallet — never creates a new one without explicit activation)
   const silentRestore = useCallback(async (ownerPublicKey: string) => {
-    if (agentPublicKey) return; // already loaded
-    const token = getPreferredAgentAuthToken();
-    if (token) return; // already have a token, useEffect above handles it
+    const normalizedOwner = String(ownerPublicKey || '').trim().toUpperCase();
+    if (!normalizedOwner) return null;
+    setActiveAgentOwner(normalizedOwner);
+    if (agentPublicKey && agentOwnerPublicKey === normalizedOwner) {
+      return {
+        agentPublicKey,
+        token: getPreferredAgentAuthToken(normalizedOwner) || undefined,
+      };
+    }
+    const token = getPreferredAgentAuthToken(normalizedOwner);
     try {
-      const externalToken = getExternalAgentAuthToken();
+      if (token) {
+        const existing = await fetch(`${getRwaApiBaseUrl()}/api/agent/wallet`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (existing.ok) {
+          const data = await existing.json();
+          storeAgentSessionToken(token, normalizedOwner);
+          setAgentPublicKey(data.publicKey || data.agentPublicKey || null);
+          setAgentOwnerPublicKey(normalizedOwner);
+          return { ...data, token };
+        }
+        clearAgentSessionToken(normalizedOwner);
+      }
+
+      const externalToken = getExternalAgentAuthToken(normalizedOwner);
       const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/wallet-restore`, {
         method: 'POST',
         headers: {
@@ -70,17 +107,22 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
       });
       if (!res.ok) return; // no wallet exists yet — show activation UI
       const data = await res.json();
-      storeAgentSessionToken(data.token);
+      storeAgentSessionToken(data.token, normalizedOwner);
       setAgentPublicKey(data.agentPublicKey);
+      setAgentOwnerPublicKey(normalizedOwner);
       return data;
     } catch {}
     return null;
-  }, [agentPublicKey]);
+  }, [agentOwnerPublicKey, agentPublicKey]);
 
   const activateAgent = useCallback(async (ownerPublicKey: string) => {
+    const normalizedOwner = String(ownerPublicKey || '').trim().toUpperCase();
+    if (normalizedOwner) {
+      setActiveAgentOwner(normalizedOwner);
+    }
     setAgentLoading(true); setAgentError('');
     try {
-      const externalToken = getExternalAgentAuthToken();
+      const externalToken = getExternalAgentAuthToken(normalizedOwner);
       const res = await fetch(`${getRwaApiBaseUrl()}/api/agent/activate`, {
         method: 'POST',
         headers: {
@@ -91,10 +133,15 @@ export function AppModeProvider({ children }: { children: React.ReactNode }) {
       });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Activation failed.');
       const data = await res.json();
-      storeAgentSessionToken(data.token);
+      storeAgentSessionToken(data.token, normalizedOwner);
       setAgentPublicKey(data.agentPublicKey);
+      setAgentOwnerPublicKey(normalizedOwner);
       return data;
     } catch (err: any) {
+      setAgentPublicKey(null);
+      if (agentOwnerPublicKey === normalizedOwner) {
+        setAgentOwnerPublicKey(null);
+      }
       setAgentError(err.message || 'Activation failed.');
       return null;
     } finally {
