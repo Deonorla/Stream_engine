@@ -755,7 +755,7 @@ class AgentBrainService {
             proposal: fallback,
             degradedMode: true,
             degradedReason: attempt.attempted.length
-                ? `Platform LLM planning failed across providers: ${attempt.attempted.join(" · ")}`
+                ? `Platform LLM planning failed across providers: ${attempt.attempted.map(summarizeProviderError).join(" · ")}`
                 : status.degradedReason,
             provider: status.provider,
             model: status.model,
@@ -823,3 +823,23 @@ module.exports = {
     SUPPORTED_ACTIONS,
     normalizeProposal,
 };
+
+function summarizeProviderError(attempted) {
+    const text = String(attempted || '');
+    // Rate limit
+    if (text.includes('429') || text.toLowerCase().includes('quota') || text.toLowerCase().includes('rate limit')) {
+        const retryMatch = text.match(/retry in (\d+)/i);
+        const retry = retryMatch ? ` (retry in ${retryMatch[1]}s)` : '';
+        const providerMatch = text.match(/^([^:]+):/);
+        const provider = providerMatch ? providerMatch[1] : 'LLM provider';
+        return `${provider}: rate limit hit${retry}`;
+    }
+    // Auth
+    if (text.includes('401') || text.includes('403') || text.toLowerCase().includes('api key')) {
+        const providerMatch = text.match(/^([^:]+):/);
+        return `${providerMatch ? providerMatch[1] : 'LLM provider'}: invalid API key`;
+    }
+    // Trim long raw errors to first sentence
+    const firstSentence = text.split(/[.\n]/)[0].trim();
+    return firstSentence.length > 120 ? firstSentence.slice(0, 120) + '…' : firstSentence;
+}
