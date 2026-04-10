@@ -23,6 +23,20 @@ function extractYieldRate(asset) {
     const claimable = Number(asset.claimableYield || 0);
     const deposited = Number(asset.totalYieldDeposited || 0);
     if (deposited > 0) return (claimable / deposited) * 100;
+
+    // Fallback: derive from pricePerHour in publicMetadata
+    const metadata = asset.publicMetadata || asset.metadata || {};
+    const pricePerHour = Number(
+        metadata.pricePerHour
+        || metadata.attributes?.find?.((a) => a?.trait_type === 'Price Per Hour')?.value
+        || 0
+    );
+    if (pricePerHour > 0) {
+        // annualised revenue as % of a nominal $1000 capital base
+        const annualRevenue = pricePerHour * 24 * 365;
+        return Math.min((annualRevenue / 1000) * 100, 999);
+    }
+
     return 0;
 }
 
