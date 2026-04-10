@@ -251,12 +251,7 @@ async function buildServices(config) {
     }
 
     if (!services.store) {
-        try {
-            services.store = await createIndexerStore({ postgresUrl: config.postgresUrl });
-        } catch (error) {
-            services.store = new MemoryIndexerStore();
-            await services.store.init();
-        }
+        services.store = await createIndexerStore({ postgresUrl: config.postgresUrl });
     }
 
     if (!services.chainService) {
@@ -547,6 +542,9 @@ function createApp(config = defaultConfig) {
             infrastructure: "Stream Engine",
             runtime: runtimeConfig.kind,
             network: runtimeConfig.networkName,
+            storage: {
+                kind: services.store?.kind || "unknown",
+            },
             operator: services.chainService?.signer?.address || "",
             payments: {
                 tokenAddress: runtimeConfig.paymentTokenAddress,
@@ -1518,6 +1516,14 @@ if (require.main === module) {
         console.log(`RWA asset registry: ${startupContracts.resolved.assetRegistry || "not configured"}`);
         console.log(`RWA attestation registry: ${startupContracts.resolved.attestationRegistry || "not configured"}`);
         console.log(`RWA asset stream: ${startupContracts.resolved.assetStream || "not configured"}`);
+        app.locals.ready
+            .then((services) => {
+                console.log(`Storage: ${services.store?.kind || "unknown"}`);
+            })
+            .catch((error) => {
+                console.error("[startup] Failed to initialize persistent services.", error);
+                process.exitCode = 1;
+            });
         for (const warning of startupContracts.warnings) {
             console.warn(
                 `[config] ${warning.key} env value "${warning.raw}" resolves to "${warning.resolved}" at runtime.`,

@@ -1,5 +1,6 @@
 class MemoryIndexerStore {
     constructor() {
+        this.kind = "memory";
         this.assets = new Map();
         this.activities = new Map();
         this.sessions = new Map();
@@ -125,6 +126,7 @@ class MemoryIndexerStore {
 
 class PostgresIndexerStore {
     constructor(pool) {
+        this.kind = "postgres";
         this.pool = pool;
     }
 
@@ -427,17 +429,23 @@ async function createIndexerStore(config = {}) {
     }
 
     try {
-        const { Pool } = require("pg");
-        const pool = new Pool({
-            connectionString: config.postgresUrl || process.env.POSTGRES_URL,
-        });
+        const createPgPool = typeof config.createPgPool === "function"
+            ? config.createPgPool
+            : (connectionString) => {
+                const { Pool } = require("pg");
+                return new Pool({ connectionString });
+            };
+        const pool = createPgPool(config.postgresUrl || process.env.POSTGRES_URL);
         const store = new PostgresIndexerStore(pool);
         await store.init();
         return store;
     } catch (error) {
-        const store = new MemoryIndexerStore();
-        await store.init();
-        return store;
+        const persistentStoreError = new Error(
+            "Postgres indexer store is unavailable. Refusing to fall back to in-memory storage because Continuum auctions and agent state would become ephemeral."
+        );
+        persistentStoreError.code = "persistent_store_required";
+        persistentStoreError.cause = error;
+        throw persistentStoreError;
     }
 }
 
