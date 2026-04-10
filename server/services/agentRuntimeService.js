@@ -795,10 +795,10 @@ class AgentRuntimeService {
                 this.agentState.getMemorySummary(normalizedAgentId),
                 this.agentState.getJournal(normalizedAgentId, 16),
                 this.chainService?.isConfigured?.()
-                    ? this.chainService.listAssetSnapshots({ limit: 200 })
+                    ? this.store.listAssets()
                     : this.store.listAssets(),
                 this.chainService?.isConfigured?.()
-                    ? this.chainService.listAssetSnapshots({ owner: wallet.publicKey })
+                    ? this.store.listAssets({ owner: wallet.publicKey })
                     : this.store.listAssets({ owner: wallet.publicKey }),
                 this.chainService.listSessions({ owner: wallet.publicKey }),
                 this.auctionEngine?.listAuctions
