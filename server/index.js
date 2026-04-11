@@ -604,7 +604,12 @@ function createApp(config = defaultConfig) {
         for (const asset of supportedAssets) {
             await services.store.upsertAsset(asset);
         }
-        const assets = await Promise.all(supportedAssets.map((asset) => hydrateAssetMetadata(services, asset)));
+        // Serve already-hydrated assets from the store; only hit IPFS for ones missing metadata
+        const assets = await Promise.all(supportedAssets.map(async (asset) => {
+            const stored = await services.store.getAsset(asset.tokenId).catch(() => null);
+            if (stored?.publicMetadata) return stored;
+            return hydrateAssetMetadata(services, asset);
+        }));
         res.json({
             assets,
             code: "assets_listed",
