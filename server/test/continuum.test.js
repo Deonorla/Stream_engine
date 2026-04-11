@@ -1594,6 +1594,132 @@ describe("Continuum API Integration", function () {
         expect(stateResponse.body.state.decisionLog.some((entry) => String(entry.detail || "").includes("Auction #9"))).to.equal(true);
     });
 
+    it("promotes passive analyze plans into executable bids when a live shortlist is eligible", async () => {
+        installAgentBrain({
+            async decide({ wakeReason }) {
+                return {
+                    proposal: {
+                        actionType: "analyze",
+                        actionArgs: {},
+                        thesis: "Review the strongest live listing before committing capital.",
+                        rationale: "Run one more analysis pass before acting.",
+                        confidence: 61,
+                        blockedBy: "",
+                        requiresHuman: false,
+                        wakeReason,
+                    },
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "stub",
+                    model: "passive-test-planner",
+                };
+            },
+            async chat() {
+                return {
+                    reply: "Passive planner test stub.",
+                    objectivePatch: null,
+                    wakeReason: "chat_message",
+                };
+            },
+            async summarize({ objective }) {
+                return `Goal: ${objective?.goal || "test objective"}`;
+            },
+        });
+
+        await store.upsertAsset({
+            tokenId: 8,
+            assetType: 1,
+            currentOwner: competitorAgentKeypair.publicKey(),
+            issuer: issuerKeypair.publicKey(),
+            verificationStatusLabel: "verified",
+            claimableYield: "1500000",
+            totalYieldDeposited: "10000000",
+            rentalReady: true,
+            publicMetadataURI: "ipfs://land-beta",
+            stream: {
+                flowRate: "5000",
+            },
+            assetPolicy: {
+                frozen: false,
+                disputed: false,
+                revoked: false,
+            },
+        });
+        externalAuctionState = {
+            auctionId: 9,
+            assetId: 8,
+            seller: competitorAgentKeypair.publicKey(),
+            sellerOwnerPublicKey: competitorOwnerKeypair.publicKey(),
+            reservePrice: "1200000000",
+            reservePriceDisplay: "120.0000000",
+            currency: "USDC",
+            startTime: Math.floor(Date.now() / 1000) - 60,
+            endTime: Math.floor(Date.now() / 1000) + 3600,
+            status: "active",
+            bids: [],
+            highestBid: null,
+            highestBidDisplay: null,
+            reserveMet: false,
+            assetType: "land",
+            title: "Lekki Parcel Beta",
+        };
+
+        await request(app)
+            .post(`/api/agents/${agentId}/screens`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                name: "Land shortlist",
+                filters: {
+                    search: "land",
+                    type: "land",
+                    minYield: 10,
+                    maxRisk: 40,
+                    verifiedOnly: true,
+                    hasAuction: true,
+                },
+                summary: {
+                    totalProductiveTwins: 1,
+                    activeFilterCount: 6,
+                },
+            })
+            .expect(201);
+
+        await request(app)
+            .post(`/api/agents/${agentId}/watchlist`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                tokenId: 8,
+                name: "Lekki Parcel Beta",
+                assetType: "land",
+                verificationStatus: "verified",
+                yieldRate: 15,
+                riskScore: 30,
+            })
+            .expect(201);
+
+        const startResponse = await request(app)
+            .post(`/api/agents/${agentId}/runtime/start`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                executeTreasury: false,
+                executeClaims: false,
+            })
+            .expect(200);
+
+        expect(startResponse.body.runtime.lastSummary.autoBids).to.equal(1);
+        expect(startResponse.body.runtime.lastSummary.bidFocus.assetId).to.equal(8);
+        expect(externalAuctionState.highestBid).to.not.equal(null);
+        expect(externalAuctionState.highestBid.bidder).to.equal(agentKeypair.publicKey());
+
+        const stateResponse = await request(app)
+            .get(`/api/agents/${agentId}/state`)
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(stateResponse.body.state.brain.nextAction.actionType).to.equal("bid");
+        expect(stateResponse.body.state.decisionLog.some((entry) => String(entry.message || "").includes("Autonomous agent executed bid"))).to.equal(true);
+    });
+
     it("persists mandate updates server-side", async () => {
         await request(app)
             .post(`/api/agents/${agentId}/mandate`)

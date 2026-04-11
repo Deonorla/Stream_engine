@@ -655,6 +655,41 @@ class AgentRuntimeService {
         return { valid: true, actionType, actionArgs: proposal.actionArgs || {} };
     }
 
+    promotePassiveProposal(proposal = {}, context = {}) {
+        const actionType = String(proposal?.actionType || "hold").trim().toLowerCase();
+        const bidFocus = context?.bidFocus || null;
+        const isPassive = ["analyze", "watch"].includes(actionType)
+            || (actionType === "hold" && !String(proposal?.blockedBy || "").trim());
+        if (!isPassive || !bidFocus?.eligible || proposal?.requiresHuman) {
+            return proposal;
+        }
+
+        return {
+            ...proposal,
+            actionType: "bid",
+            actionArgs: {
+                auctionId: Number(bidFocus.auctionId),
+                amount: String(
+                    proposal?.actionArgs?.amount
+                    || bidFocus.nextBidDisplay
+                    || bidFocus.nextBidAmountDisplay
+                    || ""
+                ),
+            },
+            thesis: proposal?.thesis
+                || `Live auction #${Number(bidFocus.auctionId)} is executable within the current mandate.`,
+            rationale: [
+                String(proposal?.rationale || "").trim(),
+                "Promoted from passive analysis because a live bid is already executable within the current mandate and liquidity envelope.",
+            ].filter(Boolean).join(" "),
+            blockedBy: "",
+            confidence: Math.max(
+                Number(proposal?.confidence || 0),
+                Number(bidFocus?.confidence || 70),
+            ),
+        };
+    }
+
     async executeDecision({
         agentId,
         ownerPublicKey,
@@ -1100,6 +1135,9 @@ class AgentRuntimeService {
                 ...decision.proposal,
                 blockedBy: decision.proposal?.blockedBy || "",
             };
+            if (currentRuntime.running) {
+                proposal = this.promotePassiveProposal(proposal, brainContext);
+            }
             const validation = this.validateDecisionProposal(proposal, brainContext);
             if (!validation.valid) {
                 proposal = {
@@ -1129,6 +1167,14 @@ class AgentRuntimeService {
             const effectiveBlockedBy = String(
                 proposal.blockedBy
                 || executed?.details?.blockedBy
+                || (
+                    executed.outcome === "skipped"
+                    && ["hold", "watch", "analyze"].includes(proposal.actionType)
+                    && (
+                        topBidFocus?.blockedReason
+                        || noActionReason
+                    )
+                )
                 || (executed.outcome === "skipped" && proposal.actionType !== "hold" && currentRuntime.running
                     ? `The proposed ${proposal.actionType.replace(/_/g, " ")} action was recorded but not executed.`
                     : "")
