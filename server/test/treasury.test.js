@@ -102,10 +102,10 @@ describe("TreasuryManager", function () {
 
         const first = await manager.rebalance({ ownerPublicKey, agentId });
         expect(first.positions).to.have.length(3);
-        expect(first.summary.deployed).to.equal("8000000000");
-        expect(first.summary.projectedAnnualReturn).to.equal("967000000");
-        expect(first.summary.weightedProjectedNetApy).to.be.closeTo(12.08, 0.01);
-        expect(first.summary.allocationsByFamily.safe_yield.allocatedAmount).to.equal("4000000000");
+        expect(first.summary.deployed).to.equal("7500000000");
+        expect(first.summary.projectedAnnualReturn).to.equal("911000000");
+        expect(first.summary.weightedProjectedNetApy).to.be.closeTo(12.14, 0.01);
+        expect(first.summary.allocationsByFamily.safe_yield.allocatedAmount).to.equal("3500000000");
         expect(first.summary.allocationsByFamily.blend_lending.allocatedAmount).to.equal("2500000000");
         expect(first.summary.allocationsByFamily.stellar_amm.allocatedAmount).to.equal("1500000000");
         expect(first.summary.health.ok).to.equal(true);
@@ -118,11 +118,11 @@ describe("TreasuryManager", function () {
         expect(first.optimization.reason).to.equal("rebalanced");
         expect(first.optimization.candidates).to.have.length(3);
         expect(first.optimization.execution.deploymentCount).to.equal(3);
-        expect(first.optimization.execution.deployedAmount).to.equal("8000000000");
+        expect(first.optimization.execution.deployedAmount).to.equal("7500000000");
 
         const second = await manager.rebalance({ ownerPublicKey, agentId });
         expect(second.positions).to.have.length(3);
-        expect(second.summary.deployed).to.equal("8000000000");
+        expect(second.summary.deployed).to.equal("7500000000");
         expect(second.summary.openPositions).to.equal(3);
         expect(second.optimization.reason).to.equal("capital_base_exhausted");
         expect(second.optimization.execution.deploymentCount).to.equal(0);

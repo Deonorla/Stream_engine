@@ -789,7 +789,7 @@ describe("Continuum API Integration", function () {
         expect(response.body.positions.treasury.positions).to.have.length(1);
         expect(response.body.positions.performance.realizedYield).to.equal("0");
         expect(response.body.positions.liquidity.walletBalanceDisplay).to.equal("425");
-        expect(response.body.positions.liquidity.immediateBidHeadroomDisplay).to.equal("325");
+        expect(response.body.positions.liquidity.immediateBidHeadroomDisplay).to.equal("375");
         expect(response.body.positions.liquidity.status).to.equal("healthy");
     });
 
@@ -931,12 +931,29 @@ describe("Continuum API Integration", function () {
         expect(response.body.agentId).to.equal(agentId);
         expect(response.body.state.wallet.publicKey).to.equal(agentKeypair.publicKey());
         expect(response.body.state.liquidity.walletBalanceDisplay).to.equal("425");
-        expect(response.body.state.liquidity.targetReserveAmountDisplay).to.equal("200");
+        expect(response.body.state.liquidity.targetReserveAmountDisplay).to.equal("250");
+        expect(response.body.state.liquidity.maxReserveAmountDisplay).to.equal("500");
         expect(response.body.state.reservationExposure).to.deep.equal([]);
         expect(response.body.state.positions.assets).to.have.length(1);
         expect(response.body.state.runtime.status).to.equal("idle");
         expect(response.body.state.savedScreens).to.deep.equal([]);
         expect(response.body.state.watchlist).to.deep.equal([]);
+    });
+
+    it("starts new agents with a trade-capable default mandate", async () => {
+        const response = await request(app)
+            .get(`/api/agents/${agentId}/mandate`)
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(response.body.mandate.approvalThreshold).to.equal("400");
+        expect(response.body.mandate.assetCapPct).to.equal(40);
+        expect(response.body.mandate.issuerCapPct).to.equal(65);
+        expect(response.body.mandate.liquidityFloorPct).to.equal(5);
+        expect(response.body.mandate.targetReturnMinPct).to.equal(5);
+        expect(response.body.mandate.rebalanceCadenceMinutes).to.equal(180);
+        expect(response.body.mandate.reservePolicy.targetLiquidPct).to.equal(25);
+        expect(response.body.mandate.reservePolicy.maxLiquidPct).to.equal(50);
     });
 
     it("loads the managed wallet readiness summary", async () => {

@@ -71,6 +71,25 @@ const TREASURY_STRATEGY_OPTIONS = [
   { value: 'stellar_amm',   label: 'Stellar AMM' },
 ];
 
+const AUTONOMOUS_TRADING_MANDATE = {
+  capitalBase: '1000',
+  approvedAssetClasses: ['real_estate', 'land'],
+  issuerCapPct: '65',
+  assetCapPct: '40',
+  targetReturnMinPct: '5',
+  targetReturnMaxPct: '25',
+  approvalThreshold: '400',
+  liquidityFloorPct: '5',
+  allowedTreasuryStrategies: ['safe_yield', 'blend_lending', 'stellar_amm'],
+  maxDrawdownPct: '25',
+  rebalanceCadenceMinutes: '180',
+  reservePolicy: {
+    minLiquidPct: 5,
+    targetLiquidPct: 25,
+    maxLiquidPct: 50,
+  },
+} as const;
+
 function toggleListValue(current: string[], value: string) {
   if (current.includes(value)) return current.length === 1 ? current : current.filter(e => e !== value);
   return [...current, value];
@@ -183,17 +202,17 @@ export default function AgentConsolePage() {
   const [walletSnapshot, setWalletSnapshot] = useState<any>(null);
   const [marketAssets, setMarketAssets] = useState<any[]>([]);
   const [mandateDraft, setMandateDraft] = useState<MandateDraft>({
-    capitalBase: '1000',
-    approvedAssetClasses: ['real_estate', 'land'],
-    issuerCapPct: '40',
-    assetCapPct: '25',
-    targetReturnMinPct: '8',
-    targetReturnMaxPct: '18',
-    approvalThreshold: '250',
-    liquidityFloorPct: '10',
-    allowedTreasuryStrategies: ['safe_yield', 'blend_lending', 'stellar_amm'],
-    maxDrawdownPct: '20',
-    rebalanceCadenceMinutes: '60',
+    capitalBase: AUTONOMOUS_TRADING_MANDATE.capitalBase,
+    approvedAssetClasses: [...AUTONOMOUS_TRADING_MANDATE.approvedAssetClasses],
+    issuerCapPct: AUTONOMOUS_TRADING_MANDATE.issuerCapPct,
+    assetCapPct: AUTONOMOUS_TRADING_MANDATE.assetCapPct,
+    targetReturnMinPct: AUTONOMOUS_TRADING_MANDATE.targetReturnMinPct,
+    targetReturnMaxPct: AUTONOMOUS_TRADING_MANDATE.targetReturnMaxPct,
+    approvalThreshold: AUTONOMOUS_TRADING_MANDATE.approvalThreshold,
+    liquidityFloorPct: AUTONOMOUS_TRADING_MANDATE.liquidityFloorPct,
+    allowedTreasuryStrategies: [...AUTONOMOUS_TRADING_MANDATE.allowedTreasuryStrategies],
+    maxDrawdownPct: AUTONOMOUS_TRADING_MANDATE.maxDrawdownPct,
+    rebalanceCadenceMinutes: AUTONOMOUS_TRADING_MANDATE.rebalanceCadenceMinutes,
   });
   const [objectiveDraft, setObjectiveDraft] = useState<ObjectiveDraft>({
     goal: 'Grow capital safely through productive RWA opportunities.',
@@ -245,17 +264,17 @@ export default function AgentConsolePage() {
       setMarketAssets(assets || []);
       if (mandate) {
         setMandateDraft({
-          capitalBase: String(mandate.capitalBase ?? 1000),
+          capitalBase: String(mandate.capitalBase ?? AUTONOMOUS_TRADING_MANDATE.capitalBase),
           approvedAssetClasses: Array.isArray(mandate.approvedAssetClasses) && mandate.approvedAssetClasses.length ? mandate.approvedAssetClasses : ['real_estate', 'land'],
-          issuerCapPct: String(mandate.issuerCapPct ?? 40),
-          assetCapPct: String(mandate.assetCapPct ?? 25),
-          targetReturnMinPct: String(mandate.targetReturnMinPct ?? 8),
-          targetReturnMaxPct: String(mandate.targetReturnMaxPct ?? 18),
-          approvalThreshold: String(mandate.approvalThreshold ?? 250),
-          liquidityFloorPct: String(mandate.liquidityFloorPct ?? 10),
+          issuerCapPct: String(mandate.issuerCapPct ?? AUTONOMOUS_TRADING_MANDATE.issuerCapPct),
+          assetCapPct: String(mandate.assetCapPct ?? AUTONOMOUS_TRADING_MANDATE.assetCapPct),
+          targetReturnMinPct: String(mandate.targetReturnMinPct ?? AUTONOMOUS_TRADING_MANDATE.targetReturnMinPct),
+          targetReturnMaxPct: String(mandate.targetReturnMaxPct ?? AUTONOMOUS_TRADING_MANDATE.targetReturnMaxPct),
+          approvalThreshold: String(mandate.approvalThreshold ?? AUTONOMOUS_TRADING_MANDATE.approvalThreshold),
+          liquidityFloorPct: String(mandate.liquidityFloorPct ?? AUTONOMOUS_TRADING_MANDATE.liquidityFloorPct),
           allowedTreasuryStrategies: Array.isArray(mandate.allowedTreasuryStrategies) && mandate.allowedTreasuryStrategies.length ? mandate.allowedTreasuryStrategies : ['safe_yield', 'blend_lending', 'stellar_amm'],
-          maxDrawdownPct: String(mandate.maxDrawdownPct ?? 20),
-          rebalanceCadenceMinutes: String(mandate.rebalanceCadenceMinutes ?? 60),
+          maxDrawdownPct: String(mandate.maxDrawdownPct ?? AUTONOMOUS_TRADING_MANDATE.maxDrawdownPct),
+          rebalanceCadenceMinutes: String(mandate.rebalanceCadenceMinutes ?? AUTONOMOUS_TRADING_MANDATE.rebalanceCadenceMinutes),
         });
       }
       if (agentState?.objective) {
@@ -326,6 +345,41 @@ export default function AgentConsolePage() {
       setSavingMandate(false);
     }
   }, [agentPublicKey, mandateDraft, doRefreshState]);
+
+  const applyTradingPreset = useCallback(async () => {
+    if (!agentPublicKey) return;
+    setSavingMandate(true);
+    const nextDraft = {
+      capitalBase: AUTONOMOUS_TRADING_MANDATE.capitalBase,
+      approvedAssetClasses: [...AUTONOMOUS_TRADING_MANDATE.approvedAssetClasses],
+      issuerCapPct: AUTONOMOUS_TRADING_MANDATE.issuerCapPct,
+      assetCapPct: AUTONOMOUS_TRADING_MANDATE.assetCapPct,
+      targetReturnMinPct: AUTONOMOUS_TRADING_MANDATE.targetReturnMinPct,
+      targetReturnMaxPct: AUTONOMOUS_TRADING_MANDATE.targetReturnMaxPct,
+      approvalThreshold: AUTONOMOUS_TRADING_MANDATE.approvalThreshold,
+      liquidityFloorPct: AUTONOMOUS_TRADING_MANDATE.liquidityFloorPct,
+      allowedTreasuryStrategies: [...AUTONOMOUS_TRADING_MANDATE.allowedTreasuryStrategies],
+      maxDrawdownPct: AUTONOMOUS_TRADING_MANDATE.maxDrawdownPct,
+      rebalanceCadenceMinutes: AUTONOMOUS_TRADING_MANDATE.rebalanceCadenceMinutes,
+    };
+    setMandateDraft(nextDraft);
+    try {
+      await saveAgentMandate(agentPublicKey, {
+        ...nextDraft,
+        issuerCapPct: Number(nextDraft.issuerCapPct),
+        assetCapPct: Number(nextDraft.assetCapPct),
+        targetReturnMinPct: Number(nextDraft.targetReturnMinPct),
+        targetReturnMaxPct: Number(nextDraft.targetReturnMaxPct),
+        liquidityFloorPct: Number(nextDraft.liquidityFloorPct),
+        maxDrawdownPct: Number(nextDraft.maxDrawdownPct),
+        rebalanceCadenceMinutes: Number(nextDraft.rebalanceCadenceMinutes),
+        reservePolicy: AUTONOMOUS_TRADING_MANDATE.reservePolicy,
+      });
+      await doRefreshState();
+    } finally {
+      setSavingMandate(false);
+    }
+  }, [agentPublicKey, doRefreshState]);
 
   const saveObjective = useCallback(async () => {
     if (!agentPublicKey) return;
@@ -743,10 +797,19 @@ export default function AgentConsolePage() {
           {/* Mandate */}
           <SectionCard title="Live Mandate" icon={Settings} iconColor="text-primary" collapsible
             action={
-              <button onClick={() => void saveMandate()} disabled={!agentPublicKey || savingMandate}
-                className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
-                {savingMandate ? 'Saving…' : 'Save'}
-              </button>
+              <>
+                <button
+                  onClick={() => void applyTradingPreset()}
+                  disabled={!agentPublicKey || savingMandate}
+                  className="px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-bold hover:bg-emerald-100 disabled:opacity-40 transition-all"
+                >
+                  Trading Preset
+                </button>
+                <button onClick={() => void saveMandate()} disabled={!agentPublicKey || savingMandate}
+                  className="px-3 py-1.5 rounded-xl bg-primary text-white text-[10px] font-bold hover:opacity-90 disabled:opacity-40 transition-all">
+                  {savingMandate ? 'Saving…' : 'Save'}
+                </button>
+              </>
             }>
             {showSettings && (
               <div className="space-y-4 mb-4">
@@ -847,6 +910,7 @@ export default function AgentConsolePage() {
                     { label: 'Liquid USDC',      value: `${liquidity.walletBalanceDisplay || '0'} USDC` },
                     { label: 'Bid Headroom',      value: `${liquidity.immediateBidHeadroomDisplay || '0'} USDC` },
                     { label: 'Reserve Floor',     value: `${liquidity.liquidityFloorAmountDisplay || '0'} USDC` },
+                    { label: 'Reserve Ceiling',   value: `${liquidity.maxReserveAmountDisplay || '0'} USDC` },
                     { label: 'Treasury Deployed', value: `${liquidity.treasuryDeployedDisplay || '0'} USDC` },
                   ].map(i => <KV key={i.label} label={i.label} value={i.value} />)}
                 </div>

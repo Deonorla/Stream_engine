@@ -307,6 +307,7 @@ function findWalletBalance(walletState = {}, assetCode = "USDC", assetIssuer = "
 function liquidityStatusLabel(status) {
     if (status === "below_floor") return "Below floor";
     if (status === "near_floor") return "Near floor";
+    if (status === "above_band") return "Above band";
     return "Healthy";
 }
 
@@ -322,6 +323,7 @@ function buildLiquiditySummary({
     const capitalBase = normalizeStellarAmount(mandate.capitalBase || "0");
     const liquidityFloorPct = Number(mandate.liquidityFloorPct ?? reservePolicy.minLiquidPct ?? 10);
     const targetLiquidPct = Number(reservePolicy.targetLiquidPct ?? 20);
+    const maxLiquidPct = Number(reservePolicy.maxLiquidPct ?? Math.max(targetLiquidPct, 30));
     const walletBalanceRecord = findWalletBalance(walletState, assetCode, assetIssuer);
     const walletBalance = walletBalanceRecord
         ? normalizeStellarAmount(walletBalanceRecord.balance || "0")
@@ -339,12 +341,17 @@ function buildLiquiditySummary({
     const targetReserveAmount = capitalBase > 0n
         ? (capitalBase * BigInt(Math.max(0, Math.round(targetLiquidPct)))) / 100n
         : 0n;
+    const maxReserveAmount = capitalBase > 0n
+        ? (capitalBase * BigInt(Math.max(0, Math.round(maxLiquidPct)))) / 100n
+        : 0n;
     const immediateBidHeadroom = walletBalance > liquidityFloorAmount
         ? walletBalance - liquidityFloorAmount
         : 0n;
     const status = walletBalance < liquidityFloorAmount
         ? "below_floor"
-        : walletBalance < targetReserveAmount
+        : walletBalance > maxReserveAmount
+            ? "above_band"
+            : walletBalance < targetReserveAmount
             ? "near_floor"
             : "healthy";
 
@@ -361,10 +368,13 @@ function buildLiquiditySummary({
         liquidityFloorAmountDisplay: formatStellarAmount(liquidityFloorAmount),
         targetReserveAmount: targetReserveAmount.toString(),
         targetReserveAmountDisplay: formatStellarAmount(targetReserveAmount),
+        maxReserveAmount: maxReserveAmount.toString(),
+        maxReserveAmountDisplay: formatStellarAmount(maxReserveAmount),
         immediateBidHeadroom: immediateBidHeadroom.toString(),
         immediateBidHeadroomDisplay: formatStellarAmount(immediateBidHeadroom),
         liquidityFloorPct,
         targetLiquidPct,
+        maxLiquidPct,
         canRecallFromTreasury: treasuryDeployed > 0n,
         status,
         statusLabel: liquidityStatusLabel(status),

@@ -567,8 +567,10 @@ class AgentRuntimeService {
         const capitalBase = normalizeStellarAmount(mandate?.capitalBase || "0");
         const floorPct = BigInt(Number(mandate?.liquidityFloorPct || 10));
         const targetPct = BigInt(Number(mandate?.reservePolicy?.targetLiquidPct || 20));
+        const maxPct = BigInt(Number(mandate?.reservePolicy?.maxLiquidPct || Math.max(Number(mandate?.reservePolicy?.targetLiquidPct || 20), 30)));
         const floorAmount = capitalBase > 0n ? (capitalBase * floorPct) / 100n : 0n;
         const targetAmount = capitalBase > 0n ? (capitalBase * targetPct) / 100n : 0n;
+        const maxAmount = capitalBase > 0n ? (capitalBase * maxPct) / 100n : 0n;
         const immediateBidHeadroom = walletBalance > floorAmount ? walletBalance - floorAmount : 0n;
         return {
             walletBalance: walletBalance.toString(),
@@ -581,9 +583,11 @@ class AgentRuntimeService {
             liquidityFloorAmountDisplay: toDisplayAmount(floorAmount),
             targetReserveAmount: targetAmount.toString(),
             targetReserveAmountDisplay: toDisplayAmount(targetAmount),
+            maxReserveAmount: maxAmount.toString(),
+            maxReserveAmountDisplay: toDisplayAmount(maxAmount),
             immediateBidHeadroom: immediateBidHeadroom.toString(),
             immediateBidHeadroomDisplay: toDisplayAmount(immediateBidHeadroom),
-            outsideTargetBand: walletBalance < floorAmount || walletBalance > targetAmount,
+            outsideTargetBand: walletBalance < floorAmount || walletBalance > maxAmount,
         };
     }
 
