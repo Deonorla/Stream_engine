@@ -842,6 +842,7 @@ function MintingTab({ onMinted, portfolioCount }) {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [evidenceFiles, setEvidenceFiles] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mintDone, setMintDone] = useState(false);
   const fileInputRef = useRef(null);
 
   const propertyRef = useMemo(
@@ -854,6 +855,7 @@ function MintingTab({ onMinted, portfolioCount }) {
   );
 
   const setField = (field, value) => {
+    setMintDone(false);
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -1006,6 +1008,7 @@ function MintingTab({ onMinted, portfolioCount }) {
         fileInputRef.current.value = '';
       }
 
+      setMintDone(true);
       onMinted?.(nextAsset);
       toast.dismiss(loadingToast);
       toast.transaction.success(
@@ -1183,7 +1186,8 @@ function MintingTab({ onMinted, portfolioCount }) {
         </form>
       </div>
 
-      <div className="space-y-8">
+      {!mintDone && (
+        <div className="space-y-8">
         <div>
           <h4 className="text-2xl font-headline font-bold text-on-surface">Metadata Preview</h4>
           <p className="mt-1 text-sm text-on-surface-variant">
@@ -1255,6 +1259,7 @@ function MintingTab({ onMinted, portfolioCount }) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

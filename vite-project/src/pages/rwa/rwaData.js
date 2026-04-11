@@ -671,7 +671,8 @@ function resolveRentalActivity(asset = {}, stream = {}) {
     };
   }
 
-  const currentlyRented = Number(asset.activeStreamId || 0) > 0 && Boolean(stream?.isActive);
+  const currentlyRented = Boolean(asset.isRented)
+    || (Number(asset.activeStreamId || 0) > 0 && Boolean(stream?.isActive));
   return {
     currentlyRented,
     activeRevenueStream: Boolean(stream?.isActive),
