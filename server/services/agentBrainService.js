@@ -383,7 +383,7 @@ function parseProviderPriority(value = "gemini") {
     const normalized = normalizeText(value).toLowerCase();
     if (!normalized) return ["gemini"];
     if (normalized === "auto") {
-        return ["gemini", "groq", "openrouter"];
+        return ["openai", "groq", "gemini", "openrouter"];
     }
     return Array.from(
         new Set(
@@ -396,6 +396,7 @@ function parseProviderPriority(value = "gemini") {
 }
 
 function defaultModelForProvider(name, fallbackModel = "") {
+    if (name === "openai") return "gpt-4.1-mini";
     if (name === "groq") return "llama-3.3-70b-versatile";
     if (name === "openrouter") return "openai/gpt-4.1-mini";
     return fallbackModel || "gemini-2.5-flash";
@@ -622,6 +623,8 @@ class AgentBrainService {
         const modelName = normalizeText(
             normalized === "gemini"
                 ? (process.env.GEMINI_MODEL || "")
+                : normalized === "openai"
+                    ? (process.env.OPENAI_MODEL || "")
                 : normalized === "groq"
                     ? (process.env.GROQ_MODEL || "")
                     : normalized === "openrouter"
@@ -633,6 +636,14 @@ class AgentBrainService {
             return new GeminiAgentModelProvider({
                 apiKey: process.env.GEMINI_API_KEY || "",
                 modelName,
+            });
+        }
+        if (normalized === "openai") {
+            return new OpenAICompatibleAgentModelProvider({
+                name: "openai",
+                apiKey: process.env.OPENAI_API_KEY || "",
+                modelName,
+                baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
             });
         }
         if (normalized === "groq") {

@@ -44,6 +44,35 @@ function stubProvider({
 }
 
 describe("AgentBrainService provider fallback", function () {
+    const originalOpenAiKey = process.env.OPENAI_API_KEY;
+    const originalOpenAiModel = process.env.OPENAI_MODEL;
+
+    afterEach(() => {
+        if (originalOpenAiKey == null) delete process.env.OPENAI_API_KEY;
+        else process.env.OPENAI_API_KEY = originalOpenAiKey;
+
+        if (originalOpenAiModel == null) delete process.env.OPENAI_MODEL;
+        else process.env.OPENAI_MODEL = originalOpenAiModel;
+    });
+
+    it("creates an OpenAI provider when configured in priority order", async () => {
+        process.env.OPENAI_API_KEY = "sk-test-openai";
+        process.env.OPENAI_MODEL = "gpt-4.1-mini";
+
+        const brain = new AgentBrainService({
+            enabled: true,
+            providerName: "openai,groq",
+        });
+
+        const status = brain.getProviderStatus();
+
+        expect(brain.providerNames).to.deep.equal(["openai", "groq"]);
+        expect(status.provider).to.equal("openai");
+        expect(status.model).to.equal("gpt-4.1-mini");
+        expect(status.available).to.equal(true);
+        expect(status.degradedMode).to.equal(false);
+    });
+
     it("uses the next configured provider when the primary provider is unavailable", async () => {
         const brain = new AgentBrainService({
             enabled: true,
