@@ -574,6 +574,9 @@ describe("Continuum API Integration", function () {
         expect(response.body.summary.currentRentalCount).to.equal(0);
         expect(response.body.summary.highlights.topOpportunities).to.have.length(1);
         expect(response.body.summary.highlights.auctionsClosingSoon).to.have.length(1);
+        expect(response.body.leaderboard).to.be.an("array");
+        expect(response.body.leaderboard[0].agentId).to.equal(agentId);
+        expect(response.body.participation.trackedAgents).to.equal(1);
     });
 
     it("preserves cached market metadata on forced refresh when IPFS hydration fails", async () => {
@@ -1664,5 +1667,27 @@ describe("Continuum API Integration", function () {
         expect(response.body.auctions[0].bidLadder).to.have.length(1);
         expect(response.body.auctions[0].recentBids).to.have.length(1);
         expect(response.body.auctions[0].bidLadder[0].amountDisplay).to.equal("275.0000000");
+    });
+
+    it("publishes market participation leaderboard metrics after agent activity", async () => {
+        await request(app)
+            .post("/api/market/auctions/3/bids")
+            .set("Authorization", `Bearer ${token}`)
+            .set("X-Stream-Stream-Id", "77")
+            .send({
+                amount: "275.0000000",
+            })
+            .expect(201);
+
+        const response = await request(app)
+            .get("/api/market/assets")
+            .expect(200);
+
+        expect(response.body.leaderboard).to.have.length.greaterThan(0);
+        expect(response.body.leaderboard[0].agentId).to.equal(agentId);
+        expect(response.body.leaderboard[0].txCount).to.be.greaterThan(0);
+        expect(response.body.leaderboard[0].bidsPlaced).to.equal(1);
+        expect(response.body.participation.activeAgents).to.equal(1);
+        expect(response.body.participation.totalTxCount).to.be.greaterThan(0);
     });
 });

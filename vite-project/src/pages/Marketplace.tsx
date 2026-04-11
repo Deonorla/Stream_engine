@@ -40,6 +40,8 @@ const TYPE_FILTERS = ['all', 'real_estate', 'land'];
 // Module-level cache — survives page navigation
 let _cachedAssets: any[] | null = null;
 let _cachedPositions: any | null = null;
+let _cachedLeaderboard: any[] | null = null;
+let _cachedParticipation: any | null = null;
 
 function buildUiAsset(asset: any) {
   return {
@@ -85,6 +87,10 @@ function formatShortAddress(value?: string | null) {
 
 function formatUsdc(value?: number) {
   return `${Number(value || 0).toFixed(2)} USDC`;
+}
+
+function formatStroopsUsdc(value?: string | number | null) {
+  return `${(Number(value || 0) / 1e7).toFixed(2)} USDC`;
 }
 
 function AgentActions({
@@ -355,7 +361,15 @@ function AgentActions({
   );
 }
 
-function AgentLeaderboard({ assets }: { assets: any[] }) {
+function AgentLeaderboard({
+  assets,
+  leaderboard,
+  participation,
+}: {
+  assets: any[];
+  leaderboard?: any[];
+  participation?: any;
+}) {
   const byOwner: Record<string, number> = {};
   for (const asset of assets) {
     const address = asset.currentOwner || asset.ownerAddress || '';
@@ -363,9 +377,18 @@ function AgentLeaderboard({ assets }: { assets: any[] }) {
     byOwner[address] = (byOwner[address] || 0) + (asset.yieldBalance || 0);
   }
 
-  const rows = Object.entries(byOwner)
+  const fallbackRows = Object.entries(byOwner)
     .sort((left, right) => right[1] - left[1])
     .slice(0, 5);
+  const rows = Array.isArray(leaderboard) && leaderboard.length > 0
+    ? leaderboard
+    : fallbackRows.map(([address, totalYield], index) => ({
+        rank: index + 1,
+        agentPublicKey: address,
+        participationScore: 0,
+        volumeTradedGross: '0',
+        netPnL: String(Math.round(totalYield * 1e7)),
+      }));
 
   if (!rows.length) return null;
 
@@ -376,20 +399,50 @@ function AgentLeaderboard({ assets }: { assets: any[] }) {
         <h3 className="text-sm font-headline font-bold uppercase tracking-widest text-slate-700">Top Agents</h3>
       </div>
       <div className="space-y-3">
-        {rows.map(([address, totalYield], index) => (
-          <div key={address} className="flex items-center gap-3">
-            <span
-              className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
-                index === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
-              }`}
-            >
-              {index + 1}
-            </span>
-            <span className="text-xs font-mono text-slate-600 flex-1 truncate">{formatShortAddress(address)}</span>
-            <span className="text-xs font-bold text-secondary">{formatUsdc(totalYield)}</span>
-          </div>
-        ))}
+        {rows.map((row: any, index) => {
+          const address = row.agentPublicKey || row.ownerPublicKey || row.agentId || '';
+          return (
+            <div key={address || index} className="flex items-center gap-3">
+              <span
+                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                  index === 0 ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-500'
+                }`}
+              >
+                {row.rank || index + 1}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-mono text-slate-600 truncate">{formatShortAddress(address)}</p>
+                <p className="text-[10px] text-slate-400">
+                  {`${Number(row.txCount || 0)} tx`}
+                  {Number(row.uniqueAssetsTraded || 0) > 0 ? ` · ${Number(row.uniqueAssetsTraded || 0)} assets` : ''}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-secondary">{formatStroopsUsdc(row.volumeTradedGross || row.netPnL || 0)}</p>
+                <p className="text-[10px] text-slate-400">score {Number(row.participationScore || 0)}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
+      {participation && (
+        <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-[10px]">
+          <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+            <p className="font-bold uppercase tracking-widest text-slate-400">Active Agents</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">{Number(participation.activeAgents || 0)}</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+            <p className="font-bold uppercase tracking-widest text-slate-400">Platform Tx</p>
+            <p className="mt-1 text-sm font-bold text-slate-800">{Number(participation.totalTxCount || 0)}</p>
+          </div>
+        </div>
+      )}
+      {participation && (
+        <div className="mt-2 rounded-xl bg-slate-50 border border-slate-100 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Trade Volume</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">{formatStroopsUsdc(participation.totalVolumeTradedGross || 0)}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -422,6 +475,8 @@ export default function Marketplace() {
   const { agentPublicKey, activate } = useAgentWallet(walletAddress);
   const [allAssets, setAllAssets] = useState<any[]>(_cachedAssets ?? []);
   const [marketPositions, setMarketPositions] = useState<any>(_cachedPositions ?? null);
+  const [leaderboard, setLeaderboard] = useState<any[]>(_cachedLeaderboard ?? []);
+  const [participation, setParticipation] = useState<any>(_cachedParticipation ?? null);
   const [loading, setLoading] = useState(_cachedAssets === null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -437,13 +492,22 @@ export default function Marketplace() {
       const response = await fetchMarketCatalog();
       const assets = (response.assets || []).map(buildUiAsset);
       _cachedAssets = assets;
+      _cachedLeaderboard = Array.isArray(response.leaderboard) ? response.leaderboard : [];
+      _cachedParticipation = response.participation || null;
       setAllAssets(assets);
+      setLeaderboard(_cachedLeaderboard);
+      setParticipation(_cachedParticipation);
       if (!agentPublicKey) {
         _cachedPositions = null;
         setMarketPositions(null);
       }
     } catch {
-      if (!silent) { setAllAssets([]); setMarketPositions(null); }
+      if (!silent) {
+        setAllAssets([]);
+        setMarketPositions(null);
+        setLeaderboard([]);
+        setParticipation(null);
+      }
     } finally {
       if (!silent) setLoading(false);
     }
@@ -593,7 +657,7 @@ export default function Marketplace() {
         </div>
 
         <div className="space-y-6">
-          <AgentLeaderboard assets={allAssets} />
+          <AgentLeaderboard assets={allAssets} leaderboard={leaderboard} participation={participation} />
 
           <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-4">

@@ -57,6 +57,8 @@ function ownerKey(ownerPublicKey) {
     return `continuum:owner:${String(ownerPublicKey).toUpperCase()}:agent`;
 }
 
+const AGENT_INDEX_KEY = "continuum:agents:index";
+
 function toNumber(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -489,6 +491,7 @@ class AgentStateService {
                     updatedAt: nowSeconds(),
                 });
             }
+            await this.trackAgentId(agentId);
             return existing;
         }
 
@@ -508,6 +511,7 @@ class AgentStateService {
                 updatedAt: nowSeconds(),
             });
         }
+        await this.trackAgentId(agentId);
         const mandate = defaultMandate(agentId);
         await this.store.upsertRecord(agentKey(agentId, "mandate"), mandate);
         await this.store.upsertRecord(agentKey(agentId, "performance"), {
@@ -529,6 +533,146 @@ class AgentStateService {
         await this.store.upsertRecord(agentKey(agentId, "chat"), defaultChatHistory(agentId));
         await this.store.upsertRecord(agentKey(agentId, "memory-summary"), defaultMemorySummary(agentId));
         return profile;
+    }
+
+    async trackAgentId(agentId) {
+        const normalizedAgentId = String(agentId || "").toUpperCase();
+        if (!normalizedAgentId) {
+            return [];
+        }
+        const index = await this.store.getRecord(AGENT_INDEX_KEY) || { agentIds: [] };
+        const currentIds = Array.isArray(index.agentIds) ? index.agentIds : [];
+        const nextIds = Array.from(new Set([
+            ...currentIds.map((entry) => String(entry || "").toUpperCase()).filter(Boolean),
+            normalizedAgentId,
+        ]));
+        await this.store.upsertRecord(AGENT_INDEX_KEY, {
+            agentIds: nextIds,
+            updatedAt: nowSeconds(),
+        });
+        return nextIds;
+    }
+
+    async listAgentIds() {
+        const index = await this.store.getRecord(AGENT_INDEX_KEY);
+        const indexedIds = Array.isArray(index?.agentIds)
+            ? Array.from(new Set(index.agentIds.map((entry) => String(entry || "").toUpperCase()).filter(Boolean)))
+            : [];
+        if (indexedIds.length > 0) {
+            return indexedIds;
+        }
+        if (typeof this.store.listRecordsByPrefix !== "function") {
+            return [];
+        }
+        const records = await this.store.listRecordsByPrefix("continuum:agent:");
+        const scannedIds = records
+            .filter((entry) => /^continuum:agent:[^:]+$/.test(String(entry?.key || "")))
+            .map((entry) => String(entry?.payload?.agentId || String(entry.key).split(":").pop() || "").toUpperCase())
+            .filter(Boolean);
+        const uniqueIds = Array.from(new Set(scannedIds));
+        if (uniqueIds.length > 0) {
+            await this.store.upsertRecord(AGENT_INDEX_KEY, {
+                agentIds: uniqueIds,
+                updatedAt: nowSeconds(),
+            });
+        }
+        return uniqueIds;
+    }
+
+    async getParticipationSnapshot(limit = 5) {
+        const agentIds = await this.listAgentIds();
+        if (agentIds.length === 0) {
+            return {
+                leaderboard: [],
+                totals: {
+                    trackedAgents: 0,
+                    activeAgents: 0,
+                    totalTxCount: 0,
+                    totalParticipationScore: 0,
+                    totalVolumeTradedGross: "0",
+                    totalYieldClaimedVolume: "0",
+                    totalNetPnL: "0",
+                },
+            };
+        }
+
+        const entries = (await Promise.all(agentIds.map(async (id) => {
+            const [profile, performance] = await Promise.all([
+                this.getAgentProfile(id),
+                this.getPerformance(id),
+            ]);
+            if (!profile || !performance) {
+                return null;
+            }
+            const metrics = performance.defiMetrics || {};
+            return {
+                agentId: String(profile.agentId || id).toUpperCase(),
+                ownerPublicKey: String(profile.ownerPublicKey || "").toUpperCase(),
+                agentPublicKey: String(profile.agentPublicKey || profile.agentId || id).toUpperCase(),
+                participationScore: Number(metrics.participationScore || 0),
+                txCount: Number(metrics.txCount || 0),
+                bidsPlaced: Number(metrics.bidsPlaced || 0),
+                buyCount: Number(metrics.buyCount || 0),
+                sellCount: Number(metrics.sellCount || 0),
+                activeDays: Number(metrics.activeDays || 0),
+                uniqueAssetsTraded: Number(metrics.uniqueAssetsTraded || 0),
+                volumeTradedGross: toStringAmount(metrics.volumeTradedGross, "0"),
+                yieldClaimedVolume: toStringAmount(metrics.yieldClaimedVolume, "0"),
+                netPnL: toStringAmount(performance.netPnL, "0"),
+                realizedTradePnL: toStringAmount(performance.realizedTradePnL, "0"),
+                realizedYield: toStringAmount(performance.realizedYield, "0"),
+                treasuryReturn: toStringAmount(performance.treasuryReturn, "0"),
+                auctionWins: Number(performance.auctionWins || 0),
+                auctionLosses: Number(performance.auctionLosses || 0),
+                lastActiveDay: String(metrics.lastActiveDay || ""),
+            };
+        }))).filter(Boolean);
+
+        const sorted = entries.sort((left, right) => {
+            if (Number(right.participationScore || 0) !== Number(left.participationScore || 0)) {
+                return Number(right.participationScore || 0) - Number(left.participationScore || 0);
+            }
+            if (Number(right.txCount || 0) !== Number(left.txCount || 0)) {
+                return Number(right.txCount || 0) - Number(left.txCount || 0);
+            }
+            const volumeDelta = BigInt(right.volumeTradedGross || "0") - BigInt(left.volumeTradedGross || "0");
+            if (volumeDelta !== 0n) {
+                return volumeDelta > 0n ? 1 : -1;
+            }
+            const pnlDelta = BigInt(right.netPnL || "0") - BigInt(left.netPnL || "0");
+            if (pnlDelta !== 0n) {
+                return pnlDelta > 0n ? 1 : -1;
+            }
+            return String(left.agentId).localeCompare(String(right.agentId));
+        });
+
+        const leaderboard = sorted.slice(0, Math.max(1, Number(limit) || 5)).map((entry, index) => ({
+            ...entry,
+            rank: index + 1,
+        }));
+
+        const totals = entries.reduce((acc, entry) => ({
+            trackedAgents: acc.trackedAgents + 1,
+            activeAgents: acc.activeAgents + (entry.txCount > 0 ? 1 : 0),
+            totalTxCount: acc.totalTxCount + Number(entry.txCount || 0),
+            totalParticipationScore: acc.totalParticipationScore + Number(entry.participationScore || 0),
+            totalVolumeTradedGross: addStringAmounts(acc.totalVolumeTradedGross, entry.volumeTradedGross || "0"),
+            totalYieldClaimedVolume: addStringAmounts(acc.totalYieldClaimedVolume, entry.yieldClaimedVolume || "0"),
+            totalNetPnL: addStringAmounts(acc.totalNetPnL, entry.netPnL || "0"),
+        }), {
+            trackedAgents: 0,
+            activeAgents: 0,
+            totalTxCount: 0,
+            totalParticipationScore: 0,
+            totalVolumeTradedGross: "0",
+            totalYieldClaimedVolume: "0",
+            totalNetPnL: "0",
+        });
+
+        return {
+            leaderboard,
+            totals,
+        };
     }
 
     async getAgentProfile(agentId) {
