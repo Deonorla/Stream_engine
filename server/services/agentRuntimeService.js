@@ -815,6 +815,7 @@ class AgentRuntimeService {
             }).filter((candidate) => approvedClasses.has(assetClassLabel(candidate.asset)));
 
             const opportunities = [];
+            const complianceBlocked = [];
             for (const candidate of screened) {
                 const compliance = await checkCompliance(this.chainService, {
                     walletAddress: wallet.publicKey,
@@ -825,6 +826,11 @@ class AgentRuntimeService {
                     opportunities.push({
                         ...candidate,
                         compliance,
+                    });
+                } else {
+                    complianceBlocked.push({
+                        tokenId: Number(candidate.tokenId),
+                        reasons: compliance.reasons || [],
                     });
                 }
             }
@@ -894,8 +900,10 @@ class AgentRuntimeService {
                 watchlistSignals,
             });
             const topBidFocusCandidate = prioritizedAuctions[0] || null;
-            const noActionReason = opportunities.length === 0
+            const noActionReason = screened.length === 0
                 ? "No approved assets currently clear the active mandate floor."
+                : opportunities.length === 0
+                    ? "Screened assets are currently blocked by compliance guardrails."
                 : prioritizedAuctions.length === 0
                     ? "No live auctions match the current objective."
                     : topBidFocusCandidate?.blockedReason || "The top live auction is outside the current guardrails.";
@@ -1170,6 +1178,13 @@ class AgentRuntimeService {
                     type: "decision",
                     message: `Top opportunity: twin #${topOpportunity.tokenId} — ${topOpportunity.asset?.publicMetadata?.name || topOpportunity.asset?.name || ""}`,
                     detail: `${Number(topOpportunity.yieldRate || 0).toFixed(2)}% yield · risk ${topOpportunity.riskScore}/100 · ${topOpportunity.asset?.publicMetadata?.location || ""}`,
+                } : screened.length > 0 && complianceBlocked.length > 0 ? {
+                    type: "info",
+                    message: "Market scan complete — opportunities blocked by compliance",
+                    detail: complianceBlocked
+                        .slice(0, 2)
+                        .map((entry) => `#${entry.tokenId}: ${(entry.reasons || []).join("; ") || "blocked"}`)
+                        .join(" · "),
                 } : {
                     type: "info",
                     message: "Market scan complete — no opportunities cleared mandate floor",

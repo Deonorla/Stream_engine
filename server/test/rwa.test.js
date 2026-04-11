@@ -551,6 +551,78 @@ describe("RWA API Integration", function () {
         expect(response.body.assets[0].currentOwner).to.equal(managedAgentPublicKey);
     });
 
+    it("keeps rich metadata when refresh uses lightweight snapshots and IPFS hydration fails", async function () {
+        store.asset = {
+            tokenId: 7,
+            schemaVersion: 2,
+            assetType: 1,
+            rightsModel: 1,
+            rightsModelLabel: "verified_rental_asset",
+            verificationStatus: 1,
+            verificationStatusLabel: "pending_attestation",
+            issuer: issuerWallet.address,
+            currentOwner: issuerWallet.address,
+            activeStreamId: 0,
+            publicMetadataURI: "ipfs://bafytestcid",
+            metadataURI: "ipfs://bafytestcid",
+            tokenURI: "ipfs://bafytestcid",
+            propertyRefHash: "0xproperty",
+            publicMetadataHash: hashJson(basePublicMetadata),
+            evidenceRoot: "0xevidence",
+            evidenceManifestHash: "0xmanifest",
+            statusReason: "Awaiting attestation review",
+            claimableYield: "0",
+            totalYieldDeposited: "0",
+            flashAdvanceOutstanding: "0",
+            publicMetadata: {
+                ...basePublicMetadata,
+                location: "Ikeja, Lagos",
+                monthlyYieldTarget: 1250,
+                pricePerHour: 1.736111,
+            },
+            metadata: {
+                ...basePublicMetadata,
+                location: "Ikeja, Lagos",
+                monthlyYieldTarget: 1250,
+                pricePerHour: 1.736111,
+            },
+            stream: null,
+            attestationPolicies: [],
+            attestations: [],
+        };
+
+        const services = await app.locals.ready;
+        services.chainService.isConfigured = () => true;
+        services.chainService.listAssetSnapshots = async () => [
+            {
+                tokenId: 7,
+                assetType: 1,
+                issuer: issuerWallet.address,
+                currentOwner: issuerWallet.address,
+                verificationStatusLabel: "pending_attestation",
+                publicMetadataURI: "ipfs://bafytestcid",
+                metadataURI: "ipfs://bafytestcid",
+                tokenURI: "ipfs://bafytestcid",
+                publicMetadata: {},
+                metadata: {},
+            },
+        ];
+        services.ipfsService.fetchJSON = async () => {
+            throw new Error("ipfs timeout");
+        };
+
+        const response = await request(app)
+            .get("/api/rwa/assets")
+            .query({ refresh: 1 })
+            .expect(200);
+
+        expect(response.body.code).to.equal("assets_listed");
+        expect(response.body.assets).to.have.length(1);
+        expect(response.body.assets[0].publicMetadata.name).to.equal("Lagos Rental Asset");
+        expect(response.body.assets[0].publicMetadata.location).to.equal("Ikeja, Lagos");
+        expect(response.body.assets[0].metadata.monthlyYieldTarget).to.equal(1250);
+    });
+
     it("mints a v2 asset through the managed operator path and returns structured verification payloads", async function () {
         const evidenceResponse = await request(app)
             .post("/api/rwa/evidence")

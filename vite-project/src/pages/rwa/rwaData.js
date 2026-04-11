@@ -683,8 +683,34 @@ function resolveRentalActivity(asset = {}, stream = {}) {
   };
 }
 
+function parseMetadataCandidate(candidate) {
+  if (!candidate) return null;
+  if (typeof candidate === 'object') return candidate;
+  if (typeof candidate === 'string') {
+    try {
+      const parsed = JSON.parse(candidate);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function hasMetadataFields(value) {
+  return Boolean(value && typeof value === 'object' && Object.keys(value).length > 0);
+}
+
+function resolveAssetMetadata(asset = {}) {
+  const publicMetadata = parseMetadataCandidate(asset.publicMetadata);
+  const metadata = parseMetadataCandidate(asset.metadata);
+  if (hasMetadataFields(publicMetadata)) return publicMetadata;
+  if (hasMetadataFields(metadata)) return metadata;
+  return publicMetadata || metadata || {};
+}
+
 export function mapApiAssetToUiAsset(asset = {}) {
-  const metadata = asset.publicMetadata || asset.metadata || {};
+  const metadata = resolveAssetMetadata(asset);
   const type = resolveMetadataType(metadata, asset.assetType);
   const stream = asset.stream || {};
   const monthlyYieldTarget = Number(

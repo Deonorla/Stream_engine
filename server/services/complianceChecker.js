@@ -11,6 +11,10 @@
  */
 async function checkCompliance(chainService, { walletAddress, asset, action = 'trade' }) {
     const checks = [];
+    const normalizedAction = String(action || 'trade').trim().toLowerCase();
+    const isTradeAction = ['trade', 'bid', 'auction_bid', 'auction_trade'].includes(normalizedAction);
+    const requiresClaimPolicyOpen = ['claim', 'claim_yield', 'yield_claim', 'route_yield', 'rent', 'session_open'].includes(normalizedAction);
+    const strictAttestationRequired = !isTradeAction;
 
     // 1. Asset must exist and not be frozen/disputed/revoked
     const blockedStatuses = ['frozen', 'disputed', 'revoked'];
@@ -24,7 +28,7 @@ async function checkCompliance(chainService, { walletAddress, asset, action = 't
     });
 
     // 2. Asset policy — check if claim is blocked
-    if (chainService?.isConfigured?.() && asset?.tokenId) {
+    if (requiresClaimPolicyOpen && chainService?.isConfigured?.() && asset?.tokenId) {
         try {
             const blocked = await chainService.contractService.invokeView({
                 contractId: chainService.assetRegistryAddress,
@@ -49,9 +53,11 @@ async function checkCompliance(chainService, { walletAddress, asset, action = 't
     );
     checks.push({
         name: 'attestations',
-        passed: missingRoles.length === 0,
+        passed: strictAttestationRequired ? missingRoles.length === 0 : true,
         detail: missingRoles.length > 0
-            ? `Missing required attestations: ${missingRoles.map(r => r.roleLabel || r.role).join(', ')}`
+            ? strictAttestationRequired
+                ? `Missing required attestations: ${missingRoles.map(r => r.roleLabel || r.role).join(', ')}`
+                : `Attestations pending (${missingRoles.map(r => r.roleLabel || r.role).join(', ')}) — allowed for trade actions`
             : `All required attestations present (${activeAttestations.length})`,
     });
 
@@ -59,7 +65,9 @@ async function checkCompliance(chainService, { walletAddress, asset, action = 't
     if (chainService?.isConfigured?.() && walletAddress && asset?.assetType != null) {
         try {
             const compliance = await chainService.getCompliance(walletAddress, asset.assetType);
-            const allowed = compliance?.allowed !== false;
+            const allowed = compliance?.allowed == null
+                ? (compliance?.approved !== false && compliance?.currentlyValid !== false)
+                : Boolean(compliance.allowed);
             checks.push({
                 name: 'wallet_compliance',
                 passed: allowed,

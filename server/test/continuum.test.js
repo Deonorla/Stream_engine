@@ -566,6 +566,55 @@ describe("Continuum API Integration", function () {
         expect(response.body.summary.highlights.auctionsClosingSoon).to.have.length(1);
     });
 
+    it("preserves cached market metadata on forced refresh when IPFS hydration fails", async () => {
+        const cachedAsset = await store.getAsset(7);
+        await store.upsertAsset({
+            ...cachedAsset,
+            publicMetadata: {
+                name: "Warehouse Alpha",
+                description: "Lagos logistics facility",
+                location: "Ikeja, Lagos",
+                monthlyYieldTarget: 980,
+                pricePerHour: 1.361111,
+            },
+            metadata: {
+                name: "Warehouse Alpha",
+                description: "Lagos logistics facility",
+                location: "Ikeja, Lagos",
+                monthlyYieldTarget: 980,
+                pricePerHour: 1.361111,
+            },
+        });
+
+        services.chainService.listAssetSnapshots = async () => ([
+            {
+                tokenId: 7,
+                assetType: 1,
+                issuer: issuerKeypair.publicKey(),
+                currentOwner: agentKeypair.publicKey(),
+                verificationStatusLabel: "verified",
+                publicMetadataURI: "ipfs://warehouse-alpha",
+                metadataURI: "ipfs://warehouse-alpha",
+                tokenURI: "ipfs://warehouse-alpha",
+                publicMetadata: {},
+                metadata: {},
+            },
+        ]);
+        services.ipfsService.fetchJSON = async () => {
+            throw new Error("ipfs timeout");
+        };
+
+        const response = await request(app)
+            .get("/api/market/assets")
+            .query({ refresh: 1 })
+            .expect(200);
+
+        expect(response.body.code).to.equal("market_assets_listed");
+        expect(response.body.assets).to.have.length(1);
+        expect(response.body.assets[0].publicMetadata.name).to.equal("Warehouse Alpha");
+        expect(response.body.assets[0].publicMetadata.location).to.equal("Ikeja, Lagos");
+    });
+
     it("serves market listing from cache without forcing chain snapshot refresh", async () => {
         listAssetSnapshotsCalls = 0;
         const response = await request(app)

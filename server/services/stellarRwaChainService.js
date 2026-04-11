@@ -35,6 +35,13 @@ function nowSeconds() {
     return Math.floor(Date.now() / 1000);
 }
 
+function cacheEntry(value, ttlMs) {
+    return {
+        value,
+        expiresAt: Date.now() + Math.max(100, Number(ttlMs || 0)),
+    };
+}
+
 async function mapWithConcurrency(items, concurrency, mapper) {
     const source = Array.isArray(items) ? items : [];
     const limit = Math.max(1, Number(concurrency || 1));
@@ -519,6 +526,10 @@ class StellarRWAChainService {
                 || process.env.STELLAR_PLATFORM_ADDRESS
                 || "",
         });
+        this.attestationPoliciesCache = new Map();
+        this.complianceCache = new Map();
+        this.attestationsCache = new Map();
+        this.assetSnapshotCache = new Map();
     }
 
     isConfigured() {
@@ -531,6 +542,27 @@ class StellarRWAChainService {
 
     canOperatorAuthorize(address) {
         return sameAddress(address, this.signer.address);
+    }
+
+    getCacheValue(cache, key) {
+        const entry = cache.get(key);
+        if (!entry) {
+            return null;
+        }
+        if (Date.now() > Number(entry.expiresAt || 0)) {
+            cache.delete(key);
+            return null;
+        }
+        return entry.value;
+    }
+
+    setCacheValue(cache, key, value, ttlMs) {
+        cache.set(key, cacheEntry(value, ttlMs));
+        return value;
+    }
+
+    cloneCachedAsset(asset) {
+        return asset ? JSON.parse(JSON.stringify(asset)) : null;
     }
 
     async getCurrentBlockNumber() {
@@ -594,6 +626,11 @@ class StellarRWAChainService {
     }
 
     async getCompliance(user, assetType) {
+        const cacheKey = `${normalizeAddress(user)}:${Number(assetType)}`;
+        const cached = this.getCacheValue(this.complianceCache, cacheKey);
+        if (cached) {
+            return cached;
+        }
         try {
             const record = await this.contractService.invokeView({
                 contractId: this.assetRegistryAddress,
@@ -613,9 +650,23 @@ class StellarRWAChainService {
                     && (!Number(record?.expiry || 0) || Number(record?.expiry || 0) >= nowSeconds()),
             };
             await this.store.upsertRecord(`compliance:${String(user).toLowerCase()}:${Number(assetType)}`, payload);
-            return payload;
+            return this.setCacheValue(
+                this.complianceCache,
+                cacheKey,
+                payload,
+                Number(process.env.STELLAR_COMPLIANCE_CACHE_TTL_MS || 15_000)
+            );
         } catch (error) {
-            return this.store.getRecord(`compliance:${String(user).toLowerCase()}:${Number(assetType)}`);
+            const fallback = await this.store.getRecord(`compliance:${String(user).toLowerCase()}:${Number(assetType)}`);
+            if (!fallback) {
+                return null;
+            }
+            return this.setCacheValue(
+                this.complianceCache,
+                cacheKey,
+                fallback,
+                Number(process.env.STELLAR_COMPLIANCE_CACHE_TTL_MS || 15_000)
+            );
         }
     }
 
@@ -643,6 +694,12 @@ class StellarRWAChainService {
         });
         payload.txHash = chainWrite.txHash;
         await this.store.upsertRecord(`compliance:${String(user).toLowerCase()}:${Number(assetType)}`, payload);
+        this.setCacheValue(
+            this.complianceCache,
+            `${normalizeAddress(user)}:${Number(assetType)}`,
+            payload,
+            Number(process.env.STELLAR_COMPLIANCE_CACHE_TTL_MS || 15_000)
+        );
         await this.store.recordActivity(
             toActivity("policy", "ComplianceUpdated", chainWrite.txHash, null, payload)
         );
@@ -651,6 +708,10 @@ class StellarRWAChainService {
 
     async getAttestationPolicies(assetType) {
         const resolvedAssetType = Number(assetType || 1);
+        const cached = this.getCacheValue(this.attestationPoliciesCache, String(resolvedAssetType));
+        if (cached) {
+            return cached;
+        }
         const policies = [];
         const defaults = DEFAULT_ATTESTATION_POLICIES[resolvedAssetType] || [];
         const defaultByRole = new Map(defaults.map((entry) => [Number(entry.role), entry]));
@@ -697,7 +758,12 @@ class StellarRWAChainService {
         const deduped = Array.from(
             new Map(policies.map((entry) => [Number(entry.role), entry])).values()
         );
-        return deduped.sort((left, right) => Number(left.role) - Number(right.role));
+        return this.setCacheValue(
+            this.attestationPoliciesCache,
+            String(resolvedAssetType),
+            deduped.sort((left, right) => Number(left.role) - Number(right.role)),
+            Number(process.env.STELLAR_POLICY_CACHE_TTL_MS || 60_000)
+        );
     }
 
     async setAttestationPolicy({ assetType, role, required, maxAge }) {
@@ -724,6 +790,7 @@ class StellarRWAChainService {
         });
         payload.txHash = chainWrite.txHash;
         await this.store.upsertRecord(`policy:attestation:${payload.assetType}:${payload.role}`, payload);
+        this.attestationPoliciesCache.delete(String(payload.assetType));
         await this.store.recordActivity(
             toActivity("policy", "AttestationPolicyUpdated", chainWrite.txHash, null, payload)
         );
@@ -893,6 +960,11 @@ class StellarRWAChainService {
     }
 
     async getAttestations(tokenId) {
+        const cacheKey = String(Number(tokenId));
+        const cached = this.getCacheValue(this.attestationsCache, cacheKey);
+        if (cached) {
+            return cached;
+        }
         try {
             const records = await this.contractService.invokeView({
                 contractId: this.attestationRegistryAddress,
@@ -908,10 +980,21 @@ class StellarRWAChainService {
             for (const entry of normalized) {
                 await this.store.upsertRecord(`attestation:${entry.attestationId}`, entry);
             }
-            return normalized;
+            return this.setCacheValue(
+                this.attestationsCache,
+                cacheKey,
+                normalized,
+                Number(process.env.STELLAR_ATTESTATION_CACHE_TTL_MS || 15_000)
+            );
         } catch (error) {
             const asset = await this.store.getAsset(tokenId);
-            return asset?.attestations || [];
+            const fallback = asset?.attestations || [];
+            return this.setCacheValue(
+                this.attestationsCache,
+                cacheKey,
+                fallback,
+                Number(process.env.STELLAR_ATTESTATION_CACHE_TTL_MS || 15_000)
+            );
         }
     }
 
@@ -1779,6 +1862,28 @@ class StellarRWAChainService {
     }
 
     async getAssetSnapshot(tokenId, options = {}) {
+        const snapshotKey = String(Number(tokenId));
+        const useCache = options?.useCache !== false;
+        const snapshotCacheTtlMs = Number(process.env.STELLAR_ASSET_SNAPSHOT_CACHE_TTL_MS || 10_000);
+        const lightweight = Boolean(options?.lightweight);
+        if (useCache) {
+            const cachedSnapshot = this.getCacheValue(this.assetSnapshotCache, snapshotKey);
+            if (cachedSnapshot) {
+                const cloned = this.cloneCachedAsset(cachedSnapshot);
+                let sessions = [];
+                if (Array.isArray(options.sessions)) {
+                    sessions = options.sessions;
+                } else {
+                    try {
+                        sessions = await this.listSessions();
+                    } catch {
+                        sessions = [];
+                    }
+                }
+                applyRentalActivity(cloned, sessions);
+                return cloned;
+            }
+        }
         try {
             const cachedAsset = await this.store.getAsset(tokenId).catch(() => null);
             const rawAsset = await this.contractService.invokeView({
@@ -1788,12 +1893,19 @@ class StellarRWAChainService {
                     { type: "u64", value: BigInt(Number(tokenId)) },
                 ],
             });
-            const attestationPolicies = await this.getAttestationPolicies(Number(rawAsset?.asset_type || 0));
-            const attestations = await this.getAttestations(Number(tokenId));
-            const compliance = await this.getCompliance(rawAsset?.issuer, Number(rawAsset?.asset_type || 0));
+            const rawAssetType = Number(rawAsset?.asset_type || 0);
+            const attestationPolicies = lightweight
+                ? (cachedAsset?.attestationPolicies || DEFAULT_ATTESTATION_POLICIES[rawAssetType] || [])
+                : await this.getAttestationPolicies(rawAssetType);
+            const attestations = lightweight
+                ? (cachedAsset?.attestations || [])
+                : await this.getAttestations(Number(tokenId));
+            const compliance = lightweight
+                ? (cachedAsset?.compliance || null)
+                : await this.getCompliance(rawAsset?.issuer, rawAssetType);
             let latestYieldStreamId = Number(rawAsset?.active_stream_id || 0);
-            let stream = null;
-            if (this.assetStreamAddress) {
+            let stream = lightweight ? (cachedAsset?.stream || null) : null;
+            if (!lightweight && this.assetStreamAddress) {
                 try {
                     latestYieldStreamId = Number(
                         await this.contractService.invokeView({
@@ -1872,6 +1984,7 @@ class StellarRWAChainService {
             }
             applyRentalActivity(asset, sessions);
             await this.store.upsertAsset(asset);
+            this.setCacheValue(this.assetSnapshotCache, snapshotKey, asset, snapshotCacheTtlMs);
             return asset;
         } catch (error) {
             const asset = await this.store.getAsset(tokenId);
@@ -1881,7 +1994,9 @@ class StellarRWAChainService {
 
             const cloned = {
                 ...asset,
-                attestationPolicies: await this.getAttestationPolicies(asset.assetType),
+                attestationPolicies: lightweight
+                    ? (asset.attestationPolicies || DEFAULT_ATTESTATION_POLICIES[Number(asset.assetType || 0)] || [])
+                    : await this.getAttestationPolicies(asset.assetType),
             };
             this.recomputeAssetStatus(cloned);
             applyRentalReadiness(cloned);
@@ -1896,19 +2011,21 @@ class StellarRWAChainService {
                 }
             }
             applyRentalActivity(cloned, sessions);
+            this.setCacheValue(this.assetSnapshotCache, snapshotKey, cloned, snapshotCacheTtlMs);
             return cloned;
         }
     }
 
-    async listAssetSnapshots({ owner, limit = 200 } = {}) {
+    async listAssetSnapshots({ owner, limit = 200, lightweight = false } = {}) {
         const maxSnapshots = Math.max(1, Number(limit || 200));
-        const concurrency = Number(process.env.STELLAR_RWA_SNAPSHOT_CONCURRENCY || 8);
+        const concurrency = Number(process.env.STELLAR_RWA_SNAPSHOT_CONCURRENCY || 16);
         let sessions = [];
         try {
             sessions = await this.listSessions();
         } catch {
             sessions = [];
         }
+        let chainListFailed = false;
         try {
             if (owner) {
                 const tokenIds = await this.contractService.invokeView({
@@ -1921,7 +2038,7 @@ class StellarRWAChainService {
                 const hydrated = await mapWithConcurrency(
                     (tokenIds || []).slice(0, maxSnapshots),
                     concurrency,
-                    async (tokenId) => this.getAssetSnapshot(Number(tokenId), { sessions })
+                    async (tokenId) => this.getAssetSnapshot(Number(tokenId), { sessions, lightweight })
                 );
                 return hydrated.filter(Boolean);
             }
@@ -1942,19 +2059,31 @@ class StellarRWAChainService {
                 const hydrated = await mapWithConcurrency(
                     tokenIds,
                     concurrency,
-                    async (tokenId) => this.getAssetSnapshot(tokenId, { sessions })
+                    async (tokenId) => this.getAssetSnapshot(tokenId, { sessions, lightweight })
                 );
                 return hydrated.filter(Boolean);
             }
         } catch {
             // Fall back to cached assets below.
+            chainListFailed = true;
         }
 
         const assets = await this.store.listAssets({ owner });
+        if (chainListFailed) {
+            return assets
+                .slice(-maxSnapshots)
+                .map((asset) => {
+                    const cloned = { ...asset };
+                    this.recomputeAssetStatus(cloned);
+                    applyRentalReadiness(cloned);
+                    applyRentalActivity(cloned, sessions);
+                    return cloned;
+                });
+        }
         const hydrated = await mapWithConcurrency(
-            assets.slice(0, maxSnapshots),
+            assets.slice(-maxSnapshots),
             concurrency,
-            async (asset) => this.getAssetSnapshot(asset.tokenId, { sessions })
+            async (asset) => this.getAssetSnapshot(asset.tokenId, { sessions, lightweight })
         );
         return hydrated.filter(Boolean);
     }
