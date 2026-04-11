@@ -131,4 +131,30 @@ describe("AgentBrainService provider fallback", function () {
         expect(primaryCalls).to.equal(1);
         expect(secondaryCalls).to.equal(2);
     });
+
+    it("prioritizes eligible live bids ahead of treasury rebalance in deterministic fallback mode", async () => {
+        const brain = new AgentBrainService({
+            enabled: false,
+        });
+
+        const result = await brain.decide({
+            objective: { goal: "Grow capital safely through productive RWA opportunities.", style: "balanced" },
+            context: {
+                shouldRebalanceTreasury: true,
+                bidFocus: {
+                    eligible: true,
+                    auctionId: 12,
+                    nextBidDisplay: "250.0000000",
+                    confidence: 84,
+                    prioritySource: ["watchlist"],
+                },
+                opportunities: [{ tokenId: 7 }],
+            },
+            memorySummary: "",
+            wakeReason: "scheduled",
+        });
+
+        expect(result.proposal.actionType).to.equal("bid");
+        expect(Number(result.proposal.actionArgs.auctionId)).to.equal(12);
+    });
 });

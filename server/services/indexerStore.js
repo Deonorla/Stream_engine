@@ -115,6 +115,16 @@ class MemoryIndexerStore {
         this.records.set(String(key), { ...payload });
     }
 
+    async listRecordsByPrefix(prefix) {
+        const normalizedPrefix = String(prefix || "");
+        return Array.from(this.records.entries())
+            .filter(([key]) => String(key).startsWith(normalizedPrefix))
+            .map(([key, payload]) => ({
+                key: String(key),
+                payload: payload || null,
+            }));
+    }
+
     async getAgentWallet(ownerPublicKey) {
         return this.records.get(`agent_wallet:${ownerPublicKey.toUpperCase()}`) || null;
     }
@@ -396,6 +406,22 @@ class PostgresIndexerStore {
             `,
             [String(key), JSON.stringify(payload)]
         );
+    }
+
+    async listRecordsByPrefix(prefix) {
+        const result = await this.pool.query(
+            `
+                SELECT record_key, payload
+                FROM rwa_records
+                WHERE record_key LIKE $1
+                ORDER BY record_key ASC
+            `,
+            [`${String(prefix || "")}%`]
+        );
+        return result.rows.map((row) => ({
+            key: row.record_key,
+            payload: row.payload || null,
+        }));
     }
 
     async getAgentWallet(ownerPublicKey) {

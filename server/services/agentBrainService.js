@@ -147,17 +147,6 @@ function buildFallbackDecision({ objective = {}, context = {}, wakeReason = "" }
         }, wakeReason);
     }
 
-    if (shouldRebalanceTreasury) {
-        return normalizeProposal({
-            actionType: "rebalance_treasury",
-            actionArgs: {},
-            thesis: "Restore the treasury reserve band and redeploy idle funds.",
-            rationale: "Liquid reserves are outside the target band, so treasury optimization should run before the next paid market action.",
-            confidence: 82,
-            wakeReason,
-        }, wakeReason);
-    }
-
     if (bidFocus?.eligible) {
         return normalizeProposal({
             actionType: "bid",
@@ -168,6 +157,17 @@ function buildFallbackDecision({ objective = {}, context = {}, wakeReason = "" }
             thesis: `${objectiveGoal} The strongest live opportunity is auction #${Number(bidFocus.auctionId)}.`,
             rationale: `${bidFocus.prioritySource?.length ? `Priority signal: ${bidFocus.prioritySource.join(" + ")}. ` : ""}The next valid bid fits the current mandate and liquidity envelope.`,
             confidence: Math.max(55, normalizeConfidence(bidFocus.confidence || 72)),
+            wakeReason,
+        }, wakeReason);
+    }
+
+    if (shouldRebalanceTreasury) {
+        return normalizeProposal({
+            actionType: "rebalance_treasury",
+            actionArgs: {},
+            thesis: "Restore the treasury reserve band and redeploy idle funds.",
+            rationale: "Liquid reserves are outside the target band, so treasury optimization should run before the next paid market action.",
+            confidence: 82,
             wakeReason,
         }, wakeReason);
     }

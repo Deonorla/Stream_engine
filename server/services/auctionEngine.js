@@ -246,6 +246,11 @@ class AuctionEngine {
             });
         }
         ensureProductiveAsset(asset);
+        const assetName =
+            asset?.publicMetadata?.name
+            || asset?.metadata?.name
+            || auction?.title
+            || `Twin #${Number(auction.assetId)}`;
 
         const mandate = await this.agentState.getMandate(profile.agentId);
         if (!mandate.approvedAssetClasses.includes(assetTypeLabel(asset))) {
@@ -391,11 +396,17 @@ class AuctionEngine {
             status: "reserved",
         });
 
-        await this.agentState.appendDecision(profile.agentId, {
-            type: "action",
-            message: `Bid placed on auction #${auctionId}`,
-            detail: `${bid.amountDisplay} USDC reserved for twin #${auction.assetId}.`,
-            amount: `-${bid.amountDisplay}`,
+        await this.agentState.recordTradeExecution(profile.agentId, {
+            side: "bid",
+            tokenId: Number(auction.assetId),
+            auctionId: Number(auctionId),
+            amount: bid.amountStroops,
+            txHash: bid.txHash || "",
+            assetName,
+            metadata: {
+                bidId,
+                note,
+            },
         });
 
         const updatedAuction = await this.getAuction(auctionId);
@@ -444,6 +455,11 @@ class AuctionEngine {
             });
         }
         ensureProductiveAsset(asset);
+        const assetName =
+            asset?.publicMetadata?.name
+            || asset?.metadata?.name
+            || auction?.title
+            || `Twin #${Number(auction.assetId)}`;
 
         const highestBid = chooseHighestBid(auction.bids);
         const winningBid = highestBid && BigInt(highestBid.amountStroops) >= BigInt(auction.reservePrice || "0")
@@ -554,27 +570,62 @@ class AuctionEngine {
 
         const winnerProfile = await this.agentState.getAgentProfile(String(winningBid.bidder).toUpperCase());
         if (winnerProfile) {
+            await this.agentState.recordTradeExecution(winnerProfile.agentId, {
+                side: "buy",
+                tokenId: Number(auction.assetId),
+                auctionId: Number(auctionId),
+                amount: winningBid.amountStroops,
+                txHash: transfer.txHash || winningBid.settlementTxHash || "",
+                assetName,
+                metadata: {
+                    bidId: Number(winningBid.bidId),
+                    payoutTxHash: payout.txHash || "",
+                },
+            });
             await this.agentState.recordAuctionOutcome(winnerProfile.agentId, {
                 outcome: "win",
                 amount: winningBid.amountStroops,
                 metadata: {
                     auctionId: Number(auctionId),
                     assetId: Number(auction.assetId),
+                    assetName,
                     winningBidAmount: winningBid.amountStroops,
                 },
             });
             await this.agentState.appendDecision(winnerProfile.agentId, {
                 type: "profit",
                 message: `Auction #${auctionId} won`,
-                detail: `Twin #${auction.assetId} transferred into the agent portfolio.`,
+                detail: `${assetName} (twin #${auction.assetId}) transferred into the agent portfolio.`,
             });
         }
-        await this.agentState.appendDecision(String(auction.seller).toUpperCase(), {
-            type: "profit",
-            message: `Auction #${auctionId} sold`,
-            detail: `${winningBid.amountDisplay} USDC transferred to the seller wallet.`,
-            amount: `+${winningBid.amountDisplay}`,
-        });
+        const sellerProfile = await this.agentState.getAgentProfile(String(auction.seller).toUpperCase());
+        if (sellerProfile) {
+            const sellerPerformance = await this.agentState.recordTradeExecution(sellerProfile.agentId, {
+                side: "sell",
+                tokenId: Number(auction.assetId),
+                auctionId: Number(auctionId),
+                amount: winningBid.amountStroops,
+                txHash: payout.txHash || "",
+                assetName,
+                metadata: {
+                    settlementTxHash: transfer.txHash || "",
+                    buyer: winningBid.bidder,
+                },
+            });
+            await this.agentState.appendDecision(sellerProfile.agentId, {
+                type: "profit",
+                message: `Auction #${auctionId} sold`,
+                detail: `${assetName} sold for ${winningBid.amountDisplay} USDC · realized trade PnL ${sellerPerformance.realizedTradePnL || "0"} stroops.`,
+                amount: `+${winningBid.amountDisplay}`,
+            });
+        } else {
+            await this.agentState.appendDecision(String(auction.seller).toUpperCase(), {
+                type: "profit",
+                message: `Auction #${auctionId} sold`,
+                detail: `${assetName} sold for ${winningBid.amountDisplay} USDC.`,
+                amount: `+${winningBid.amountDisplay}`,
+            });
+        }
 
         const nextAuction = {
             ...auction,

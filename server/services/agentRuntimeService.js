@@ -134,6 +134,20 @@ function buildPlannerHealthDecision(currentBrain = {}, nextBrain = {}, wakeReaso
     };
 }
 
+function treasuryBlockedReasonMessage(reason = "") {
+    const normalized = String(reason || "").trim().toLowerCase();
+    if (normalized === "reserve_floor_blocked") {
+        return "Treasury rebalance is blocked because liquid balance is below the reserve floor.";
+    }
+    if (normalized === "capital_base_exhausted") {
+        return "Treasury rebalance is blocked because the capital base is already fully allocated.";
+    }
+    if (normalized === "no_eligible_venues") {
+        return "Treasury rebalance is blocked because no approved treasury venues are currently eligible.";
+    }
+    return "";
+}
+
 class AgentRuntimeService {
     constructor(config = {}) {
         this.store = config.store;
@@ -459,7 +473,7 @@ class AgentRuntimeService {
         }).filter(Boolean);
     }
 
-    buildBidFocus({ auctions = [], opportunities = [], walletPublicKey = "", mandate = {}, screenSignals = [], watchlistSignals = [] }) {
+    buildBidFocus({ auctions = [], opportunities = [], walletPublicKey = "", mandate = {}, liquidity = null, screenSignals = [], watchlistSignals = [] }) {
         const opportunityByTokenId = new Map(
             opportunities.map((entry) => [Number(entry.tokenId), entry])
         );
@@ -481,6 +495,10 @@ class AgentRuntimeService {
         );
         const approvalThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
         const bidIncrement = 10_000_000n;
+        const hasLiquidityContext = liquidity && typeof liquidity === "object";
+        const immediateBidHeadroom = hasLiquidityContext
+            ? normalizeStellarAmount(liquidity.immediateBidHeadroom || "0")
+            : null;
         const now = nowSeconds();
 
         return auctions
@@ -496,6 +514,11 @@ class AgentRuntimeService {
                 const reserve = BigInt(auction.reservePrice || "0");
                 const highest = BigInt(auction.highestBid?.amountStroops || "0");
                 const nextBid = highest > 0n ? highest + bidIncrement : reserve;
+                const exceedsApprovalThreshold = nextBid > approvalThreshold;
+                const exceedsLiquidityHeadroom =
+                    immediateBidHeadroom != null
+                    && immediateBidHeadroom >= 0n
+                    && nextBid > immediateBidHeadroom;
                 const prioritySource = [];
                 let preferenceBoost = 0;
 
@@ -517,11 +540,13 @@ class AgentRuntimeService {
                     opportunity,
                     nextBid,
                     nextBidDisplay: formatStellarAmount(nextBid),
-                    eligible: nextBid > 0n && nextBid <= approvalThreshold,
+                    eligible: nextBid > 0n && !exceedsApprovalThreshold && !exceedsLiquidityHeadroom,
                     blockedReason: nextBid <= 0n
                         ? "No valid next bid is available."
-                        : nextBid > approvalThreshold
+                        : exceedsApprovalThreshold
                             ? "The next valid bid exceeds the approval threshold."
+                            : exceedsLiquidityHeadroom
+                                ? "The next valid bid exceeds the immediate liquidity headroom."
                             : "",
                     prioritySource,
                     preferenceScore: Number(opportunity?.score || 0) + preferenceBoost,
@@ -684,8 +709,11 @@ class AgentRuntimeService {
                 outcome: "executed",
                 details: {
                     auctionId: Number(proposal.actionArgs.auctionId),
+                    assetId: Number(result?.auction?.assetId || 0),
+                    assetName: result?.auction?.title || "",
                     bidId: Number(result?.bid?.bidId || 0),
                     amount: result?.bid?.amountDisplay || proposal.actionArgs.amount,
+                    txHash: result?.bid?.txHash || "",
                 },
             };
         }
@@ -723,6 +751,21 @@ class AgentRuntimeService {
                 });
             }
             const treasury = await this.treasuryManager.rebalance({ ownerPublicKey, agentId });
+            const treasuryReason = String(treasury?.optimization?.reason || "").trim();
+            const deploymentCount = Number(treasury?.optimization?.execution?.deploymentCount || 0);
+            const blockedBy = treasuryBlockedReasonMessage(treasuryReason);
+            if (blockedBy && deploymentCount === 0 && !claim) {
+                return {
+                    actionType,
+                    actionArgs: proposal.actionArgs,
+                    outcome: "skipped",
+                    details: {
+                        blockedBy,
+                        treasuryReason,
+                        treasuryPositions: Number(treasury?.positions?.length || 0),
+                    },
+                };
+            }
             return {
                 actionType,
                 actionArgs: proposal.actionArgs,
@@ -737,6 +780,21 @@ class AgentRuntimeService {
 
         if (actionType === "rebalance_treasury") {
             const treasury = await this.treasuryManager.rebalance({ ownerPublicKey, agentId });
+            const treasuryReason = String(treasury?.optimization?.reason || "").trim();
+            const deploymentCount = Number(treasury?.optimization?.execution?.deploymentCount || 0);
+            const blockedBy = treasuryBlockedReasonMessage(treasuryReason);
+            if (blockedBy && deploymentCount === 0) {
+                return {
+                    actionType,
+                    actionArgs: proposal.actionArgs,
+                    outcome: "skipped",
+                    details: {
+                        blockedBy,
+                        treasuryReason,
+                        treasuryPositions: Number(treasury?.positions?.length || 0),
+                    },
+                };
+            }
             return {
                 actionType,
                 actionArgs: proposal.actionArgs,
@@ -934,6 +992,7 @@ class AgentRuntimeService {
                 opportunities,
                 walletPublicKey: wallet.publicKey,
                 mandate,
+                liquidity,
                 screenSignals,
                 watchlistSignals,
             });
@@ -1069,6 +1128,7 @@ class AgentRuntimeService {
 
             const effectiveBlockedBy = String(
                 proposal.blockedBy
+                || executed?.details?.blockedBy
                 || (executed.outcome === "skipped" && proposal.actionType !== "hold" && currentRuntime.running
                     ? `The proposed ${proposal.actionType.replace(/_/g, " ")} action was recorded but not executed.`
                     : "")
@@ -1120,6 +1180,25 @@ class AgentRuntimeService {
             });
 
             if (decisionChanged || executed.outcome === "executed") {
+                const executionDetail = executed.outcome === "executed"
+                    ? (
+                        proposal.actionType === "bid"
+                            ? [
+                                `Bid ${executed.details?.amount || proposal.actionArgs?.amount || ""} USDC`,
+                                executed.details?.auctionId ? `auction #${Number(executed.details.auctionId)}` : "",
+                                executed.details?.assetId
+                                    ? `twin #${Number(executed.details.assetId)}${executed.details?.assetName ? ` (${executed.details.assetName})` : ""}`
+                                    : "",
+                                executed.details?.txHash ? `tx ${String(executed.details.txHash).slice(0, 16)}...` : "",
+                            ].filter(Boolean).join(" · ")
+                            : proposal.actionType === "settle_auction"
+                                ? [
+                                    executed.details?.auctionId ? `Settled auction #${Number(executed.details.auctionId)}` : "Auction settled",
+                                    executed.details?.txHash ? `tx ${String(executed.details.txHash).slice(0, 16)}...` : "",
+                                ].filter(Boolean).join(" · ")
+                                : ""
+                    )
+                    : "";
                 await this.agentState.appendJournal(normalizedAgentId, {
                     kind: executed.outcome === "executed" ? "execution" : "plan",
                     message: executed.outcome === "executed"
@@ -1149,6 +1228,7 @@ class AgentRuntimeService {
                             ? "Autonomous agent held position"
                             : `Autonomous agent planned ${proposal.actionType.replace(/_/g, " ")}`,
                     detail: effectiveBlockedBy
+                        || executionDetail
                         || (
                             executed.outcome === "executed"
                             && proposal.actionType === "bid"

@@ -871,6 +871,7 @@ router.get("/market/assets", asyncHandler(async (req, res) => {
         return summary;
     }));
     const browseResult = applyMarketBrowseFilters(assets, browseFilters);
+    const participation = await services.agentState.getParticipationSnapshot(5);
     res.json({
         code: "market_assets_listed",
         assets: browseResult.assets,
@@ -881,6 +882,8 @@ router.get("/market/assets", asyncHandler(async (req, res) => {
             browseFilters,
             assets.length,
         ),
+        leaderboard: participation.leaderboard,
+        participation: participation.totals,
     });
 }));
 

@@ -57,6 +57,8 @@ function ownerKey(ownerPublicKey) {
     return `continuum:owner:${String(ownerPublicKey).toUpperCase()}:agent`;
 }
 
+const AGENT_INDEX_KEY = "continuum:agents:index";
+
 function toNumber(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -81,14 +83,41 @@ function defaultPerformance(agentId = "") {
         agentId: String(agentId).toUpperCase(),
         realizedYield: "0",
         treasuryReturn: "0",
+        realizedTradePnL: "0",
         paidActionFees: "0",
         netPnL: "0",
         drawdown: "0",
         auctionWins: 0,
         auctionLosses: 0,
+        defiMetrics: {
+            txCount: 0,
+            bidsPlaced: 0,
+            auctionsSettled: 0,
+            buyCount: 0,
+            sellCount: 0,
+            claimCount: 0,
+            treasuryActions: 0,
+            feeActions: 0,
+            bidVolume: "0",
+            buyVolume: "0",
+            sellVolume: "0",
+            volumeTradedGross: "0",
+            yieldClaimedVolume: "0",
+            treasuryRoutedVolume: "0",
+            feeVolume: "0",
+            tradedTokenIds: [],
+            uniqueAssetsTraded: 0,
+            activeDayKeys: [],
+            activeDays: 0,
+            lastActiveDay: "",
+            participationScore: 0,
+            costBasisByToken: {},
+            realizedTradePnL: "0",
+        },
         attribution: {
             yieldContribution: "0",
             treasuryContribution: "0",
+            tradeContribution: "0",
             feeDrag: "0",
             grossPositivePnL: "0",
             netPnL: "0",
@@ -122,12 +151,61 @@ function buildPerformanceEvent({
 
 function normalizePerformance(agentId, current = {}) {
     const base = defaultPerformance(agentId);
+    const rawMetrics = current.defiMetrics && typeof current.defiMetrics === "object"
+        ? current.defiMetrics
+        : {};
+    const tradedTokenIds = Array.isArray(rawMetrics.tradedTokenIds)
+        ? Array.from(new Set(rawMetrics.tradedTokenIds.map((tokenId) => String(tokenId).trim()).filter(Boolean)))
+        : [];
+    const activeDayKeys = Array.isArray(rawMetrics.activeDayKeys)
+        ? Array.from(new Set(rawMetrics.activeDayKeys.map((day) => String(day).trim()).filter(Boolean)))
+        : [];
+    const costBasisByToken = rawMetrics.costBasisByToken && typeof rawMetrics.costBasisByToken === "object"
+        ? Object.entries(rawMetrics.costBasisByToken).reduce((acc, [tokenId, amount]) => {
+            const key = String(tokenId || "").trim();
+            if (!key) return acc;
+            acc[key] = toStringAmount(amount, "0");
+            return acc;
+        }, {})
+        : {};
+    const normalizedMetrics = {
+        ...base.defiMetrics,
+        ...rawMetrics,
+        txCount: Number(rawMetrics.txCount ?? base.defiMetrics.txCount),
+        bidsPlaced: Number(rawMetrics.bidsPlaced ?? base.defiMetrics.bidsPlaced),
+        auctionsSettled: Number(rawMetrics.auctionsSettled ?? base.defiMetrics.auctionsSettled),
+        buyCount: Number(rawMetrics.buyCount ?? base.defiMetrics.buyCount),
+        sellCount: Number(rawMetrics.sellCount ?? base.defiMetrics.sellCount),
+        claimCount: Number(rawMetrics.claimCount ?? base.defiMetrics.claimCount),
+        treasuryActions: Number(rawMetrics.treasuryActions ?? base.defiMetrics.treasuryActions),
+        feeActions: Number(rawMetrics.feeActions ?? base.defiMetrics.feeActions),
+        bidVolume: toStringAmount(rawMetrics.bidVolume, base.defiMetrics.bidVolume),
+        buyVolume: toStringAmount(rawMetrics.buyVolume, base.defiMetrics.buyVolume),
+        sellVolume: toStringAmount(rawMetrics.sellVolume, base.defiMetrics.sellVolume),
+        volumeTradedGross: toStringAmount(rawMetrics.volumeTradedGross, base.defiMetrics.volumeTradedGross),
+        yieldClaimedVolume: toStringAmount(rawMetrics.yieldClaimedVolume, base.defiMetrics.yieldClaimedVolume),
+        treasuryRoutedVolume: toStringAmount(rawMetrics.treasuryRoutedVolume, base.defiMetrics.treasuryRoutedVolume),
+        feeVolume: toStringAmount(rawMetrics.feeVolume, base.defiMetrics.feeVolume),
+        tradedTokenIds,
+        uniqueAssetsTraded: Number(rawMetrics.uniqueAssetsTraded ?? tradedTokenIds.length),
+        activeDayKeys,
+        activeDays: Number(rawMetrics.activeDays ?? activeDayKeys.length),
+        lastActiveDay: String(rawMetrics.lastActiveDay || activeDayKeys[activeDayKeys.length - 1] || ""),
+        participationScore: Number(rawMetrics.participationScore ?? 0),
+        costBasisByToken,
+        realizedTradePnL: toStringAmount(
+            rawMetrics.realizedTradePnL,
+            current.realizedTradePnL ?? base.defiMetrics.realizedTradePnL,
+        ),
+    };
     return {
         ...base,
         ...current,
         agentId: String(agentId).toUpperCase(),
+        realizedTradePnL: toStringAmount(current.realizedTradePnL, base.realizedTradePnL),
         auctionWins: Number(current.auctionWins ?? base.auctionWins),
         auctionLosses: Number(current.auctionLosses ?? base.auctionLosses),
+        defiMetrics: normalizedMetrics,
         attribution: {
             ...base.attribution,
             ...(current.attribution || {}),
@@ -142,26 +220,61 @@ function finalizePerformance(agentId, performance = {}) {
     const current = normalizePerformance(agentId, performance);
     const realizedYield = BigInt(current.realizedYield || "0");
     const treasuryReturn = BigInt(current.treasuryReturn || "0");
+    const tradePnL = BigInt(current.realizedTradePnL || current.defiMetrics?.realizedTradePnL || "0");
     const paidActionFees = BigInt(current.paidActionFees || "0");
-    const grossPositivePnL = realizedYield + treasuryReturn;
-    const netPnL = grossPositivePnL - paidActionFees;
+    const grossPositivePnL = realizedYield + treasuryReturn + (tradePnL > 0n ? tradePnL : 0n);
+    const netPnL = realizedYield + treasuryReturn + tradePnL - paidActionFees;
     const auctionWins = Number(current.auctionWins || 0);
     const auctionLosses = Number(current.auctionLosses || 0);
     const totalAuctionOutcomes = auctionWins + auctionLosses;
     const winRatePct = totalAuctionOutcomes > 0
         ? Number(((auctionWins / totalAuctionOutcomes) * 100).toFixed(1))
         : 0;
+    const defiMetrics = {
+        ...(current.defiMetrics || {}),
+    };
+    const bidVolume = BigInt(defiMetrics.bidVolume || "0");
+    const buyVolume = BigInt(defiMetrics.buyVolume || "0");
+    const sellVolume = BigInt(defiMetrics.sellVolume || "0");
+    const tradedTokenIds = Array.isArray(defiMetrics.tradedTokenIds)
+        ? Array.from(new Set(defiMetrics.tradedTokenIds.map((tokenId) => String(tokenId).trim()).filter(Boolean)))
+        : [];
+    const activeDayKeys = Array.isArray(defiMetrics.activeDayKeys)
+        ? Array.from(new Set(defiMetrics.activeDayKeys.map((day) => String(day).trim()).filter(Boolean)))
+        : [];
+    const grossTradeVolume = buyVolume + sellVolume;
+    const participationScore = Number(
+        Number(defiMetrics.txCount || 0) * 5
+        + tradedTokenIds.length * 20
+        + Number(grossTradeVolume / 10_000_000n)
+    );
 
     return {
         ...current,
         realizedYield: realizedYield.toString(),
         treasuryReturn: treasuryReturn.toString(),
+        realizedTradePnL: tradePnL.toString(),
         paidActionFees: paidActionFees.toString(),
         netPnL: netPnL.toString(),
+        defiMetrics: {
+            ...defiMetrics,
+            bidVolume: bidVolume.toString(),
+            buyVolume: buyVolume.toString(),
+            sellVolume: sellVolume.toString(),
+            volumeTradedGross: grossTradeVolume.toString(),
+            tradedTokenIds,
+            uniqueAssetsTraded: tradedTokenIds.length,
+            activeDayKeys,
+            activeDays: activeDayKeys.length,
+            lastActiveDay: String(defiMetrics.lastActiveDay || activeDayKeys[activeDayKeys.length - 1] || ""),
+            participationScore: Number.isFinite(participationScore) ? participationScore : 0,
+            realizedTradePnL: tradePnL.toString(),
+        },
         attribution: {
             ...current.attribution,
             yieldContribution: realizedYield.toString(),
             treasuryContribution: treasuryReturn.toString(),
+            tradeContribution: tradePnL.toString(),
             feeDrag: paidActionFees.toString(),
             grossPositivePnL: grossPositivePnL.toString(),
             netPnL: netPnL.toString(),
@@ -177,6 +290,29 @@ function finalizePerformance(agentId, performance = {}) {
 
 function appendRecentEvent(performance, event) {
     return [...(Array.isArray(performance.recentEvents) ? performance.recentEvents : []), event].slice(-20);
+}
+
+function addStringAmounts(left = "0", right = "0") {
+    return (BigInt(toStringAmount(left, "0")) + BigInt(toStringAmount(right, "0"))).toString();
+}
+
+function markDefiActivity(metrics = {}, tokenId = null) {
+    const dayKey = new Date().toISOString().slice(0, 10);
+    const activeDayKeys = Array.isArray(metrics.activeDayKeys)
+        ? Array.from(new Set([...(metrics.activeDayKeys || []), dayKey]))
+        : [dayKey];
+    const tradedTokenIds = Number(tokenId) > 0
+        ? Array.from(new Set([...(Array.isArray(metrics.tradedTokenIds) ? metrics.tradedTokenIds : []), String(Number(tokenId))]))
+        : (Array.isArray(metrics.tradedTokenIds) ? Array.from(new Set(metrics.tradedTokenIds)) : []);
+    return {
+        ...metrics,
+        txCount: Number(metrics.txCount || 0) + 1,
+        activeDayKeys,
+        activeDays: activeDayKeys.length,
+        lastActiveDay: dayKey,
+        tradedTokenIds,
+        uniqueAssetsTraded: tradedTokenIds.length,
+    };
 }
 
 function defaultMandate(agentId = "") {
@@ -355,6 +491,7 @@ class AgentStateService {
                     updatedAt: nowSeconds(),
                 });
             }
+            await this.trackAgentId(agentId);
             return existing;
         }
 
@@ -374,6 +511,7 @@ class AgentStateService {
                 updatedAt: nowSeconds(),
             });
         }
+        await this.trackAgentId(agentId);
         const mandate = defaultMandate(agentId);
         await this.store.upsertRecord(agentKey(agentId, "mandate"), mandate);
         await this.store.upsertRecord(agentKey(agentId, "performance"), {
@@ -395,6 +533,146 @@ class AgentStateService {
         await this.store.upsertRecord(agentKey(agentId, "chat"), defaultChatHistory(agentId));
         await this.store.upsertRecord(agentKey(agentId, "memory-summary"), defaultMemorySummary(agentId));
         return profile;
+    }
+
+    async trackAgentId(agentId) {
+        const normalizedAgentId = String(agentId || "").toUpperCase();
+        if (!normalizedAgentId) {
+            return [];
+        }
+        const index = await this.store.getRecord(AGENT_INDEX_KEY) || { agentIds: [] };
+        const currentIds = Array.isArray(index.agentIds) ? index.agentIds : [];
+        const nextIds = Array.from(new Set([
+            ...currentIds.map((entry) => String(entry || "").toUpperCase()).filter(Boolean),
+            normalizedAgentId,
+        ]));
+        await this.store.upsertRecord(AGENT_INDEX_KEY, {
+            agentIds: nextIds,
+            updatedAt: nowSeconds(),
+        });
+        return nextIds;
+    }
+
+    async listAgentIds() {
+        const index = await this.store.getRecord(AGENT_INDEX_KEY);
+        const indexedIds = Array.isArray(index?.agentIds)
+            ? Array.from(new Set(index.agentIds.map((entry) => String(entry || "").toUpperCase()).filter(Boolean)))
+            : [];
+        if (indexedIds.length > 0) {
+            return indexedIds;
+        }
+        if (typeof this.store.listRecordsByPrefix !== "function") {
+            return [];
+        }
+        const records = await this.store.listRecordsByPrefix("continuum:agent:");
+        const scannedIds = records
+            .filter((entry) => /^continuum:agent:[^:]+$/.test(String(entry?.key || "")))
+            .map((entry) => String(entry?.payload?.agentId || String(entry.key).split(":").pop() || "").toUpperCase())
+            .filter(Boolean);
+        const uniqueIds = Array.from(new Set(scannedIds));
+        if (uniqueIds.length > 0) {
+            await this.store.upsertRecord(AGENT_INDEX_KEY, {
+                agentIds: uniqueIds,
+                updatedAt: nowSeconds(),
+            });
+        }
+        return uniqueIds;
+    }
+
+    async getParticipationSnapshot(limit = 5) {
+        const agentIds = await this.listAgentIds();
+        if (agentIds.length === 0) {
+            return {
+                leaderboard: [],
+                totals: {
+                    trackedAgents: 0,
+                    activeAgents: 0,
+                    totalTxCount: 0,
+                    totalParticipationScore: 0,
+                    totalVolumeTradedGross: "0",
+                    totalYieldClaimedVolume: "0",
+                    totalNetPnL: "0",
+                },
+            };
+        }
+
+        const entries = (await Promise.all(agentIds.map(async (id) => {
+            const [profile, performance] = await Promise.all([
+                this.getAgentProfile(id),
+                this.getPerformance(id),
+            ]);
+            if (!profile || !performance) {
+                return null;
+            }
+            const metrics = performance.defiMetrics || {};
+            return {
+                agentId: String(profile.agentId || id).toUpperCase(),
+                ownerPublicKey: String(profile.ownerPublicKey || "").toUpperCase(),
+                agentPublicKey: String(profile.agentPublicKey || profile.agentId || id).toUpperCase(),
+                participationScore: Number(metrics.participationScore || 0),
+                txCount: Number(metrics.txCount || 0),
+                bidsPlaced: Number(metrics.bidsPlaced || 0),
+                buyCount: Number(metrics.buyCount || 0),
+                sellCount: Number(metrics.sellCount || 0),
+                activeDays: Number(metrics.activeDays || 0),
+                uniqueAssetsTraded: Number(metrics.uniqueAssetsTraded || 0),
+                volumeTradedGross: toStringAmount(metrics.volumeTradedGross, "0"),
+                yieldClaimedVolume: toStringAmount(metrics.yieldClaimedVolume, "0"),
+                netPnL: toStringAmount(performance.netPnL, "0"),
+                realizedTradePnL: toStringAmount(performance.realizedTradePnL, "0"),
+                realizedYield: toStringAmount(performance.realizedYield, "0"),
+                treasuryReturn: toStringAmount(performance.treasuryReturn, "0"),
+                auctionWins: Number(performance.auctionWins || 0),
+                auctionLosses: Number(performance.auctionLosses || 0),
+                lastActiveDay: String(metrics.lastActiveDay || ""),
+            };
+        }))).filter(Boolean);
+
+        const sorted = entries.sort((left, right) => {
+            if (Number(right.participationScore || 0) !== Number(left.participationScore || 0)) {
+                return Number(right.participationScore || 0) - Number(left.participationScore || 0);
+            }
+            if (Number(right.txCount || 0) !== Number(left.txCount || 0)) {
+                return Number(right.txCount || 0) - Number(left.txCount || 0);
+            }
+            const volumeDelta = BigInt(right.volumeTradedGross || "0") - BigInt(left.volumeTradedGross || "0");
+            if (volumeDelta !== 0n) {
+                return volumeDelta > 0n ? 1 : -1;
+            }
+            const pnlDelta = BigInt(right.netPnL || "0") - BigInt(left.netPnL || "0");
+            if (pnlDelta !== 0n) {
+                return pnlDelta > 0n ? 1 : -1;
+            }
+            return String(left.agentId).localeCompare(String(right.agentId));
+        });
+
+        const leaderboard = sorted.slice(0, Math.max(1, Number(limit) || 5)).map((entry, index) => ({
+            ...entry,
+            rank: index + 1,
+        }));
+
+        const totals = entries.reduce((acc, entry) => ({
+            trackedAgents: acc.trackedAgents + 1,
+            activeAgents: acc.activeAgents + (entry.txCount > 0 ? 1 : 0),
+            totalTxCount: acc.totalTxCount + Number(entry.txCount || 0),
+            totalParticipationScore: acc.totalParticipationScore + Number(entry.participationScore || 0),
+            totalVolumeTradedGross: addStringAmounts(acc.totalVolumeTradedGross, entry.volumeTradedGross || "0"),
+            totalYieldClaimedVolume: addStringAmounts(acc.totalYieldClaimedVolume, entry.yieldClaimedVolume || "0"),
+            totalNetPnL: addStringAmounts(acc.totalNetPnL, entry.netPnL || "0"),
+        }), {
+            trackedAgents: 0,
+            activeAgents: 0,
+            totalTxCount: 0,
+            totalParticipationScore: 0,
+            totalVolumeTradedGross: "0",
+            totalYieldClaimedVolume: "0",
+            totalNetPnL: "0",
+        });
+
+        return {
+            leaderboard,
+            totals,
+        };
     }
 
     async getAgentProfile(agentId) {
@@ -749,12 +1027,18 @@ class AgentStateService {
 
     async recordPaidActionFee(agentId, amount, metadata = {}) {
         const current = await this.getPerformance(agentId);
+        const nextMetrics = markDefiActivity({
+            ...(current.defiMetrics || {}),
+            feeActions: Number(current.defiMetrics?.feeActions || 0) + 1,
+            feeVolume: addStringAmounts(current.defiMetrics?.feeVolume || "0", amount),
+        }, metadata.tokenId);
         const nextFee = (
             BigInt(current.paidActionFees || "0")
             + BigInt(toStringAmount(amount))
         ).toString();
         const updated = await this.updatePerformance(agentId, {
             paidActionFees: nextFee,
+            defiMetrics: nextMetrics,
             recentEvents: appendRecentEvent(current, buildPerformanceEvent({
                 category: "fee",
                 label: metadata.action ? `${metadata.action} fee` : "Platform action fee",
@@ -775,12 +1059,18 @@ class AgentStateService {
 
     async recordRealizedYield(agentId, amount, metadata = {}) {
         const current = await this.getPerformance(agentId);
+        const nextMetrics = markDefiActivity({
+            ...(current.defiMetrics || {}),
+            claimCount: Number(current.defiMetrics?.claimCount || 0) + 1,
+            yieldClaimedVolume: addStringAmounts(current.defiMetrics?.yieldClaimedVolume || "0", amount),
+        }, metadata.tokenId);
         const nextYield = (
             BigInt(current.realizedYield || "0")
             + BigInt(toStringAmount(amount))
         ).toString();
         const updated = await this.updatePerformance(agentId, {
             realizedYield: nextYield,
+            defiMetrics: nextMetrics,
             recentEvents: appendRecentEvent(current, buildPerformanceEvent({
                 category: "yield",
                 label: metadata.message || "Yield claimed",
@@ -801,12 +1091,18 @@ class AgentStateService {
 
     async recordTreasuryReturn(agentId, amount, metadata = {}) {
         const current = await this.getPerformance(agentId);
+        const nextMetrics = markDefiActivity({
+            ...(current.defiMetrics || {}),
+            treasuryActions: Number(current.defiMetrics?.treasuryActions || 0) + 1,
+            treasuryRoutedVolume: addStringAmounts(current.defiMetrics?.treasuryRoutedVolume || "0", amount),
+        }, metadata.tokenId);
         const nextTreasuryReturn = (
             BigInt(current.treasuryReturn || "0")
             + BigInt(toStringAmount(amount))
         ).toString();
         const updated = await this.updatePerformance(agentId, {
             treasuryReturn: nextTreasuryReturn,
+            defiMetrics: nextMetrics,
             recentEvents: appendRecentEvent(current, buildPerformanceEvent({
                 category: "treasury",
                 label: metadata.message || "Treasury yield realized",
@@ -829,12 +1125,19 @@ class AgentStateService {
         const current = await this.getPerformance(agentId);
         const auctionWins = Number(current.auctionWins || 0) + (outcome === "win" ? 1 : 0);
         const auctionLosses = Number(current.auctionLosses || 0) + (outcome === "loss" ? 1 : 0);
+        const nextMetrics = outcome === "win" || outcome === "loss"
+            ? markDefiActivity({
+                ...(current.defiMetrics || {}),
+                auctionsSettled: Number(current.defiMetrics?.auctionsSettled || 0) + 1,
+            }, metadata.assetId)
+            : (current.defiMetrics || {});
         const label = outcome === "win"
             ? `Auction #${metadata.auctionId || "?"} won`
             : `Auction #${metadata.auctionId || "?"} closed without a win`;
         return this.updatePerformance(agentId, {
             auctionWins,
             auctionLosses,
+            defiMetrics: nextMetrics,
             recentEvents: appendRecentEvent(current, buildPerformanceEvent({
                 category: "auction",
                 label,
@@ -843,6 +1146,107 @@ class AgentStateService {
                 metadata,
             })),
         });
+    }
+
+    async recordTradeExecution(agentId, {
+        side = "bid",
+        tokenId = 0,
+        auctionId = 0,
+        amount = "0",
+        txHash = "",
+        assetName = "",
+        metadata = {},
+    } = {}) {
+        const normalizedSide = String(side || "bid").trim().toLowerCase();
+        const current = await this.getPerformance(agentId);
+        const tokenIdNumber = Number(tokenId || metadata.tokenId || 0);
+        const baseMetrics = {
+            ...(current.defiMetrics || {}),
+        };
+        const metrics = markDefiActivity(baseMetrics, tokenIdNumber);
+        const amountStr = toStringAmount(amount, "0");
+        const amountBig = BigInt(amountStr);
+
+        if (normalizedSide === "bid") {
+            metrics.bidsPlaced = Number(metrics.bidsPlaced || 0) + 1;
+            metrics.bidVolume = addStringAmounts(metrics.bidVolume || "0", amountStr);
+        } else if (normalizedSide === "buy") {
+            metrics.buyCount = Number(metrics.buyCount || 0) + 1;
+            metrics.buyVolume = addStringAmounts(metrics.buyVolume || "0", amountStr);
+            if (tokenIdNumber > 0) {
+                metrics.costBasisByToken = {
+                    ...(metrics.costBasisByToken || {}),
+                    [String(tokenIdNumber)]: amountStr,
+                };
+            }
+        } else if (normalizedSide === "sell") {
+            metrics.sellCount = Number(metrics.sellCount || 0) + 1;
+            metrics.sellVolume = addStringAmounts(metrics.sellVolume || "0", amountStr);
+            if (tokenIdNumber > 0) {
+                const tokenKey = String(tokenIdNumber);
+                const basis = BigInt(metrics.costBasisByToken?.[tokenKey] || "0");
+                const realizedTradePnL = addStringAmounts(metrics.realizedTradePnL || "0", (amountBig - basis).toString());
+                metrics.realizedTradePnL = realizedTradePnL;
+                metrics.costBasisByToken = {
+                    ...(metrics.costBasisByToken || {}),
+                };
+                delete metrics.costBasisByToken[tokenKey];
+            } else {
+                metrics.realizedTradePnL = addStringAmounts(metrics.realizedTradePnL || "0", amountStr);
+            }
+        }
+
+        metrics.volumeTradedGross = addStringAmounts(metrics.buyVolume || "0", metrics.sellVolume || "0");
+
+        const updated = await this.updatePerformance(agentId, {
+            realizedTradePnL: metrics.realizedTradePnL || current.realizedTradePnL || "0",
+            defiMetrics: metrics,
+            recentEvents: appendRecentEvent(current, buildPerformanceEvent({
+                category: "trade",
+                label: normalizedSide === "sell"
+                    ? "Trade sell executed"
+                    : normalizedSide === "buy"
+                        ? "Trade buy executed"
+                        : "Trade bid submitted",
+                amount: amountStr,
+                direction: normalizedSide === "sell" ? "inflow" : "outflow",
+                metadata: {
+                    side: normalizedSide,
+                    tokenId: tokenIdNumber || null,
+                    auctionId: Number(auctionId || metadata.auctionId || 0) || null,
+                    txHash,
+                    assetName: String(assetName || metadata.assetName || ""),
+                    ...metadata,
+                },
+            })),
+        });
+
+        const tradeLabel = String(assetName || metadata.assetName || (tokenIdNumber > 0 ? `Twin #${tokenIdNumber}` : "asset")).trim();
+        const pnlAmount = updated.realizedTradePnL || "0";
+        await this.appendDecision(agentId, {
+            type: normalizedSide === "sell" ? "profit" : "action",
+            message: normalizedSide === "sell"
+                ? `Sold ${tradeLabel}`
+                : normalizedSide === "buy"
+                    ? `Bought ${tradeLabel}`
+                    : `Bid submitted on ${tradeLabel}`,
+            detail: [
+                auctionId ? `Auction #${Number(auctionId)}` : "",
+                `Amount ${amountStr} stroops`,
+                txHash ? `Tx ${String(txHash).slice(0, 16)}...` : "",
+                normalizedSide === "sell" ? `Realized trade PnL ${pnlAmount} stroops` : "",
+            ].filter(Boolean).join(" · "),
+            amount: `${normalizedSide === "sell" ? "+" : "-"}${amountStr}`,
+            metadata: {
+                side: normalizedSide,
+                tokenId: tokenIdNumber || null,
+                auctionId: Number(auctionId || 0) || null,
+                txHash,
+                assetName: tradeLabel,
+            },
+        });
+
+        return updated;
     }
 }
 

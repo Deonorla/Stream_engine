@@ -481,6 +481,7 @@ export default function AgentConsolePage() {
   }, [contextLogs, activeState?.decisionLog]);
 
   const performance = activeState?.performance || {};
+  const defiMetrics = performance.defiMetrics || {};
   const objective = activeState?.objective || {};
   const brain = activeState?.brain || {};
   const performanceAttribution = performance.attribution || {};
@@ -1092,6 +1093,7 @@ export default function AgentConsolePage() {
               {[
                 { label: 'Net P&L',        value: formatMoney(performance.netPnL ? Number(performance.netPnL)/1e7 : 0),                                                  color: 'text-emerald-600' },
                 { label: 'Gross +',        value: formatMoney(performanceAttribution.grossPositivePnL ? Number(performanceAttribution.grossPositivePnL)/1e7 : 0),         color: 'text-blue-600' },
+                { label: 'Trade P&L',      value: formatMoney(performance.realizedTradePnL ? Number(performance.realizedTradePnL)/1e7 : 0),                               color: 'text-cyan-600' },
                 { label: 'Fees Paid',      value: formatMoney(performance.paidActionFees ? Number(performance.paidActionFees)/1e7 : 0),                                   color: 'text-amber-600' },
                 { label: 'Treasury Ret.',  value: formatMoney(performance.treasuryReturn ? Number(performance.treasuryReturn)/1e7 : 0),                                   color: 'text-purple-600' },
                 { label: 'Win Rate',       value: `${Number(performanceAttribution.winRatePct || 0).toFixed(1)}%`,                                                        color: 'text-slate-700' },
@@ -1104,9 +1106,28 @@ export default function AgentConsolePage() {
               {[
                 { label: 'Yield',    value: formatMoney(performanceAttribution.yieldContribution ? Number(performanceAttribution.yieldContribution)/1e7 : 0) },
                 { label: 'Treasury', value: formatMoney(performanceAttribution.treasuryContribution ? Number(performanceAttribution.treasuryContribution)/1e7 : 0) },
+                { label: 'Trade',    value: formatMoney(performanceAttribution.tradeContribution ? Number(performanceAttribution.tradeContribution)/1e7 : 0) },
                 { label: 'Fee Drag', value: formatMoney(performanceAttribution.feeDrag ? Number(performanceAttribution.feeDrag)/1e7 : 0) },
                 { label: 'W/L',      value: `${String(performanceAttribution.auctionWins || 0)}W / ${String(performanceAttribution.auctionLosses || 0)}L` },
               ].map(i => <KV key={i.label} label={i.label} value={i.value} />)}
+            </div>
+
+            <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">DeFi Participation</p>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Tx Count', value: String(defiMetrics.txCount || 0) },
+                  { label: 'Bid Count', value: String(defiMetrics.bidsPlaced || 0) },
+                  { label: 'Buy/Sell', value: `${String(defiMetrics.buyCount || 0)} / ${String(defiMetrics.sellCount || 0)}` },
+                  { label: 'Trade Volume', value: formatMoney(defiMetrics.volumeTradedGross ? Number(defiMetrics.volumeTradedGross)/1e7 : 0) },
+                  { label: 'Unique Assets', value: String(defiMetrics.uniqueAssetsTraded || 0) },
+                  { label: 'Active Days', value: String(defiMetrics.activeDays || 0) },
+                  { label: 'Claim Volume', value: formatMoney(defiMetrics.yieldClaimedVolume ? Number(defiMetrics.yieldClaimedVolume)/1e7 : 0) },
+                  { label: 'Participation', value: String(defiMetrics.participationScore || 0) },
+                ].map((metric) => (
+                  <KV key={metric.label} label={metric.label} value={metric.value} />
+                ))}
+              </div>
             </div>
 
             {/* Recent events */}
@@ -1117,7 +1138,12 @@ export default function AgentConsolePage() {
                   <div key={ev.id} className="flex items-center justify-between bg-slate-50 rounded-xl border border-slate-100 px-3 py-2">
                     <div>
                       <p className="text-xs font-bold text-slate-800">{ev.label}</p>
-                      <p className="text-[10px] text-slate-400">{String(ev.category || '').toUpperCase()}</p>
+                      <p className="text-[10px] text-slate-400">
+                        {String(ev.category || '').toUpperCase()}
+                        {ev?.metadata?.side ? ` · ${String(ev.metadata.side).toUpperCase()}` : ''}
+                        {ev?.metadata?.tokenId ? ` · TWIN #${String(ev.metadata.tokenId)}` : ''}
+                        {ev?.metadata?.assetName ? ` · ${String(ev.metadata.assetName)}` : ''}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className={cn('text-xs font-bold',

@@ -410,11 +410,13 @@ describe("Continuum API Integration", function () {
                     reservedAmount: bid.amountStroops,
                     status: "reserved",
                 });
-                await agentState.appendDecision(bidderProfile.agentId, {
-                    type: "action",
-                    message: `Bid placed on auction #${auctionId}`,
-                    detail: `${amount} USDC reserved for twin #${Number(targetAuction.assetId)}.`,
-                    amount: `-${amount}`,
+                await agentState.recordTradeExecution(bidderProfile.agentId, {
+                    side: "bid",
+                    tokenId: Number(targetAuction.assetId),
+                    auctionId: Number(auctionId),
+                    amount: bid.amountStroops,
+                    txHash: `auction-bid-${Number(auctionId)}-${bid.bidId}`,
+                    assetName: String(targetAuction.title || `Twin #${Number(targetAuction.assetId)}`),
                 });
                 const nextAuction = {
                     ...targetAuction,
@@ -458,6 +460,14 @@ describe("Continuum API Integration", function () {
                 if (winningBid?.bidder) {
                     const winnerProfile = await agentState.getAgentProfile(String(winningBid.bidder).toUpperCase());
                     if (winnerProfile) {
+                        await agentState.recordTradeExecution(winnerProfile.agentId, {
+                            side: "buy",
+                            tokenId: Number(targetAuction.assetId),
+                            auctionId: Number(auctionId),
+                            amount: winningBid.amountStroops,
+                            txHash: "auction-settle-tx",
+                            assetName: String(targetAuction.title || `Twin #${Number(targetAuction.assetId)}`),
+                        });
                         await agentState.recordAuctionOutcome(winnerProfile.agentId, {
                             outcome: "win",
                             amount: winningBid.amountStroops,
@@ -564,6 +574,9 @@ describe("Continuum API Integration", function () {
         expect(response.body.summary.currentRentalCount).to.equal(0);
         expect(response.body.summary.highlights.topOpportunities).to.have.length(1);
         expect(response.body.summary.highlights.auctionsClosingSoon).to.have.length(1);
+        expect(response.body.leaderboard).to.be.an("array");
+        expect(response.body.leaderboard[0].agentId).to.equal(agentId);
+        expect(response.body.participation.trackedAgents).to.equal(1);
     });
 
     it("preserves cached market metadata on forced refresh when IPFS hydration fails", async () => {
@@ -1171,6 +1184,70 @@ describe("Continuum API Integration", function () {
         expect(pauseResponse.body.runtime.status).to.equal("paused");
     });
 
+    it("marks treasury rebalance as skipped when reserve floor blocks deployment", async () => {
+        installAgentBrain({
+            async decide({ wakeReason }) {
+                return {
+                    proposal: {
+                        actionType: "rebalance_treasury",
+                        actionArgs: {},
+                        thesis: "Rebalance treasury.",
+                        rationale: "Attempt rebalance.",
+                        confidence: 80,
+                        blockedBy: "",
+                        requiresHuman: false,
+                        wakeReason,
+                    },
+                    degradedMode: false,
+                    degradedReason: "",
+                    provider: "test",
+                    model: "deterministic",
+                };
+            },
+            async chat() {
+                return {
+                    reply: "Deterministic test planner chat reply.",
+                    objectivePatch: null,
+                    wakeReason: "chat_message",
+                    degradedMode: false,
+                    degradedReason: "",
+                };
+            },
+            async summarize({ objective }) {
+                return `Goal: ${objective?.goal || "test objective"}`;
+            },
+        });
+
+        services.treasuryManager.rebalance = async () => ({
+            positions: [],
+            optimization: {
+                reason: "reserve_floor_blocked",
+                execution: {
+                    deploymentCount: 0,
+                },
+            },
+        });
+
+        const startResponse = await request(app)
+            .post(`/api/agents/${agentId}/runtime/start`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                executeTreasury: true,
+                executeClaims: true,
+            })
+            .expect(200);
+
+        expect(startResponse.body.code).to.equal("agent_runtime_started");
+        expect(startResponse.body.runtime.lastSummary.treasuryExecuted).to.equal(false);
+
+        const stateResponse = await request(app)
+            .get(`/api/agents/${agentId}/state`)
+            .set("Authorization", `Bearer ${token}`)
+            .expect(200);
+
+        expect(stateResponse.body.state.brain.blockedBy).to.match(/reserve floor/i);
+    });
+
     it("updates the real objective and plans immediately when the objective changes", async () => {
         installAgentBrain({
             async decide({ objective, wakeReason }) {
@@ -1505,11 +1582,16 @@ describe("Continuum API Integration", function () {
         expect(stateResponse.body.state.performance.auctionWins).to.equal(1);
         expect(stateResponse.body.state.performance.attribution.auctionWins).to.equal(1);
         expect(stateResponse.body.state.performance.attribution.winRatePct).to.equal(100);
+        expect(stateResponse.body.state.performance.defiMetrics.buyCount).to.equal(1);
+        expect(stateResponse.body.state.performance.defiMetrics.auctionsSettled).to.be.greaterThan(0);
+        expect(stateResponse.body.state.performance.defiMetrics.uniqueAssetsTraded).to.be.greaterThan(0);
         expect(stateResponse.body.state.performance.recentEvents.some((event) => event.category === "auction")).to.equal(true);
+        expect(stateResponse.body.state.performance.recentEvents.some((event) => event.category === "trade")).to.equal(true);
         expect(stateResponse.body.state.performance.paidActionFees).to.equal("500000");
         expect(stateResponse.body.state.reservations).to.have.length(0);
         expect(stateResponse.body.state.positions.assets.map((asset) => Number(asset.tokenId))).to.include(8);
-        expect(stateResponse.body.state.decisionLog.some((entry) => entry.detail?.includes("focus watchlist + saved_screen"))).to.equal(true);
+        expect(stateResponse.body.state.decisionLog.some((entry) => String(entry.message || "").toLowerCase().includes("bought"))).to.equal(true);
+        expect(stateResponse.body.state.decisionLog.some((entry) => String(entry.detail || "").includes("Auction #9"))).to.equal(true);
     });
 
     it("persists mandate updates server-side", async () => {
@@ -1553,7 +1635,11 @@ describe("Continuum API Integration", function () {
 
         expect(stateResponse.body.state.performance.paidActionFees).to.equal("500000");
         expect(stateResponse.body.state.performance.attribution.feeDrag).to.equal("500000");
+        expect(stateResponse.body.state.performance.defiMetrics.bidsPlaced).to.equal(1);
+        expect(stateResponse.body.state.performance.defiMetrics.bidVolume).to.equal("2750000000");
+        expect(stateResponse.body.state.performance.defiMetrics.txCount).to.be.greaterThan(0);
         expect(stateResponse.body.state.performance.recentEvents.some((event) => event.category === "fee")).to.equal(true);
+        expect(stateResponse.body.state.performance.recentEvents.some((event) => event.category === "trade")).to.equal(true);
         expect(stateResponse.body.state.reservations).to.have.length(1);
         expect(stateResponse.body.state.reservations[0].reservedAmount).to.equal("2750000000");
     });
@@ -1581,5 +1667,27 @@ describe("Continuum API Integration", function () {
         expect(response.body.auctions[0].bidLadder).to.have.length(1);
         expect(response.body.auctions[0].recentBids).to.have.length(1);
         expect(response.body.auctions[0].bidLadder[0].amountDisplay).to.equal("275.0000000");
+    });
+
+    it("publishes market participation leaderboard metrics after agent activity", async () => {
+        await request(app)
+            .post("/api/market/auctions/3/bids")
+            .set("Authorization", `Bearer ${token}`)
+            .set("X-Stream-Stream-Id", "77")
+            .send({
+                amount: "275.0000000",
+            })
+            .expect(201);
+
+        const response = await request(app)
+            .get("/api/market/assets")
+            .expect(200);
+
+        expect(response.body.leaderboard).to.have.length.greaterThan(0);
+        expect(response.body.leaderboard[0].agentId).to.equal(agentId);
+        expect(response.body.leaderboard[0].txCount).to.be.greaterThan(0);
+        expect(response.body.leaderboard[0].bidsPlaced).to.equal(1);
+        expect(response.body.participation.activeAgents).to.equal(1);
+        expect(response.body.participation.totalTxCount).to.be.greaterThan(0);
     });
 });
