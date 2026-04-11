@@ -15,6 +15,9 @@ async function checkCompliance(chainService, { walletAddress, asset, action = 't
     const isTradeAction = ['trade', 'bid', 'auction_bid', 'auction_trade'].includes(normalizedAction);
     const requiresClaimPolicyOpen = ['claim', 'claim_yield', 'yield_claim', 'route_yield', 'rent', 'session_open'].includes(normalizedAction);
     const strictAttestationRequired = !isTradeAction;
+    const strictWalletCompliance = requiresClaimPolicyOpen
+        || !isTradeAction
+        || String(process.env.AGENT_TRADE_REQUIRE_WALLET_COMPLIANCE || "").trim().toLowerCase() === "true";
 
     // 1. Asset must exist and not be frozen/disputed/revoked
     const blockedStatuses = ['frozen', 'disputed', 'revoked'];
@@ -70,10 +73,12 @@ async function checkCompliance(chainService, { walletAddress, asset, action = 't
                 : Boolean(compliance.allowed);
             checks.push({
                 name: 'wallet_compliance',
-                passed: allowed,
+                passed: strictWalletCompliance ? allowed : true,
                 detail: allowed
                     ? `Wallet compliance: approved for asset type ${asset.assetType}`
-                    : `Wallet not approved for asset type ${asset.assetType}: ${compliance?.reason || 'no reason given'}`,
+                    : strictWalletCompliance
+                        ? `Wallet not approved for asset type ${asset.assetType}: ${compliance?.reason || 'no reason given'}`
+                        : `Wallet compliance advisory for asset type ${asset.assetType}: ${compliance?.reason || 'no approval record'}`,
             });
         } catch {
             checks.push({ name: 'wallet_compliance', passed: true, detail: 'Compliance check skipped (contract unavailable)' });
