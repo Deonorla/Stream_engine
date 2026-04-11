@@ -11,6 +11,7 @@ npm run start:all
 
 This starts:
 
+- local Docker Postgres on `localhost:5432` (auto-started by the dev stack)
 - frontend on `http://localhost:5173`
 - backend on `http://localhost:3001`
 

@@ -28,8 +28,15 @@ npm run start:all
 
 That starts:
 
+- local Docker Postgres on `localhost:5432` (auto-started by the dev stack)
 - frontend on `http://localhost:5173`
 - backend on `http://localhost:3001`
+
+If you need to skip Docker Postgres auto-start for a temporary session:
+
+```bash
+STREAM_ENGINE_AUTO_START_POSTGRES=false npm run start:all
+```
 
 ## Demo CLI
 

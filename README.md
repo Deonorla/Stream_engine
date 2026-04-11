@@ -117,6 +117,16 @@ For the live Continuum treasury loop, also fill:
 npm run start:all
 ```
 
+`start:all` now auto-starts a local Docker Postgres (`postgres:16`) and uses
+`postgres://postgres:postgres@127.0.0.1:5432/stream_engine` for the backend,
+so tester setup stays one-command.
+
+If you want to disable Docker auto-start for Postgres:
+
+```bash
+STREAM_ENGINE_AUTO_START_POSTGRES=false npm run start:all
+```
+
 Open [http://localhost:5173](http://localhost:5173).
 
 ## Demo flow
