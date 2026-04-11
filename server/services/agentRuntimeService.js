@@ -908,7 +908,6 @@ class AgentRuntimeService {
             let screened = screenAssets(productiveAssets, {
                 minYield: Number(mandate.targetReturnMinPct || 0),
                 maxRisk: 80,
-                limit: 5,
             }).filter((candidate) => approvedClasses.has(assetClassLabel(candidate.asset)));
 
             // Live auctions should still be considered when yield telemetry is sparse.
