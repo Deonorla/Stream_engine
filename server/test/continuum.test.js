@@ -626,6 +626,20 @@ describe("Continuum API Integration", function () {
         expect(listAssetSnapshotsCalls).to.equal(0);
     });
 
+    it("keeps runtime opportunities available when live auctions exist but yield telemetry is sparse", async () => {
+        const response = await request(app)
+            .post(`/api/agents/${agentId}/runtime/start`)
+            .set("Authorization", `Bearer ${token}`)
+            .send({
+                executeTreasury: true,
+                executeClaims: true,
+            })
+            .expect(200);
+
+        expect(response.body.code).to.equal("agent_runtime_started");
+        expect(Number(response.body.runtime.lastSummary?.opportunities || 0)).to.be.greaterThan(0);
+    });
+
     it("applies free market screening filters server-side", async () => {
         const response = await request(app)
             .get("/api/market/assets")

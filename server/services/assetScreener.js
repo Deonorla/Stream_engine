@@ -12,10 +12,21 @@ const VERIFICATION_WEIGHTS = { verified: 1, verified_with_warnings: 0.7, pending
  */
 function extractYieldRate(asset) {
     const stream = asset.stream;
-    if (stream && stream.totalAmount && stream.duration && stream.duration > 0) {
+    const durationSeconds = Number(
+        stream?.durationSeconds
+        || stream?.duration
+        || (
+            Number(stream?.stopTime || 0) > Number(stream?.startTime || 0)
+                ? Number(stream.stopTime) - Number(stream.startTime)
+                : 0
+        )
+    );
+    const streamTotalAmount = Number(stream?.totalAmount || stream?.depositedAmount || 0);
+    const streamDeposited = Number(stream?.depositedAmount || stream?.totalAmount || asset.totalYieldDeposited || 0);
+    if (stream && streamTotalAmount > 0 && durationSeconds > 0 && streamDeposited > 0) {
         const annualizedRate =
-            (Number(stream.totalAmount) / Number(stream.duration)) * 31536000 // seconds/year
-            / Math.max(Number(asset.stream.depositedAmount || stream.totalAmount), 1)
+            (streamTotalAmount / durationSeconds) * 31536000 // seconds/year
+            / Math.max(streamDeposited, 1)
             * 100;
         return Math.min(annualizedRate, 999); // cap at 999%
     }
@@ -28,12 +39,24 @@ function extractYieldRate(asset) {
     const metadata = asset.publicMetadata || asset.metadata || {};
     const pricePerHour = Number(
         metadata.pricePerHour
+        || asset.pricePerHour
         || metadata.attributes?.find?.((a) => a?.trait_type === 'Price Per Hour')?.value
         || 0
     );
     if (pricePerHour > 0) {
         // annualised revenue as % of a nominal $1000 capital base
         const annualRevenue = pricePerHour * 24 * 365;
+        return Math.min((annualRevenue / 1000) * 100, 999);
+    }
+
+    const monthlyYieldTarget = Number(
+        metadata.monthlyYieldTarget
+        || metadata.monthlyYield
+        || asset.monthlyYieldTarget
+        || 0
+    );
+    if (monthlyYieldTarget > 0) {
+        const annualRevenue = monthlyYieldTarget * 12;
         return Math.min((annualRevenue / 1000) * 100, 999);
     }
 

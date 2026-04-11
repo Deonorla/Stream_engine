@@ -808,11 +808,49 @@ class AgentRuntimeService {
 
             const productiveAssets = allAssets.filter(productiveOnly);
             const approvedClasses = new Set(mandate.approvedAssetClasses || []);
-            const screened = screenAssets(productiveAssets, {
+            let screened = screenAssets(productiveAssets, {
                 minYield: Number(mandate.targetReturnMinPct || 0),
                 maxRisk: 80,
                 limit: 5,
             }).filter((candidate) => approvedClasses.has(assetClassLabel(candidate.asset)));
+
+            // Live auctions should still be considered when yield telemetry is sparse.
+            if (screened.length === 0 && activeAuctions.length > 0) {
+                const liveAuctionTokenIds = new Set(
+                    activeAuctions.map((auction) => Number(auction.assetId))
+                );
+                screened = productiveAssets
+                    .filter((asset) => liveAuctionTokenIds.has(Number(asset.tokenId)))
+                    .filter((asset) => approvedClasses.has(assetClassLabel(asset)))
+                    .map((asset) => {
+                        const yieldRate = Number(extractYieldRate(asset) || 0);
+                        const riskScore = Number(estimateRiskScore(asset) || 0);
+                        const score = Math.max(
+                            1,
+                            Math.round(
+                                Math.max(0, 30 - (riskScore * 0.3))
+                                + Math.min(yieldRate, 40)
+                                + (asset.rentalReady ? 10 : 0)
+                            )
+                        );
+                        return {
+                            tokenId: Number(asset.tokenId),
+                            name: asset.publicMetadata?.name || asset.name || `Asset #${asset.tokenId}`,
+                            assetType: Number(asset.assetType || 0),
+                            verificationStatus: asset.verificationStatusLabel || asset.verificationStatus || "",
+                            issuer: asset.issuer,
+                            jurisdiction: asset.jurisdiction,
+                            yieldRate: Math.round(yieldRate * 100) / 100,
+                            riskScore,
+                            rentalReady: Boolean(asset.rentalReady),
+                            claimableYield: asset.claimableYield,
+                            score,
+                            asset,
+                        };
+                    })
+                    .sort((left, right) => Number(right.score || 0) - Number(left.score || 0))
+                    .slice(0, 5);
+            }
 
             const opportunities = [];
             const complianceBlocked = [];
