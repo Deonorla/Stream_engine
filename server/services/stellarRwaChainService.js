@@ -35,6 +35,29 @@ function nowSeconds() {
     return Math.floor(Date.now() / 1000);
 }
 
+async function mapWithConcurrency(items, concurrency, mapper) {
+    const source = Array.isArray(items) ? items : [];
+    const limit = Math.max(1, Number(concurrency || 1));
+    if (source.length === 0) {
+        return [];
+    }
+    if (source.length === 1 || limit <= 1) {
+        return Promise.all(source.map((item, index) => mapper(item, index)));
+    }
+
+    const results = new Array(source.length);
+    let cursor = 0;
+    const workers = Array.from({ length: Math.min(limit, source.length) }, async () => {
+        while (cursor < source.length) {
+            const index = cursor;
+            cursor += 1;
+            results[index] = await mapper(source[index], index);
+        }
+    });
+    await Promise.all(workers);
+    return results;
+}
+
 function createError(code, message, details = {}) {
     const error = new Error(message);
     error.code = code;
@@ -1733,14 +1756,14 @@ class StellarRWAChainService {
                         .filter((value) => Number.isFinite(value) && value > 0)
                 )
             );
-            const sessions = [];
-            for (const id of ids) {
-                const snapshot = await this.getSessionSnapshot(id);
-                if (snapshot) {
-                    sessions.push(snapshot);
-                }
-            }
-            return sessions.sort((left, right) => Number(left.id) - Number(right.id));
+            const snapshots = await mapWithConcurrency(
+                ids,
+                Number(process.env.STELLAR_RWA_SESSION_CONCURRENCY || 8),
+                async (id) => this.getSessionSnapshot(id)
+            );
+            return snapshots
+                .filter(Boolean)
+                .sort((left, right) => Number(left.id) - Number(right.id));
         } catch (error) {
             const sessions = await this.store.listSessions({ owner });
             return sessions.map((session) => this.decorateSession(session));
@@ -1757,6 +1780,7 @@ class StellarRWAChainService {
 
     async getAssetSnapshot(tokenId, options = {}) {
         try {
+            const cachedAsset = await this.store.getAsset(tokenId).catch(() => null);
             const rawAsset = await this.contractService.invokeView({
                 contractId: this.assetRegistryAddress,
                 method: "get_asset",
@@ -1824,6 +1848,15 @@ class StellarRWAChainService {
                 totalYieldDeposited: stream?.totalAmount || "0",
                 flashAdvanceOutstanding: stream?.flashAdvanceOutstanding || "0",
             });
+            if (
+                (!asset.publicMetadata || typeof asset.publicMetadata !== "object" || Object.keys(asset.publicMetadata).length === 0)
+                && cachedAsset?.publicMetadata
+            ) {
+                asset.publicMetadata = cachedAsset.publicMetadata;
+                asset.metadata = cachedAsset.metadata || cachedAsset.publicMetadata;
+                asset.metadataURI = asset.metadataURI || cachedAsset.metadataURI || cachedAsset.publicMetadataURI || "";
+                asset.publicMetadataURI = asset.publicMetadataURI || cachedAsset.publicMetadataURI || cachedAsset.metadataURI || "";
+            }
             asset.activeStreamId = latestYieldStreamId;
             this.recomputeAssetStatus(asset);
             applyRentalReadiness(asset);
@@ -1868,6 +1901,8 @@ class StellarRWAChainService {
     }
 
     async listAssetSnapshots({ owner, limit = 200 } = {}) {
+        const maxSnapshots = Math.max(1, Number(limit || 200));
+        const concurrency = Number(process.env.STELLAR_RWA_SNAPSHOT_CONCURRENCY || 8);
         let sessions = [];
         try {
             sessions = await this.listSessions();
@@ -1883,10 +1918,11 @@ class StellarRWAChainService {
                         { type: "address", value: owner },
                     ],
                 });
-                const hydrated = [];
-                for (const tokenId of (tokenIds || []).slice(0, limit)) {
-                    hydrated.push(await this.getAssetSnapshot(Number(tokenId), { sessions }));
-                }
+                const hydrated = await mapWithConcurrency(
+                    (tokenIds || []).slice(0, maxSnapshots),
+                    concurrency,
+                    async (tokenId) => this.getAssetSnapshot(Number(tokenId), { sessions })
+                );
                 return hydrated.filter(Boolean);
             }
 
@@ -1898,11 +1934,16 @@ class StellarRWAChainService {
                 })
             );
             if (lastTokenId > 0) {
-                const startTokenId = Math.max(1, lastTokenId - Number(limit) + 1);
-                const hydrated = [];
+                const startTokenId = Math.max(1, lastTokenId - maxSnapshots + 1);
+                const tokenIds = [];
                 for (let tokenId = startTokenId; tokenId <= lastTokenId; tokenId += 1) {
-                    hydrated.push(await this.getAssetSnapshot(tokenId, { sessions }));
+                    tokenIds.push(tokenId);
                 }
+                const hydrated = await mapWithConcurrency(
+                    tokenIds,
+                    concurrency,
+                    async (tokenId) => this.getAssetSnapshot(tokenId, { sessions })
+                );
                 return hydrated.filter(Boolean);
             }
         } catch {
@@ -1910,10 +1951,11 @@ class StellarRWAChainService {
         }
 
         const assets = await this.store.listAssets({ owner });
-        const hydrated = [];
-        for (const asset of assets.slice(0, limit)) {
-            hydrated.push(await this.getAssetSnapshot(asset.tokenId, { sessions }));
-        }
+        const hydrated = await mapWithConcurrency(
+            assets.slice(0, maxSnapshots),
+            concurrency,
+            async (asset) => this.getAssetSnapshot(asset.tokenId, { sessions })
+        );
         return hydrated.filter(Boolean);
     }
 

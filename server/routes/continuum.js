@@ -61,15 +61,26 @@ async function hydrateAsset(services, asset) {
     if (!publicMetadataURI) {
         return asset;
     }
+    if (
+        asset?.publicMetadata
+        && typeof asset.publicMetadata === "object"
+        && Object.keys(asset.publicMetadata).length > 0
+    ) {
+        return asset;
+    }
     try {
         const result = await services.ipfsService.fetchJSON(publicMetadataURI);
-        return {
+        const hydrated = {
             ...asset,
             publicMetadataURI,
             metadataURI: publicMetadataURI,
             publicMetadata: result.metadata,
             metadata: result.metadata,
         };
+        if (services.store?.upsertAsset && hydrated?.tokenId != null) {
+            void services.store.upsertAsset(hydrated).catch(() => {});
+        }
+        return hydrated;
     } catch {
         return asset;
     }
@@ -749,38 +760,53 @@ function requirePaidAction(price, description) {
 router.get("/market/assets", asyncHandler(async (req, res) => {
     const services = await req.app.locals.ready;
     const browseFilters = buildMarketBrowseFilters(req.query || {});
-    const rawAssets = services.chainService?.isConfigured?.()
-        ? await services.chainService.listAssetSnapshots({ limit: 200 })
-        : await services.store.listAssets();
+    const limit = Math.max(1, Math.min(500, Number(req.query.limit || 200) || 200));
+    const forceRefresh = ["1", "true", "yes"].includes(
+        String(req.query.refresh || req.query.sync || "").trim().toLowerCase()
+    );
+    let rawAssets = !forceRefresh
+        ? (await services.store.listAssets()).slice(-limit)
+        : [];
+    if (
+        (forceRefresh || rawAssets.length === 0)
+        && services.chainService?.isConfigured?.()
+    ) {
+        rawAssets = await services.chainService.listAssetSnapshots({ limit });
+    }
     const productiveAssets = rawAssets.filter(productiveOnly);
     const activeAuctions = (await services.auctionEngine.listAuctions({ status: "active" }))
         .map((auction) => enrichAuction(auction));
+    const activeAuctionByAssetId = new Map(
+        activeAuctions.map((auction) => [Number(auction.assetId), auction])
+    );
 
     // Build set of tokenIds that have an active rental session
     const allSessions = await services.store.listSessions().catch(() => []);
     const now = Math.floor(Date.now() / 1000);
-    const rentedTokenIds = new Set(
-        (allSessions || [])
-            .filter(s => {
-                if (s.cancelledAt) return false;
-                // active if isActive flag set, or stopTime is in the future, or no stopTime (still open)
-                const active = s.isActive !== false && (
-                    s.isActive === true ||
-                    (s.stopTime && Number(s.stopTime) > now) ||
-                    (!s.stopTime && s.txHash)
-                );
-                if (!active) return false;
-                try { return Boolean(JSON.parse(String(s.metadata || '{}')).assetTokenId); } catch { return false; }
-            })
-            .map(s => {
-                try { return String(JSON.parse(String(s.metadata || '{}')).assetTokenId); } catch { return ''; }
-            })
-            .filter(Boolean)
-    );
+    const rentedTokenIds = new Set();
+    for (const session of (allSessions || [])) {
+        if (!session || session.cancelledAt) continue;
+        const active = session.isActive !== false && (
+            session.isActive === true
+            || (session.stopTime && Number(session.stopTime) > now)
+            || (!session.stopTime && session.txHash)
+        );
+        if (!active) continue;
+        let metadata = {};
+        try {
+            metadata = JSON.parse(String(session.metadata || "{}"));
+        } catch {
+            metadata = {};
+        }
+        if (metadata.assetTokenId) {
+            rentedTokenIds.add(String(metadata.assetTokenId));
+        }
+    }
 
     const assets = await Promise.all(productiveAssets.map(async (asset) => {
-        const auction = activeAuctions.find((entry) => Number(entry.assetId) === Number(asset.tokenId)) || null;
-        const summary = await marketAssetSummary(await hydrateAsset(services, asset), auction);
+        const auction = activeAuctionByAssetId.get(Number(asset.tokenId)) || null;
+        const hydrated = await hydrateAsset(services, asset);
+        const summary = marketAssetSummary(hydrated, auction);
         summary.isRented = rentedTokenIds.has(String(asset.tokenId));
         return summary;
     }));
@@ -800,11 +826,26 @@ router.get("/market/assets", asyncHandler(async (req, res) => {
 
 router.get("/market/assets/:assetId", asyncHandler(async (req, res) => {
     const services = await req.app.locals.ready;
-    const asset = await services.chainService.getAssetSnapshot(Number(req.params.assetId));
+    const tokenId = Number(req.params.assetId);
+    const forceRefresh = ["1", "true", "yes"].includes(
+        String(req.query.refresh || req.query.sync || "").trim().toLowerCase()
+    );
+    let asset = !forceRefresh
+        ? await services.store.getAsset(tokenId)
+        : null;
+    if (
+        (forceRefresh || !asset)
+        && services.chainService?.isConfigured?.()
+    ) {
+        asset = await services.chainService.getAssetSnapshot(tokenId);
+        if (asset) {
+            await services.store.upsertAsset(asset);
+        }
+    }
     if (!asset) {
         return res.status(404).json({ error: "Asset not found.", code: "asset_not_found" });
     }
-    const auctions = (await services.auctionEngine.listAuctions({ tokenId: Number(req.params.assetId) }))
+    const auctions = (await services.auctionEngine.listAuctions({ tokenId }))
         .map((auction) => enrichAuction(auction));
     res.json({
         code: "market_asset_loaded",

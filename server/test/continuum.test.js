@@ -27,6 +27,7 @@ describe("Continuum API Integration", function () {
     let ownerWallets;
     let managedSessionsState;
     let nextManagedSessionId;
+    let listAssetSnapshotsCalls;
 
     function createManagedWallet(ownerPublicKey) {
         const normalizedOwner = String(ownerPublicKey || "").toUpperCase();
@@ -146,6 +147,7 @@ describe("Continuum API Integration", function () {
             claimableInitial: "500000",
         }];
         nextManagedSessionId = 78;
+        listAssetSnapshotsCalls = 0;
 
         services = {
             store,
@@ -187,6 +189,7 @@ describe("Continuum API Integration", function () {
                     return store.getAsset(Number(tokenId));
                 },
                 async listAssetSnapshots({ owner } = {}) {
+                    listAssetSnapshotsCalls += 1;
                     return store.listAssets({ owner });
                 },
                 async listSessions({ owner } = {}) {
@@ -561,6 +564,17 @@ describe("Continuum API Integration", function () {
         expect(response.body.summary.currentRentalCount).to.equal(0);
         expect(response.body.summary.highlights.topOpportunities).to.have.length(1);
         expect(response.body.summary.highlights.auctionsClosingSoon).to.have.length(1);
+    });
+
+    it("serves market listing from cache without forcing chain snapshot refresh", async () => {
+        listAssetSnapshotsCalls = 0;
+        const response = await request(app)
+            .get("/api/market/assets")
+            .expect(200);
+
+        expect(response.body.code).to.equal("market_assets_listed");
+        expect(response.body.assets).to.have.length(1);
+        expect(listAssetSnapshotsCalls).to.equal(0);
     });
 
     it("applies free market screening filters server-side", async () => {

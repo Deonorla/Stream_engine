@@ -220,16 +220,27 @@ async function hydrateAssetMetadata(services, asset) {
     if (!publicMetadataURI) {
         return asset;
     }
+    if (
+        asset?.publicMetadata
+        && typeof asset.publicMetadata === "object"
+        && Object.keys(asset.publicMetadata).length > 0
+    ) {
+        return asset;
+    }
 
     try {
         const ipfsMetadata = await services.ipfsService.fetchJSON(publicMetadataURI);
-        return {
+        const hydrated = {
             ...asset,
             publicMetadataURI,
             metadataURI: publicMetadataURI,
             publicMetadata: ipfsMetadata.metadata,
             metadata: ipfsMetadata.metadata,
         };
+        if (services.store?.upsertAsset && hydrated?.tokenId != null) {
+            void services.store.upsertAsset(hydrated).catch(() => {});
+        }
+        return hydrated;
     } catch (error) {
         return {
             ...asset,
@@ -561,6 +572,10 @@ function createApp(config = defaultConfig) {
         const services = await app.locals.ready;
         void beginIndexerSync(app);
         void beginAssetPrime(app);
+        const limit = Math.max(1, Math.min(500, Number(req.query.limit || 200) || 200));
+        const forceRefresh = ["1", "true", "yes"].includes(
+            String(req.query.refresh || req.query.sync || "").trim().toLowerCase()
+        );
         const ownerPublicKey = String(req.query.owner || "").trim();
         const managedWallet = ownerPublicKey && services.agentWallet?.getWallet
             ? await services.agentWallet.getWallet(ownerPublicKey).catch(() => null)
@@ -574,35 +589,50 @@ function createApp(config = defaultConfig) {
             ).values()
         );
 
-        let rawAssets;
-        if (services.chainService?.isConfigured?.()) {
+        const listFromStore = async () => {
             if (!ownerPublicKey) {
-                rawAssets = await services.chainService.listAssetSnapshots({ limit: 200 });
-            } else {
-                const [ownedAssets, managedAssets] = await Promise.all([
-                    services.chainService.listAssetSnapshots({ owner: ownerPublicKey, limit: 200 }),
-                    managedWallet?.publicKey && String(managedWallet.publicKey).toUpperCase() !== ownerPublicKey.toUpperCase()
-                        ? services.chainService.listAssetSnapshots({ owner: managedWallet.publicKey, limit: 200 })
-                        : Promise.resolve([]),
-                ]);
-                rawAssets = mergeByTokenId([...(ownedAssets || []), ...(managedAssets || [])]);
+                const cached = await services.store.listAssets();
+                return cached.slice(-limit);
             }
-        } else {
+            const [ownedAssets, managedAssets] = await Promise.all([
+                services.store.listAssets({ owner: ownerPublicKey }),
+                managedWallet?.publicKey && String(managedWallet.publicKey).toUpperCase() !== ownerPublicKey.toUpperCase()
+                    ? services.store.listAssets({ owner: managedWallet.publicKey })
+                    : Promise.resolve([]),
+            ]);
+            return mergeByTokenId([...(ownedAssets || []), ...(managedAssets || [])]).slice(-limit);
+        };
+
+        let rawAssets;
+        let loadedFromChain = false;
+        if (!forceRefresh) {
+            rawAssets = await listFromStore();
+        }
+        if (
+            (forceRefresh || !Array.isArray(rawAssets) || rawAssets.length === 0)
+            && services.chainService?.isConfigured?.()
+        ) {
+            loadedFromChain = true;
             if (!ownerPublicKey) {
-                rawAssets = await services.store.listAssets();
+                rawAssets = await services.chainService.listAssetSnapshots({ limit });
             } else {
                 const [ownedAssets, managedAssets] = await Promise.all([
-                    services.store.listAssets({ owner: ownerPublicKey }),
+                    services.chainService.listAssetSnapshots({ owner: ownerPublicKey, limit }),
                     managedWallet?.publicKey && String(managedWallet.publicKey).toUpperCase() !== ownerPublicKey.toUpperCase()
-                        ? services.store.listAssets({ owner: managedWallet.publicKey })
+                        ? services.chainService.listAssetSnapshots({ owner: managedWallet.publicKey, limit })
                         : Promise.resolve([]),
                 ]);
-                rawAssets = mergeByTokenId([...(ownedAssets || []), ...(managedAssets || [])]);
+                rawAssets = mergeByTokenId([...(ownedAssets || []), ...(managedAssets || [])]).slice(0, limit);
             }
         }
+        if (!Array.isArray(rawAssets)) {
+            rawAssets = [];
+        }
         const supportedAssets = rawAssets.filter(isSupportedProductiveTwin);
-        for (const asset of supportedAssets) {
-            await services.store.upsertAsset(asset);
+        if (loadedFromChain) {
+            await Promise.all(
+                supportedAssets.map((asset) => services.store.upsertAsset(asset))
+            );
         }
         const assets = await Promise.all(supportedAssets.map((asset) => hydrateAssetMetadata(services, asset)));
         res.json({
