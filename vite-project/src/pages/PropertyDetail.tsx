@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { fetchRwaAsset } from '../services/rwaApi.js';
 import {
   ArrowLeft, Bed, Bath, Maximize2, Calendar, DollarSign, MapPin,
   Shield, Zap, FileText, Home, Car, Thermometer, Wind, TreePine,
@@ -271,7 +272,7 @@ function OverviewTab({ asset }: { asset: any }) {
           <StatCard
             icon={<DollarSign size={16} />}
             label="Monthly Yield"
-            value={`$${(asset.monthlyYieldTarget ?? 0).toFixed(2)}`}
+            value={`$${(pm.yieldParameters?.monthlyRentalIncome ?? (pm.yieldParameters?.annualLandLeaseIncome != null ? pm.yieldParameters.annualLandLeaseIncome / 12 : null) ?? asset.monthlyYieldTarget ?? 0).toFixed(2)}`}
           />
           <StatCard
             icon={<Zap size={16} />}
@@ -281,7 +282,7 @@ function OverviewTab({ asset }: { asset: any }) {
           <StatCard
             icon={<Clock size={16} />}
             label="Rate / hr"
-            value={`$${((asset.pricePerHour ?? 0)).toFixed(4)}`}
+            value={`${(pm.yieldParameters?.yieldTargetPct ?? asset.pricePerHour ?? 0).toFixed(4)}`}
           />
           <StatCard
             icon={<FileText size={16} />}
@@ -319,14 +320,14 @@ function FactsEstate({ pm }: { pm: any }) {
       <div className="bg-slate-50 rounded-2xl p-5">
         <SectionHeader>Interior</SectionHeader>
         <div className="divide-y divide-slate-100">
-          <FactRow label="Bedrooms" value={dash(pm.beds)} />
-          <FactRow label="Bathrooms" value={dash(pm.baths)} />
-          <FactRow label="Sq Ft" value={pm.sqft ? Number(pm.sqft).toLocaleString() : undefined} />
-          <FactRow label="Year Built" value={dash(pm.yearBuilt)} />
-          <FactRow label="Heating" value={dash(pm.heating)} />
-          <FactRow label="Cooling" value={dash(pm.cooling)} />
-          <FactRow label="Appliances" value={dash(pm.appliances)} />
-          <FactRow label="Interior Features" value={dash(pm.interiorFeatures)} />
+          <FactRow label="Bedrooms" value={dash(pm.interior?.bedroomsCount ?? pm.beds)} />
+          <FactRow label="Bathrooms" value={dash(pm.interior?.fullBaths ?? pm.baths)} />
+          <FactRow label="Sq Ft" value={(pm.interior?.livingAreaSqft ?? pm.sqft) ? Number(pm.interior?.livingAreaSqft ?? pm.sqft).toLocaleString() : undefined} />
+          <FactRow label="Year Built" value={dash(pm.interior?.yearBuilt ?? pm.yearBuilt)} />
+          <FactRow label="Heating" value={dash(pm.interior?.heating ?? pm.heating)} />
+          <FactRow label="Cooling" value={dash(pm.interior?.cooling ?? pm.cooling)} />
+          <FactRow label="Appliances" value={dash(pm.interior?.appliances ?? pm.appliances)} />
+          <FactRow label="Interior Features" value={dash(pm.interior?.interiorFeatures ?? pm.interiorFeatures)} />
         </div>
       </div>
 
@@ -334,13 +335,13 @@ function FactsEstate({ pm }: { pm: any }) {
       <div className="bg-slate-50 rounded-2xl p-5">
         <SectionHeader>Construction</SectionHeader>
         <div className="divide-y divide-slate-100">
-          <FactRow label="Property Type" value={dash(pm.propertyType)} />
-          <FactRow label="Property Subtype" value={dash(pm.propertySubtype)} />
-          <FactRow label="Architectural Style" value={dash(pm.architecturalStyle)} />
-          <FactRow label="Materials" value={dash(pm.materials)} />
-          <FactRow label="Foundation" value={dash(pm.foundation)} />
-          <FactRow label="Roof" value={dash(pm.roof)} />
-          <FactRow label="Condition" value={dash(pm.condition)} />
+          <FactRow label="Property Type" value={dash(pm.construction?.homeType ?? pm.propertyType)} />
+          <FactRow label="Property Subtype" value={dash(pm.construction?.propertySubtype ?? pm.propertySubtype)} />
+          <FactRow label="Architectural Style" value={dash(pm.construction?.architecturalStyle ?? pm.architecturalStyle)} />
+          <FactRow label="Materials" value={dash(pm.construction?.materials ?? pm.materials)} />
+          <FactRow label="Foundation" value={dash(pm.construction?.foundation ?? pm.foundation)} />
+          <FactRow label="Roof" value={dash(pm.construction?.roof ?? pm.roof)} />
+          <FactRow label="Condition" value={dash(pm.construction?.condition ?? pm.condition)} />
         </div>
       </div>
 
@@ -348,14 +349,14 @@ function FactsEstate({ pm }: { pm: any }) {
       <div className="bg-slate-50 rounded-2xl p-5">
         <SectionHeader>Parking &amp; Lot</SectionHeader>
         <div className="divide-y divide-slate-100">
-          <FactRow label="Parking Features" value={dash(pm.parkingFeatures)} />
-          <FactRow label="Lot Size" value={dash(pm.lotSize)} />
-          <FactRow label="Lot Size (Acres)" value={dash(pm.lotSizeAcres)} />
-          <FactRow label="Lot Dimensions" value={dash(pm.lotDimensions)} />
-          <FactRow label="Lot Features" value={dash(pm.lotFeatures)} />
-          <FactRow label="Parcel Number" value={dash(pm.parcelNumber)} />
-          <FactRow label="HOA" value={pm.hoa ? `$${pm.hoa}/mo` : undefined} />
-          <FactRow label="Price / Sqft" value={pm.pricePerSqft ? `$${pm.pricePerSqft}` : undefined} />
+          <FactRow label="Parking Features" value={dash(pm.parkingAndLot?.parkingFeatures ?? pm.parkingFeatures)} />
+          <FactRow label="Lot Size" value={dash(pm.parkingAndLot?.lotSize ?? pm.lotSize)} />
+          <FactRow label="Lot Size (Acres)" value={dash(pm.parkingAndLot?.lotSizeAcres ?? pm.lotSizeAcres)} />
+          <FactRow label="Lot Dimensions" value={dash(pm.parkingAndLot?.lotDimensions ?? pm.lotDimensions)} />
+          <FactRow label="Lot Features" value={dash(pm.parkingAndLot?.lotFeatures ?? pm.lotFeatures)} />
+          <FactRow label="Parcel Number" value={dash(pm.address?.parcelNumber ?? pm.parcelNumber)} />
+          <FactRow label="HOA" value={(pm.parkingAndLot?.hoa ?? pm.hoa) ? `$${pm.parkingAndLot?.hoa ?? pm.hoa}/mo` : undefined} />
+          <FactRow label="Price / Sqft" value={(pm.parkingAndLot?.pricePerSqft ?? pm.pricePerSqft) ? `$${pm.parkingAndLot?.pricePerSqft ?? pm.pricePerSqft}` : undefined} />
         </div>
       </div>
     </div>
@@ -369,14 +370,14 @@ function FactsLand({ pm }: { pm: any }) {
       <div className="bg-slate-50 rounded-2xl p-5">
         <SectionHeader>Land Details</SectionHeader>
         <div className="divide-y divide-slate-100">
-          <FactRow label="Lot Size" value={dash(pm.lotSize)} />
-          <FactRow label="Lot Size (Acres)" value={dash(pm.lotSizeAcres)} />
-          <FactRow label="Lot Dimensions" value={dash(pm.lotDimensions)} />
-          <FactRow label="Zoning" value={dash(pm.zoning)} />
-          <FactRow label="Land Type" value={dash(pm.landType)} />
-          <FactRow label="Topography" value={dash(pm.topography)} />
-          <FactRow label="Soil Type" value={dash(pm.soilType)} />
-          <FactRow label="Parcel Number" value={dash(pm.parcelNumber)} />
+          <FactRow label="Lot Size" value={dash(pm.landDetails?.lotSize ?? pm.lotSize)} />
+          <FactRow label="Lot Size (Acres)" value={dash(pm.landDetails?.lotSizeAcres ?? pm.lotSizeAcres)} />
+          <FactRow label="Lot Dimensions" value={dash(pm.landDetails?.lotDimensions ?? pm.lotDimensions)} />
+          <FactRow label="Zoning" value={dash(pm.landDetails?.zoning ?? pm.zoning)} />
+          <FactRow label="Land Type" value={dash(pm.landDetails?.landType ?? pm.landType)} />
+          <FactRow label="Topography" value={dash(pm.landDetails?.topography ?? pm.topography)} />
+          <FactRow label="Soil Type" value={dash(pm.landDetails?.soilType ?? pm.soilType)} />
+          <FactRow label="Parcel Number" value={dash(pm.address?.parcelNumber ?? pm.parcelNumber)} />
         </div>
       </div>
 
@@ -394,12 +395,12 @@ function FactsLand({ pm }: { pm: any }) {
       </div>
 
       {/* Land Use */}
-      {(pm.landHistory || pm.landNotes) && (
+      {(pm.landUse?.history ?? pm.landHistory || pm.landUse?.additionalNotes ?? pm.landNotes) && (
         <div className="bg-slate-50 rounded-2xl p-5">
           <SectionHeader>Land Use</SectionHeader>
           <div className="divide-y divide-slate-100">
-            <FactRow label="History" value={dash(pm.landHistory)} />
-            <FactRow label="Notes" value={dash(pm.landNotes)} />
+            <FactRow label="History" value={dash(pm.landUse?.history ?? pm.landHistory)} />
+            <FactRow label="Notes" value={dash(pm.landUse?.additionalNotes ?? pm.landNotes)} />
           </div>
         </div>
       )}
@@ -409,19 +410,20 @@ function FactsLand({ pm }: { pm: any }) {
 
 function FactsTab({ asset }: { asset: any }) {
   const pm = asset.publicMetadata || {};
-  return asset.type === 'land' ? <FactsLand pm={pm} /> : <FactsEstate pm={pm} />;
+  const isLand = pm.propertyType === 'LAND' || asset.type === 'land';
+  return isLand ? <FactsLand pm={pm} /> : <FactsEstate pm={pm} />;
 }
 
 // ─── Tab: Location ───────────────────────────────────────────────────────────
 
 function LocationTab({ asset }: { asset: any }) {
   const pm = asset.publicMetadata || {};
-  const lat = pm.latitude;
-  const lng = pm.longitude;
-  const addr = pm.address || asset.location || '';
-  const city = pm.city || '';
-  const state = pm.state || '';
-  const zip = pm.zip || '';
+  const lat = pm.address?.latitude ?? pm.latitude;
+  const lng = pm.address?.longitude ?? pm.longitude;
+  const addr = pm.address?.street ?? pm.address ?? asset.location ?? '';
+  const city = pm.address?.city ?? pm.city ?? '';
+  const state = pm.address?.state ?? pm.state ?? '';
+  const zip = pm.address?.zip ?? pm.zip ?? '';
 
   const query = lat && lng
     ? `${lat},${lng}`
@@ -736,11 +738,40 @@ export default function PropertyDetail() {
   const { id } = useParams<{ id: string }>();
   const [activeTab, setActiveTab] = useState<Tab>('Overview');
 
-  // Resolve asset: location state → find by id → first in portfolio
-  const asset: any =
-    location.state?.asset ??
-    (id ? PORTFOLIO_ASSETS.find((a: any) => String(a.id) === String(id)) : null) ??
-    PORTFOLIO_ASSETS[0];
+  const [asset, setAsset] = useState<any>(location.state?.asset ?? null);
+  const [loading, setLoading] = useState(!location.state?.asset);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (location.state?.asset) return;
+    if (!id) return;
+    setLoading(true);
+    setFetchError(null);
+    fetchRwaAsset(id)
+      .then((fetched) => {
+        if (fetched) setAsset(fetched);
+        else setFetchError('Asset not found.');
+      })
+      .catch((err: unknown) => {
+        setFetchError(err instanceof Error ? err.message : 'Failed to load asset.');
+      })
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-400">
+        <p>Loading property…</p>
+      </div>
+    );
+  }
+  if (fetchError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-slate-400">
+        <p>{fetchError}</p>
+      </div>
+    );
+  }
 
   if (!asset) {
     return (
@@ -751,14 +782,14 @@ export default function PropertyDetail() {
   }
 
   const pm = asset.publicMetadata || {};
-  const isLand = asset.type === 'land';
+  const isLand = pm.propertyType === 'LAND' || asset.type === 'land';
   const typeMeta = TYPE_META[asset.type] || TYPE_META['real_estate'];
 
   const addressLine = [
-    pm.address || asset.location,
-    pm.city,
-    pm.state,
-    pm.zip,
+    pm.address?.street ?? pm.address ?? asset.location,
+    pm.address?.city ?? pm.city,
+    pm.address?.state ?? pm.state,
+    pm.address?.zip ?? pm.zip,
   ].filter(Boolean).join(', ') || asset.location || '—';
 
   return (

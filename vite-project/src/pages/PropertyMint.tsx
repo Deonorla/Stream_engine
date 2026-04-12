@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { uploadPhotos, submitEvidence, mintRwaAsset } from '../services/rwaApi.js';
 import {
   UploadCloud,
   MapPin,
@@ -849,7 +850,9 @@ function CategoryPicker({ selected, onSelect }: CategoryPickerProps) {
 export default function PropertyMint() {
   const [category, setCategory] = useState<Category>("estate");
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<Array<{ file: File; previewUrl: string }>>([]);
+  const [mintError, setMintError] = useState<string | null>(null);
+  const [mintResult, setMintResult] = useState<{ tokenId: string; metadataURI: string; txHash: string } | null>(null);
   const [coverIndex, setCoverIndex] = useState(0);
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -870,12 +873,15 @@ export default function PropertyMint() {
   };
 
   const handleAddPhotos = (files: FileList) => {
-    const urls = Array.from(files).map((f) => URL.createObjectURL(f));
-    setPhotos((prev) => [...prev, ...urls]);
+    const entries = Array.from(files).map((file) => ({ file, previewUrl: URL.createObjectURL(file) }));
+    setPhotos((prev) => [...prev, ...entries]);
   };
 
   const handleRemovePhoto = (i: number) => {
-    setPhotos((prev) => prev.filter((_, idx) => idx !== i));
+    setPhotos((prev) => {
+      URL.revokeObjectURL(prev[i].previewUrl);
+      return prev.filter((_, idx) => idx !== i);
+    });
     if (coverIndex >= i && coverIndex > 0) setCoverIndex((c) => c - 1);
   };
 
@@ -890,9 +896,135 @@ export default function PropertyMint() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    setSubmitted(true);
+    setMintError(null);
+    try {
+      // Step 1: Upload photos
+      const photoFiles = photos.map(p => p.file);
+      const { photos: photoCIDs, coverCID } = photoFiles.length > 0
+        ? await uploadPhotos(photoFiles, coverIndex)
+        : { photos: [], coverCID: '' };
+
+      // Step 2: Compute evidence fingerprints client-side and submit
+      let evidenceRoot = '';
+      let evidenceManifestHash = '';
+      if (evidenceFiles.length > 0) {
+        const documents: Record<string, { hash: string; filename: string; docType: string }> = {};
+        for (const file of evidenceFiles) {
+          const buffer = await file.arrayBuffer();
+          const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          documents[file.name] = { hash, filename: file.name, docType: 'other' };
+        }
+        const evidenceResult = await submitEvidence(documents);
+        evidenceRoot = evidenceResult.evidenceRoot;
+        evidenceManifestHash = evidenceResult.evidenceManifestHash;
+      }
+
+      // Step 3: Build formPayload from form state
+      const propertyType = category === 'estate' ? 'ESTATE' : 'LAND';
+      const formPayload = {
+        listPrice: form.price,
+        zestimate: form.zestimate,
+        beds: form.beds,
+        baths: form.baths,
+        sqft: form.sqft,
+        yearBuilt: form.yearBuilt,
+        lotSizeSqft: form.lotSize,
+        pricePerSqft: form.pricePerSqft,
+        hoaMonthly: form.hoa,
+        estMonthlyPayment: form.estMonthlyPayment,
+        propertySubtype: form.propertySubtype,
+        lotSizeAcres: form.lotSizeAcres,
+        zoning: form.zoning,
+        landType: form.landType,
+        address: {
+          street: form.street,
+          city: form.city,
+          state: form.state,
+          zip: form.zip,
+          parcelNumber: form.parcelNumber,
+          latitude: form.lat,
+          longitude: form.lng,
+        },
+        listing: { mlsNumber: form.mlsNumber, agentName: form.agent, source: form.source },
+        description: { tags: form.tags, text: form.description },
+        interior: {
+          bedroomsCount: form.bedroomsCount,
+          fullBaths: form.fullBaths,
+          halfBaths: form.halfBaths,
+          roomDimensions: {
+            primaryBedroom: form.primaryBedDim,
+            bedroom2: form.bed2Dim,
+            bedroom3: form.bed3Dim,
+            kitchen: form.kitchenDim,
+            livingRoom: form.livingRoomDim,
+          },
+          heating: form.heating,
+          cooling: form.cooling,
+          appliances: form.appliances,
+          interiorFeatures: form.interiorFeatures,
+        },
+        construction: {
+          homeType: form.homeType,
+          architecturalStyle: form.archStyle,
+          levels: form.levels,
+          stories: form.stories,
+          patioPorch: form.patioPorch,
+          spa: form.spa,
+          exteriorMaterials: form.materials,
+          foundation: form.foundation,
+          roof: form.roof,
+          condition: form.condition,
+        },
+        parkingAndLot: {
+          parkingFeatures: form.parkingFeatures,
+          carportSpaces: form.carport,
+          uncoveredSpaces: form.uncoveredSpaces,
+          lotSizeAcres: form.lotSizeAcres,
+          lotDimensions: form.lotDimensions,
+          lotFeatures: form.lotFeatures,
+          otherEquipment: form.otherEquipment,
+        },
+        landDetails: {
+          topography: form.topography,
+          soilType: form.soilType,
+          roadAccess: form.roadAccess,
+          utilities: form.utilities,
+          waterSource: form.waterSource,
+          floodZone: form.floodZone,
+          treeCover: form.treeCover,
+          surveyAvailable: form.surveyAvailable,
+        },
+        landUse: { history: form.landUseHistory, additionalNotes: form.landNotes },
+        yieldParameters: {
+          yieldTargetPct: form.yieldTarget,
+          monthlyRentalIncome: form.monthlyRentalIncome,
+          annualLandLeaseIncome: form.annualLandLeaseIncome,
+          appreciationNotes: form.appreciationNotes,
+        },
+      };
+
+      // Step 4: Mint
+      const result = await mintRwaAsset({
+        propertyType,
+        formPayload,
+        photoCIDs,
+        coverCID,
+        evidenceRoot,
+        evidenceManifestHash,
+        issuer: '', // will be resolved server-side from operator key
+        jurisdiction: form.state || '',
+        propertyRef: `${form.street}, ${form.city}, ${form.state} ${form.zip}`,
+      });
+
+      setMintResult({ tokenId: result.tokenId, metadataURI: result.publicMetadataURI || result.metadataURI, txHash: result.txHash });
+      setSubmitted(true);
+    } catch (err: unknown) {
+      setMintError(err instanceof Error ? err.message : 'Mint failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -906,6 +1038,22 @@ export default function PropertyMint() {
           <p className="text-sm text-slate-500 mb-6">
             Your {category === "estate" ? "property" : "land"} has been submitted for RWA tokenization on Stellar.
           </p>
+          {mintResult && (
+            <div className="mb-6 text-left bg-slate-50 rounded-2xl p-4 space-y-2 text-xs text-slate-700 break-all">
+              <div>
+                <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Token ID</span>
+                <p className="font-mono mt-0.5">{mintResult.tokenId}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Metadata URI</span>
+                <p className="font-mono mt-0.5">{mintResult.metadataURI}</p>
+              </div>
+              <div>
+                <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Tx Hash</span>
+                <p className="font-mono mt-0.5">{mintResult.txHash}</p>
+              </div>
+            </div>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -914,6 +1062,7 @@ export default function PropertyMint() {
               setPhotos([]);
               setCoverIndex(0);
               setEvidenceFiles([]);
+              setMintResult(null);
             }}
             className="w-full rounded-2xl bg-gradient-to-br from-blue-700 to-blue-500 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white shadow-xl"
           >
@@ -944,7 +1093,7 @@ export default function PropertyMint() {
           {/* Photos */}
           <Section title="Property Photos" icon={<Image size={15} />} accent={category === "land" ? "bg-emerald-600" : "bg-blue-600"}>
             <PhotoUpload
-              photos={photos}
+              photos={photos.map(p => p.previewUrl)}
               coverIndex={coverIndex}
               onAdd={handleAddPhotos}
               onRemove={handleRemovePhoto}
@@ -988,6 +1137,12 @@ export default function PropertyMint() {
               onRemove={handleRemoveEvidence}
             />
           </Section>
+
+          {mintError && (
+            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {mintError}
+            </div>
+          )}
 
           {/* Submit */}
           <button

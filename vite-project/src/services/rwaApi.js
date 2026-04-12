@@ -468,3 +468,25 @@ export async function tickAgentRuntime(agentId) {
   });
   return response.runtime || null;
 }
+
+export async function uploadPhotos(files, coverIndex = 0) {
+  const formData = new FormData();
+  files.forEach(file => formData.append('photos', file));
+  formData.append('coverIndex', String(coverIndex));
+
+  const url = buildUrl('/api/rwa/photos');
+  const response = await fetch(url, { method: 'POST', body: formData });
+  const isJson = response.headers.get('content-type')?.includes('application/json');
+  const payload = isJson ? await response.json() : null;
+  if (!response.ok) {
+    throw new Error(payload?.error || `Photo upload failed with status ${response.status}`);
+  }
+  return payload;
+}
+
+export async function submitEvidence(documents) {
+  return request('/api/rwa/evidence', {
+    method: 'POST',
+    body: JSON.stringify({ documents }),
+  });
+}

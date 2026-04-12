@@ -8,9 +8,17 @@ const VERIFICATION_WEIGHTS = { verified: 1, verified_with_warnings: 0.7, pending
 
 /**
  * Extract a numeric yield rate (annualized %) from an asset.
- * Uses stream data if available, falls back to claimableYield heuristic.
+ * Priority order:
+ *   1. Live stream data (highest priority)
+ *   2. Live on-chain claimable/deposited ratio (backward compat)
+ *   3. publicMetadata.yieldParameters.yieldTargetPct
+ *   4. yieldParameters.monthlyRentalIncome annualized against listPrice (Estate)
+ *   5. yieldParameters.annualLandLeaseIncome against listPrice (Land)
+ *   6. Legacy metadata.monthlyYieldTarget (backward compat)
+ *   7. Legacy metadata.pricePerHour (backward compat)
  */
 function extractYieldRate(asset) {
+    // Priority 1: Live yield stream data
     const stream = asset.stream;
     const durationSeconds = Number(
         stream?.durationSeconds
@@ -30,13 +38,49 @@ function extractYieldRate(asset) {
             * 100;
         return Math.min(annualizedRate, 999); // cap at 999%
     }
-    // Fallback: claimableYield as % of deposited
+
+    // Priority 2: Live on-chain claimable/deposited ratio (backward compat)
     const claimable = Number(asset.claimableYield || 0);
     const deposited = Number(asset.totalYieldDeposited || 0);
-    if (deposited > 0) return (claimable / deposited) * 100;
+    if (deposited > 0) return Math.min((claimable / deposited) * 100, 999);
 
-    // Fallback: derive from pricePerHour in publicMetadata
     const metadata = asset.publicMetadata || asset.metadata || {};
+    const yp = metadata.yieldParameters;
+
+    // Priority 2–4: New yieldParameters block
+    if (yp) {
+        // Priority 2: yieldTargetPct
+        const yieldTargetPct = Number(yp.yieldTargetPct || 0);
+        if (yieldTargetPct > 0) return Math.min(yieldTargetPct, 999);
+
+        const listPrice = Number(metadata.listPrice || 0);
+
+        // Priority 3: monthlyRentalIncome annualized against listPrice (Estate)
+        const monthlyRentalIncome = Number(yp.monthlyRentalIncome || 0);
+        if (monthlyRentalIncome > 0 && listPrice > 0) {
+            return Math.min((monthlyRentalIncome * 12 / listPrice) * 100, 999);
+        }
+
+        // Priority 4: annualLandLeaseIncome against listPrice (Land)
+        const annualLandLeaseIncome = Number(yp.annualLandLeaseIncome || 0);
+        if (annualLandLeaseIncome > 0 && listPrice > 0) {
+            return Math.min((annualLandLeaseIncome / listPrice) * 100, 999);
+        }
+    }
+
+    // Priority 5: Legacy monthlyYieldTarget (backward compat)
+    const monthlyYieldTarget = Number(
+        metadata.monthlyYieldTarget
+        || metadata.monthlyYield
+        || asset.monthlyYieldTarget
+        || 0
+    );
+    if (monthlyYieldTarget > 0) {
+        const annualRevenue = monthlyYieldTarget * 12;
+        return Math.min((annualRevenue / 1000) * 100, 999);
+    }
+
+    // Priority 6: Legacy pricePerHour (backward compat)
     const pricePerHour = Number(
         metadata.pricePerHour
         || asset.pricePerHour
@@ -46,17 +90,6 @@ function extractYieldRate(asset) {
     if (pricePerHour > 0) {
         // annualised revenue as % of a nominal $1000 capital base
         const annualRevenue = pricePerHour * 24 * 365;
-        return Math.min((annualRevenue / 1000) * 100, 999);
-    }
-
-    const monthlyYieldTarget = Number(
-        metadata.monthlyYieldTarget
-        || metadata.monthlyYield
-        || asset.monthlyYieldTarget
-        || 0
-    );
-    if (monthlyYieldTarget > 0) {
-        const annualRevenue = monthlyYieldTarget * 12;
         return Math.min((annualRevenue / 1000) * 100, 999);
     }
 

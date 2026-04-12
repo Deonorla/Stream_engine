@@ -106,6 +106,39 @@ class IPFSService {
         return { cid, uri, pinned: false };
     }
 
+    async pinFile(buffer, filename, mimeType) {
+        if (this.pinataJwt && this.fetchImpl) {
+            const form = new FormData();
+            const blob = new Blob([buffer], { type: mimeType || "application/octet-stream" });
+            form.append("file", blob, filename || "file");
+
+            const response = await this.fetchImpl("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${this.pinataJwt}`,
+                },
+                body: form,
+            });
+
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(`Pinata pinFile failed: ${response.status} ${message}`);
+            }
+
+            const data = await response.json();
+            const cid = data.IpfsHash;
+            const uri = `ipfs://${cid}`;
+            this.localPins.set(cid, { filename, mimeType });
+            return { cid, uri, pinned: true };
+        }
+
+        const digest = crypto.createHash("sha256").update(buffer).digest("hex");
+        const cid = `bafyfile${digest.slice(0, 48)}`;
+        const uri = `ipfs://${cid}`;
+        this.localPins.set(cid, { filename, mimeType });
+        return { cid, uri, pinned: false };
+    }
+
     async fetchJSON(uriOrCid) {
         const cid = normalizeCid(uriOrCid);
         if (!cid) {

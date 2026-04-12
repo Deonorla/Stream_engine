@@ -10,7 +10,7 @@ const {
 } = require("./services/verificationPayload");
 const { createIndexerStore, MemoryIndexerStore } = require("./services/indexerStore");
 const { StellarRWAChainService } = require("./services/stellarRwaChainService");
-const { EvidenceVaultService } = require("./services/evidenceVault");
+const { EvidenceVaultService, ALLOWED_CLIENT_DOC_TYPES } = require("./services/evidenceVault");
 const {
     verifyAttestationAuthorization,
     verifyAttestationRevocationAuthorization,
@@ -33,6 +33,7 @@ const { TreasuryManager } = require("./services/treasuryManager");
 const { isSupportedProductiveTwin } = require("./services/rwaAssetScope");
 const agentRoutes = require("./routes/agent");
 const continuumRoutes = require("./routes/continuum");
+const { buildPropertyMetadata, validatePropertyMetadata } = require('./services/propertyMetadataService');
 
 require("dotenv").config({ path: "../.env" });
 
@@ -719,7 +720,30 @@ function createApp(config = defaultConfig) {
 
     app.post("/api/rwa/evidence", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
-        const { evidenceBundle, rightsModel = "verified_rental_asset", propertyRef = "", jurisdiction = "" } = req.body || {};
+        const { evidenceBundle, documents, rightsModel = "verified_rental_asset", propertyRef = "", jurisdiction = "" } = req.body || {};
+
+        if (documents && typeof documents === "object") {
+            // New documents map format — validate each entry
+            const HASH_RE = /^[0-9a-fA-F]{64}$/;
+            for (const [key, entry] of Object.entries(documents)) {
+                if (!HASH_RE.test(entry.hash)) {
+                    return res.status(400).json({ error: `Invalid hash for document '${key}': must be a 64-character hex string` });
+                }
+                if (!ALLOWED_CLIENT_DOC_TYPES.has(entry.docType)) {
+                    return res.status(400).json({ error: `Invalid docType '${entry.docType}' for document '${key}'` });
+                }
+            }
+
+            const normalizedRightsModel = normalizeRightsModel(rightsModel);
+            const record = await services.evidenceVault.storeBundle({ documents, rightsModel: normalizedRightsModel.label, propertyRef, jurisdiction });
+
+            return res.status(201).json({
+                evidenceRoot: record.evidenceRoot,
+                evidenceManifestHash: record.evidenceManifestHash,
+            });
+        }
+
+        // Legacy evidenceBundle format
         if (!evidenceBundle || typeof evidenceBundle !== "object") {
             return res.status(400).json({ error: "evidenceBundle object is required" });
         }
@@ -765,6 +789,11 @@ function createApp(config = defaultConfig) {
             tag,
             tagHash,
             statusReason = "Awaiting attestation review",
+            // Property-type-aware fields
+            propertyType,
+            formPayload,
+            photoCIDs,
+            coverCID,
         } = req.body || {};
 
         if (!issuer) {
@@ -773,12 +802,80 @@ function createApp(config = defaultConfig) {
         if (!propertyRef) {
             return res.status(400).json({ error: "propertyRef is required" });
         }
-        const normalizedRightsModel = normalizeRightsModel(rightsModel);
-        const metadataResult = await resolvePublicMetadata(services, publicMetadata, publicMetadataURI);
-        let resolvedPublicMetadataURI = metadataResult.uri;
-        if (!resolvedPublicMetadataURI) {
-            const pinResult = await services.ipfsService.pinJSON(metadataResult.metadata);
+
+        // Property-type-aware path
+        let resolvedPublicMetadataURI;
+        let resolvedAssetType = assetType;
+        let resolvedMetadata;
+
+        if (propertyType !== undefined) {
+            // Validate propertyType
+            if (propertyType !== 'ESTATE' && propertyType !== 'LAND') {
+                return res.status(400).json({ error: "propertyType is required (ESTATE or LAND)" });
+            }
+
+            const fp = formPayload || {};
+
+            // Validate listPrice
+            if (fp.listPrice === undefined || fp.listPrice === null || fp.listPrice === '') {
+                return res.status(400).json({ error: "listPrice is required" });
+            }
+
+            // Validate address fields
+            const addr = fp.address || {};
+            if (!addr.street || !addr.city || !addr.state || !addr.zip) {
+                return res.status(400).json({ error: "address.street, city, state, zip are required" });
+            }
+
+            // Validate yieldTargetPct if provided
+            const yieldTargetPct = fp.yieldParameters?.yieldTargetPct;
+            if (yieldTargetPct !== undefined && yieldTargetPct !== null && yieldTargetPct !== '') {
+                const ytp = Number(yieldTargetPct);
+                if (!Number.isFinite(ytp) || ytp < 0 || ytp > 100) {
+                    return res.status(400).json({ error: "yieldTargetPct must be between 0 and 100" });
+                }
+            }
+
+            // Build metadata
+            const metadata = buildPropertyMetadata({
+                propertyType,
+                formPayload: fp,
+                photoCIDs: photoCIDs || [],
+                coverCID: coverCID || '',
+            });
+
+            // Validate metadata
+            const validation = validatePropertyMetadata(metadata);
+            if (!validation.valid) {
+                return res.status(400).json({ error: validation.errors[0], errors: validation.errors });
+            }
+
+            // Pin metadata to IPFS
+            let pinResult;
+            try {
+                pinResult = await services.ipfsService.pinJSON(metadata);
+            } catch (err) {
+                return res.status(502).json({ error: "Metadata storage failed", code: "ipfs_pin_failed" });
+            }
+
             resolvedPublicMetadataURI = pinResult.uri;
+            resolvedAssetType = 1; // Both ESTATE and LAND use asset_type: 1
+            resolvedMetadata = metadata;
+        }
+
+        const normalizedRightsModel = normalizeRightsModel(rightsModel);
+
+        let metadataResult;
+        if (resolvedPublicMetadataURI) {
+            // Already pinned via property-type path
+            metadataResult = { uri: resolvedPublicMetadataURI, metadata: resolvedMetadata || {} };
+        } else {
+            metadataResult = await resolvePublicMetadata(services, publicMetadata, publicMetadataURI);
+            resolvedPublicMetadataURI = metadataResult.uri;
+            if (!resolvedPublicMetadataURI) {
+                const pinResult = await services.ipfsService.pinJSON(metadataResult.metadata);
+                resolvedPublicMetadataURI = pinResult.uri;
+            }
         }
         const publicMetadataHash = hashJson(metadataResult.metadata);
 
@@ -810,7 +907,7 @@ function createApp(config = defaultConfig) {
         try {
             mintResult = await chainService.mintAsset({
                 publicMetadataURI: resolvedPublicMetadataURI,
-                assetType,
+                assetType: resolvedAssetType,
                 rightsModel: normalizedRightsModel.code,
                 publicMetadataHash,
                 evidenceRoot: evidenceRecord.evidenceRoot,
@@ -856,7 +953,7 @@ function createApp(config = defaultConfig) {
         if (!resolvedVerificationStatus) {
             const fallbackPolicies =
                 typeof chainService.getAttestationPolicies === "function"
-                    ? await chainService.getAttestationPolicies(assetType)
+                    ? await chainService.getAttestationPolicies(resolvedAssetType)
                     : [];
             attestationRequirements = collectAttestationRequirements({
                 attestationPolicies: fallbackPolicies,
@@ -889,6 +986,7 @@ function createApp(config = defaultConfig) {
             tokenId: mintResult.tokenId,
             txHash: mintResult.txHash,
             publicMetadataURI: resolvedPublicMetadataURI,
+            metadataURI: resolvedPublicMetadataURI,
             publicMetadataHash,
             evidenceRoot: evidenceRecord.evidenceRoot,
             evidenceManifestHash: evidenceRecord.evidenceManifestHash,

@@ -4,6 +4,10 @@ const { generateDueDiligence, aggregateMarketIntel } = require("../services/asse
 const { screenAssets, parseGoal } = require("../services/assetScreener");
 const { formatStellarAmount, normalizeStellarAmount } = require("../services/stellarAnchorService");
 const { inferMarketAssetClass, isSupportedProductiveTwin } = require("../services/rwaAssetScope");
+const multer = require('multer');
+const { IPFSService } = require('../services/ipfsService');
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10_485_760 } });
 
 const router = express.Router();
 
@@ -1792,6 +1796,51 @@ router.get("/agents/:agentId/wallet", requireJwt, asyncHandler(async (req, res) 
             summary,
         },
     });
+}));
+
+router.post('/rwa/photos', upload.array('photos', 20), asyncHandler(async (req, res) => {
+    const files = req.files || [];
+
+    if (files.length > 20) {
+        return res.status(400).json({ error: 'Maximum 20 photos allowed' });
+    }
+
+    for (const file of files) {
+        if (!file.mimetype.startsWith('image/')) {
+            return res.status(400).json({ error: 'Only image files are accepted' });
+        }
+        if (file.size > 10_485_760) {
+            return res.status(400).json({ error: 'Photo exceeds 10MB limit', filename: file.originalname });
+        }
+    }
+
+    const services = await req.app.locals.ready;
+    const ipfsService = services.ipfsService;
+
+    const coverIndex = parseInt(req.body.coverIndex ?? '0', 10) || 0;
+
+    const results = [];
+    try {
+        for (let i = 0; i < files.length; i += 3) {
+            const chunk = files.slice(i, i + 3);
+            const pinned = await Promise.all(
+                chunk.map((file) => ipfsService.pinFile(file.buffer, file.originalname, file.mimetype))
+            );
+            results.push(...pinned);
+        }
+    } catch (_err) {
+        return res.status(502).json({ error: 'Photo storage failed', code: 'ipfs_pin_failed' });
+    }
+
+    const photos = results.map((entry, index) => ({
+        cid: entry.cid,
+        uri: entry.uri,
+        isCover: index === coverIndex,
+    }));
+
+    const coverCID = results[coverIndex]?.cid ?? results[0]?.cid ?? '';
+
+    return res.json({ photos, coverCID });
 }));
 
 router.use((error, _req, res, _next) => {

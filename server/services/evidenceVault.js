@@ -5,6 +5,16 @@ const {
     stableStringify,
 } = require("./rwaModel");
 
+const ALLOWED_CLIENT_DOC_TYPES = new Set([
+    "title_deed",
+    "appraisal",
+    "survey",
+    "inspection",
+    "insurance",
+    "tax",
+    "other",
+]);
+
 const DEFAULT_DOCUMENT_KEYS = [
     "deed",
     "survey",
@@ -44,14 +54,27 @@ function normalizeDocumentEntry(entry) {
         return null;
     }
 
-    return {
-        hash: String(entry.hash || entry.digest || entry.cid || "").trim(),
+    const rawHash = String(entry.hash || entry.digest || entry.cid || "").trim();
+
+    const rawDocType = entry.docType != null ? String(entry.docType).trim() : undefined;
+
+    const normalized = {
+        hash: rawHash,
         issuedAt: toUnixTimestamp(entry.issuedAt),
         expiresAt: toUnixTimestamp(entry.expiresAt),
         issuer: String(entry.issuer || "").trim(),
         reference: String(entry.reference || entry.documentId || "").trim(),
         notes: String(entry.notes || "").trim(),
     };
+
+    if (entry.filename != null) {
+        normalized.filename = String(entry.filename).trim();
+    }
+    if (rawDocType !== undefined) {
+        normalized.docType = rawDocType;
+    }
+
+    return normalized;
 }
 
 function summarizeDocuments(documents = {}) {
@@ -183,4 +206,5 @@ class EvidenceVaultService {
 module.exports = {
     EvidenceVaultService,
     summarizeDocuments,
+    ALLOWED_CLIENT_DOC_TYPES,
 };
