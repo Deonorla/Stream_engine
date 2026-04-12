@@ -11,6 +11,7 @@ import { getAssetImage } from '../components/AssetCard';
 import RentalSessionComposer from '../components/RentalSessionComposer';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
+import { ACTIVE_NETWORK } from '../networkConfig.js';
 import { PORTFOLIO_ASSETS, TYPE_META, VERIFICATION_STATUS_LABELS } from './rwa/rwaData';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -686,6 +687,37 @@ function OnChainTab({ asset }: { asset: any }) {
             </span>
           </div>
         </div>
+        {/* Explorer links */}
+        <div className="mt-4 flex flex-col gap-2">
+          {asset.ipfsUri && (
+            <a
+              href={asset.ipfsUri.startsWith('ipfs://')
+                ? `https://ipfs.io/ipfs/${asset.ipfsUri.replace('ipfs://', '')}`
+                : asset.ipfsUri}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              View Metadata on IPFS
+            </a>
+          )}
+          {asset.tokenId && (
+            <a
+              href={`${ACTIVE_NETWORK.explorerUrl}/contract/${asset.ownerAddress || ''}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              View on Stellar Explorer
+            </a>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -693,7 +725,7 @@ function OnChainTab({ asset }: { asset: any }) {
 
 // ─── Sticky Action Panel ─────────────────────────────────────────────────────
 
-function ActionPanel({ asset }: { asset: any }) {
+function ActionPanel({ asset, onRented }: { asset: any; onRented?: () => void }) {
   const pm = asset.publicMetadata || {};
   const vstatus = asset.verificationStatus || 'draft';
   const vLabel = VERIFICATION_STATUS_LABELS[vstatus] || vstatus;
@@ -740,7 +772,7 @@ function ActionPanel({ asset }: { asset: any }) {
           </div>
         </div>
       ) : (
-        <RentalSessionComposer asset={asset} onStarted={() => {}} />
+        <RentalSessionComposer asset={asset} onStarted={onRented ?? (() => {})} />
       )}
 
       {/* Contact Agent */}
@@ -817,6 +849,14 @@ export default function PropertyDetail() {
   const [asset, setAsset] = useState<any>(location.state?.asset ?? null);
   const [loading, setLoading] = useState(!location.state?.asset);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  // Local rental state — flips immediately on rent so UI reacts without waiting for server
+  const [locallyRented, setLocallyRented] = useState(false);
+
+  const loadAsset = (assetId: string) => {
+    fetchRwaAsset(assetId)
+      .then((fetched) => { if (fetched) setAsset(fetched); })
+      .catch(() => {});
+  };
 
   useEffect(() => {
     if (location.state?.asset) return;
@@ -833,6 +873,13 @@ export default function PropertyDetail() {
       })
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleRented = () => {
+    setLocallyRented(true);
+    // Re-fetch after a short delay to sync server state
+    const assetId = id || asset?.tokenId || asset?.id;
+    if (assetId) setTimeout(() => loadAsset(String(assetId)), 2000);
+  };
 
   if (loading) {
     return (
@@ -860,6 +907,18 @@ export default function PropertyDetail() {
   const pm = asset.publicMetadata || {};
   const isLand = pm.propertyType === 'LAND' || asset.type === 'land';
   const typeMeta = TYPE_META[asset.type] || TYPE_META['real_estate'];
+
+  // Merge local rental state so all children react immediately
+  const effectiveAsset = locallyRented ? {
+    ...asset,
+    isRented: true,
+    rentalActivity: {
+      ...(asset.rentalActivity || {}),
+      currentlyRented: true,
+      status: 'rented',
+      label: 'Currently Rented',
+    },
+  } : asset;
 
   const addressLine = [
     pm.address?.street ?? pm.address ?? asset.location,
@@ -899,10 +958,10 @@ export default function PropertyDetail() {
         </div>
 
         {/* Photo gallery */}
-        <PhotoGallery asset={asset} />
+        <PhotoGallery asset={effectiveAsset} />
 
         {/* Key stats bar */}
-        <KeyStatsBar asset={asset} />
+        <KeyStatsBar asset={effectiveAsset} />
 
         {/* Two-column layout */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
@@ -927,15 +986,15 @@ export default function PropertyDetail() {
             </div>
 
             {/* Tab content */}
-            {activeTab === 'Overview' && <OverviewTab asset={asset} />}
-            {activeTab === 'Facts & Features' && <FactsTab asset={asset} />}
-            {activeTab === 'Location' && <LocationTab asset={asset} />}
-            {activeTab === 'On-Chain' && <OnChainTab asset={asset} />}
+            {activeTab === 'Overview' && <OverviewTab asset={effectiveAsset} />}
+            {activeTab === 'Facts & Features' && <FactsTab asset={effectiveAsset} />}
+            {activeTab === 'Location' && <LocationTab asset={effectiveAsset} />}
+            {activeTab === 'On-Chain' && <OnChainTab asset={effectiveAsset} />}
           </div>
 
           {/* RIGHT — sticky action panel */}
           <div className="w-full lg:w-80 xl:w-96 shrink-0">
-            <ActionPanel asset={asset} />
+            <ActionPanel asset={effectiveAsset} onRented={handleRented} />
           </div>
         </div>
 

@@ -110,7 +110,10 @@ export default function RentalSessionComposer({ asset, onStarted }) {
 
   if (isOwner && walletAddress) return null;
 
-  const isActivelyRented = (Boolean(asset?.isRented) || Number(asset?.activeStreamId || 0) > 0) && !linkedSessionActive;
+  const isActivelyRented = Boolean(asset?.isRented)
+    || (Number(asset?.activeStreamId || 0) > 0 && !linkedSessionActive)
+    || Boolean(asset?.rentalActivity?.currentlyRented && !linkedSessionActive);
+
   if (isActivelyRented) return (
     <div className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
       <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
@@ -209,7 +212,7 @@ export default function RentalSessionComposer({ asset, onStarted }) {
             Settlement Asset
           </span>
           <Select
-            options={supportedPaymentAssets.map(a => ({ value: a.symbol, label: `${a.symbol} · ${a.name}` }))}
+            options={supportedPaymentAssets.map(a => ({ value: a.symbol, label: a.symbol }))}
             value={assetSymbol}
             onChange={v => setAssetSymbol(String(v))}
             disabled={isProcessing || isAgentMode}

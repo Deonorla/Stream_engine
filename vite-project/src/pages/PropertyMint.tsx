@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { uploadPhotos, submitEvidence, mintRwaAsset } from '../services/rwaApi.js';
+import { ACTIVE_NETWORK } from '../networkConfig.js';
 import { useWallet } from '../context/WalletContext';
 import {
   UploadCloud,
@@ -1044,7 +1045,7 @@ export default function PropertyMint() {
             Your {category === "estate" ? "property" : "land"} has been submitted for RWA tokenization on Stellar.
           </p>
           {mintResult && (
-            <div className="mb-6 text-left bg-slate-50 rounded-2xl p-4 space-y-2 text-xs text-slate-700 break-all">
+            <div className="mb-6 text-left bg-slate-50 rounded-2xl p-4 space-y-3 text-xs text-slate-700 break-all">
               <div>
                 <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Token ID</span>
                 <p className="font-mono mt-0.5">{mintResult.tokenId}</p>
@@ -1057,6 +1058,19 @@ export default function PropertyMint() {
                 <span className="font-semibold text-slate-500 uppercase tracking-widest text-[10px]">Tx Hash</span>
                 <p className="font-mono mt-0.5">{mintResult.txHash}</p>
               </div>
+              {mintResult.txHash && (
+                <a
+                  href={`${ACTIVE_NETWORK.explorerUrl}/tx/${mintResult.txHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full mt-2 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-xs font-bold hover:bg-blue-100 transition-colors"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                  </svg>
+                  View Transaction on Stellar Explorer
+                </a>
+              )}
             </div>
           )}
           <button
