@@ -8,6 +8,9 @@ import { useWallet } from '../context/WalletContext';
 function getTitle(pathname) {
   if (pathname.startsWith('/app/streams'))     return 'Payment Sessions';
   if (pathname.startsWith('/app/rwa'))         return 'RWA Studio';
+  if (pathname.startsWith('/app/property-mint')) return 'List a Property';
+  if (pathname.startsWith('/app/property/'))    return 'Property Detail';
+  if (pathname.startsWith('/app/properties'))   return 'Browse Properties';
   if (pathname.startsWith('/app/agent'))       return 'Agent Console';
   if (pathname.startsWith('/app/verify'))      return 'Asset Verification';
   if (pathname.startsWith('/app/marketplace')) return 'Continuum Marketplace';

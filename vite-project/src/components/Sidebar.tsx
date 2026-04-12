@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Zap, Store, Bot, FileText, X, ChevronRight, Layers } from 'lucide-react';
+import { LayoutDashboard, Zap, Store, Bot, FileText, X, ChevronRight, Layers, MapPin, Home } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
@@ -11,6 +11,8 @@ const ownerNavItems = [
   { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Browse · Analyze · Bid' },
   { icon: Bot,             label: 'Agent Console',    href: '/app/agent',        sub: 'Mandate · Treasury · P&L' },
   { icon: Layers,          label: 'RWA Studio',       href: '/app/rwa',          sub: 'Admit · Verify · Manage' },
+  { icon: MapPin,          label: 'List Property',    href: '/app/property-mint', sub: 'Landed · Estate · Full data' },
+  { icon: Home,            label: 'Browse Properties', href: '/app/properties',    sub: 'View minted listings' },
   { icon: Zap,             label: 'Payment Sessions', href: '/app/streams',      sub: 'Stream Engine rail' },
 ];
 

@@ -1,5 +1,6 @@
-import { ArrowUpRight, Globe, X, MapPin, Clock, Shield, Zap, Building2 } from 'lucide-react';
+import { ArrowUpRight, Globe, X, MapPin, Clock, Shield, Zap, Building2, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 import { StrKey } from '@stellar/stellar-sdk';
 import { TYPE_META } from '../pages/rwa/rwaData';
 
@@ -176,6 +177,7 @@ export function AssetCard({ asset, onDetails }) {
 }
 
 export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
+  const navigate = useNavigate();
   const meta = TYPE_META[asset.type] || TYPE_META.real_estate;
   const Icon = TYPE_ICON[asset.type] || Building2;
   const rentalReadiness = resolveRentalReadiness(asset);
@@ -307,7 +309,14 @@ export function DetailDrawer({ asset, onClose, renderBody, renderFooter }) {
           {typeof renderBody === 'function' && renderBody(asset)}
         </div>
 
-        <div className="p-6 border-t border-slate-100 shrink-0">
+        <div className="p-6 border-t border-slate-100 shrink-0 space-y-3">
+          {/* View full detail page */}
+          <button
+            onClick={() => { onClose(); navigate(`/app/property/${asset.id}`, { state: { asset } }); }}
+            className="w-full py-3 rounded-2xl border border-blue-200 bg-blue-50 text-blue-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors"
+          >
+            <ExternalLink size={15} /> View Full Details
+          </button>
           {typeof renderFooter === 'function' ? (
             renderFooter(asset)
           ) : (

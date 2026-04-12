@@ -14,6 +14,9 @@ import AgentConsolePage from './pages/AgentConsolePage'
 import Docs from './pages/Docs'
 import RWA from './pages/RWA'
 import Marketplace from './pages/Marketplace'
+import PropertyMint from './pages/PropertyMint'
+import PropertyDetail from './pages/PropertyDetail'
+import Properties from './pages/Properties'
 
 function AppRoutes() {
   return (
@@ -26,6 +29,9 @@ function AppRoutes() {
       <Route path="/app/verify" element={<Navigate to="/app/rwa" replace />} />
       <Route path="/app/rent" element={<Navigate to="/app/marketplace" replace />} />
       <Route path="/app/marketplace" element={<Layout><Marketplace /></Layout>} />
+      <Route path="/app/property-mint" element={<Layout><PropertyMint /></Layout>} />
+      <Route path="/app/property/:id" element={<Layout><PropertyDetail /></Layout>} />
+      <Route path="/app/properties" element={<Layout><Properties /></Layout>} />
       <Route path="/app/docs" element={<Layout><Docs /></Layout>} />
       <Route path="/app/docs/:section" element={<Layout><Docs /></Layout>} />
       <Route path="/streams" element={<Navigate to="/app/streams" replace />} />
