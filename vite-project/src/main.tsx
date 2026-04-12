@@ -12,8 +12,6 @@ import Dashboard from './pages/Dashboard'
 import Streams from './pages/Streams'
 import AgentConsolePage from './pages/AgentConsolePage'
 import Docs from './pages/Docs'
-import RWA from './pages/RWA'
-import Marketplace from './pages/Marketplace'
 import PropertyMint from './pages/PropertyMint'
 import PropertyDetail from './pages/PropertyDetail'
 import Properties from './pages/Properties'
@@ -24,16 +22,17 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/app" element={<Layout><Dashboard /></Layout>} />
       <Route path="/app/streams" element={<Layout><Streams /></Layout>} />
-      <Route path="/app/rwa" element={<Layout><RWA /></Layout>} />
       <Route path="/app/agent" element={<Layout><AgentConsolePage /></Layout>} />
-      <Route path="/app/verify" element={<Navigate to="/app/rwa" replace />} />
-      <Route path="/app/rent" element={<Navigate to="/app/marketplace" replace />} />
-      <Route path="/app/marketplace" element={<Layout><Marketplace /></Layout>} />
       <Route path="/app/property-mint" element={<Layout><PropertyMint /></Layout>} />
       <Route path="/app/property/:id" element={<Layout><PropertyDetail /></Layout>} />
       <Route path="/app/properties" element={<Layout><Properties /></Layout>} />
       <Route path="/app/docs" element={<Layout><Docs /></Layout>} />
       <Route path="/app/docs/:section" element={<Layout><Docs /></Layout>} />
+      {/* Redirect old routes to new equivalents */}
+      <Route path="/app/rwa" element={<Navigate to="/app/property-mint" replace />} />
+      <Route path="/app/marketplace" element={<Navigate to="/app/properties" replace />} />
+      <Route path="/app/verify" element={<Navigate to="/app/properties" replace />} />
+      <Route path="/app/rent" element={<Navigate to="/app/properties" replace />} />
       <Route path="/streams" element={<Navigate to="/app/streams" replace />} />
       <Route path="/agent" element={<Navigate to="/app/agent" replace />} />
       <Route path="/docs" element={<Navigate to="/app/docs" replace />} />

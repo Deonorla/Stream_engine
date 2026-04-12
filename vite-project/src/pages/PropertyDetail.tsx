@@ -15,9 +15,10 @@ import { PORTFOLIO_ASSETS, TYPE_META, VERIFICATION_STATUS_LABELS } from './rwa/r
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
-function truncateAddr(addr: string): string {
-  if (!addr || addr.length < 16) return addr || '—';
-  return `${addr.slice(0, 8)}…${addr.slice(-6)}`;
+function truncateAddr(addr: unknown): string {
+  const s = String(addr ?? '');
+  if (!s || s.length < 16) return s || '—';
+  return `${s.slice(0, 8)}…${s.slice(-6)}`;
 }
 
 function relativeTime(ts: number | string): string {
@@ -108,6 +109,16 @@ function CopyButton({ text }: { text: string }) {
 function PhotoGallery({ asset }: { asset: any }) {
   const { id, type, verificationStatus } = asset;
   const isLand = type === 'land';
+  const rental = asset.rentalActivity || {};
+  const isRented = Boolean(rental.currentlyRented);
+  const isReady = Boolean(asset.rentalReadiness?.ready);
+
+  // Rental state badge config
+  const rentalBadge = isRented
+    ? { label: 'Currently Rented', cls: 'bg-emerald-500 text-white shadow', dot: true }
+    : isReady
+    ? { label: 'Available to Rent', cls: 'bg-blue-600 text-white shadow', dot: false }
+    : { label: 'Not Ready', cls: 'bg-amber-500 text-white shadow', dot: false };
 
   // Use real uploaded photos if available, pad/fallback with Unsplash
   const realPhotos: string[] = (asset.photos || []).map((p: any) => p.url).filter(Boolean);
@@ -123,7 +134,10 @@ function PhotoGallery({ asset }: { asset: any }) {
         <img src={imgs[0]} alt="main" className="w-full h-full object-cover" />
         {/* badges */}
         <div className="absolute top-3 left-3 flex gap-2">
-          <Pill className="bg-blue-600 text-white shadow">For Sale</Pill>
+          <Pill className={rentalBadge.cls}>
+            {rentalBadge.dot && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+            {rentalBadge.label}
+          </Pill>
           {(verificationStatus === 'verified' || verificationStatus === 'legacy_verified') && (
             <Pill className="bg-emerald-500 text-white shadow">
               <Shield size={11} /> Verified

@@ -191,7 +191,7 @@ export default function Properties() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Browse Properties</h2>
+          <h2 className="text-2xl font-bold text-slate-900">Marketplace</h2>
           <p className="mt-1 text-sm text-slate-500">
             All minted real estate and land RWA twins on Stellar.
           </p>

@@ -1,26 +1,24 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Zap, Store, Bot, FileText, X, ChevronRight, Layers, MapPin, Home } from 'lucide-react';
+import { LayoutDashboard, Zap, Bot, FileText, X, ChevronRight, Layers, MapPin, Home, Store } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
 import { useAgentWallet } from '../hooks/useAgentWallet';
 
 const ownerNavItems = [
-  { icon: LayoutDashboard, label: 'Owner Hub',        href: '/app',              sub: 'Capital · assets · overview' },
-  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Browse · Analyze · Bid' },
-  { icon: Bot,             label: 'Agent Console',    href: '/app/agent',        sub: 'Mandate · Treasury · P&L' },
-  { icon: Layers,          label: 'RWA Studio',       href: '/app/rwa',          sub: 'Admit · Verify · Manage' },
-  { icon: MapPin,          label: 'List Property',    href: '/app/property-mint', sub: 'Landed · Estate · Full data' },
-  { icon: Home,            label: 'Browse Properties', href: '/app/properties',    sub: 'View minted listings' },
-  { icon: Zap,             label: 'Payment Sessions', href: '/app/streams',      sub: 'Stream Engine rail' },
+  { icon: LayoutDashboard, label: 'Owner Hub',         href: '/app',               sub: 'Capital · assets · overview' },
+  { icon: Home,            label: 'Marketplace',       href: '/app/properties',    sub: 'View minted listings' },
+  { icon: MapPin,          label: 'List Property',     href: '/app/property-mint', sub: 'Estate · Land · Full data' },
+  { icon: Bot,             label: 'Agent Console',     href: '/app/agent',         sub: 'Mandate · Treasury · P&L' },
+  { icon: Zap,             label: 'Payment Sessions',  href: '/app/streams',       sub: 'Stream Engine rail' },
 ];
 
 const agentNavItems = [
-  { icon: LayoutDashboard, label: 'Agent Hub',        href: '/app',              sub: 'Positions · activity · P&L' },
-  { icon: Store,           label: 'Marketplace',      href: '/app/marketplace',  sub: 'Browse · Analyze · Bid' },
-  { icon: Bot,             label: 'Agent Console',    href: '/app/agent',        sub: 'Wallet · Mandate · Treasury' },
-  { icon: Zap,             label: 'Payment Sessions', href: '/app/streams',      sub: 'Stream Engine rail' },
+  { icon: LayoutDashboard, label: 'Agent Hub',         href: '/app',               sub: 'Positions · activity · P&L' },
+  { icon: Home,            label: 'Marketplace',       href: '/app/properties',    sub: 'View minted listings' },
+  { icon: Bot,             label: 'Agent Console',     href: '/app/agent',         sub: 'Wallet · Mandate · Treasury' },
+  { icon: Zap,             label: 'Payment Sessions',  href: '/app/streams',       sub: 'Stream Engine rail' },
 ];
 
 function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
