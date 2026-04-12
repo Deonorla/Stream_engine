@@ -395,7 +395,7 @@ function FactsLand({ pm }: { pm: any }) {
       </div>
 
       {/* Land Use */}
-      {(pm.landUse?.history ?? pm.landHistory || pm.landUse?.additionalNotes ?? pm.landNotes) && (
+      {((pm.landUse?.history ?? pm.landHistory) || (pm.landUse?.additionalNotes ?? pm.landNotes)) && (
         <div className="bg-slate-50 rounded-2xl p-5">
           <SectionHeader>Land Use</SectionHeader>
           <div className="divide-y divide-slate-100">
