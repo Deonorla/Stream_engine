@@ -13,12 +13,12 @@ function parseUnits(value, decimals = 7) {
 
 /**
  * Format a bigint from smallest unit into a human-readable decimal string.
- * e.g. formatUnits(15000000n, 7) => "1.5000000"
+ * e.g. formatUnits(15000000n, 7) => "1.5"
  */
 function formatUnits(value, decimals = 7) {
     const str = String(value).padStart(decimals + 1, "0");
     const whole = str.slice(0, str.length - decimals) || "0";
-    const frac = str.slice(str.length - decimals);
+    const frac = str.slice(str.length - decimals).replace(/0+$/, "") || "0";
     return `${whole}.${frac}`;
 }
 

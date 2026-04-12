@@ -24,58 +24,6 @@ import { cn } from "../lib/cn";
 import { useProtocolCatalog } from "../hooks/useProtocolCatalog";
 import { ACTIVE_NETWORK } from "../networkConfig.js";
 
-const LEGACY_CONTRACT_DEFAULTS = {
-  stream: {
-    name: "Stella's Stream Engine Stream",
-    onchainName: "FlowPayStream",
-    group: "Payment Rail",
-    address: "0x75edbf3d9857521f5fb2f581c896779f5110a8a0",
-    role: "Reusable payment stream rail for x402-compatible API and access payments.",
-  },
-  rwaHub: {
-    name: "Stella's Stream Engine RWA Hub",
-    onchainName: "FlowPayRWAHub",
-    group: "RWA Rail",
-    address: "0x1286a0fe3413dd70083df2d654677a7c39096753",
-    role: "Main RWA orchestrator for minting, yield funding, claims, flash advance, and admin actions.",
-  },
-  assetNft: {
-    name: "Stella's Stream Engine Asset NFT",
-    onchainName: "FlowPayAssetNFT",
-    group: "RWA Rail",
-    address: "0x0340b3f493bae901f740c494b2f7744f5fffe348",
-    role: "ERC-721 digital twin contract for productive real-world rental assets.",
-  },
-  assetRegistry: {
-    name: "Stella's Stream Engine Asset Registry",
-    onchainName: "FlowPayAssetRegistry",
-    group: "RWA Rail",
-    address: "0x9db31d67bd603508cfac61dcd31d98dfbd46cf5f",
-    role: "Onchain asset identity registry for rights model, property reference hash, public metadata hash, evidence roots, and verification status.",
-  },
-  attestationRegistry: {
-    name: "Stella's Stream Engine Attestation Registry",
-    onchainName: "FlowPayAssetAttestationRegistry",
-    group: "RWA Rail",
-    address: "",
-    role: "Role-based attestation registry for lawyers, inspectors, valuers, insurers, registrars, issuers, and compliance operators.",
-  },
-  assetStream: {
-    name: "Stella's Stream Engine Asset Stream",
-    onchainName: "FlowPayAssetStream",
-    group: "RWA Rail",
-    address: "0x2d6bda7095b2d6c9d4eee9f754f2a1eba6114396",
-    role: "Asset-linked yield engine that keeps future revenue coupled to NFT ownership.",
-  },
-  complianceGuard: {
-    name: "Stella's Stream Engine Compliance Guard",
-    onchainName: "FlowPayComplianceGuard",
-    group: "RWA Rail",
-    address: "0x72a979756061c5993a4c9c95e87519e9492dd721",
-    role: "Compliance and freeze control layer for regulated RWA actions.",
-  },
-};
-
 const STELLAR_RUNTIME_COMPONENT_DEFAULTS = {
   sessionMeter: {
     name: "Stella's Stream Engine Session Meter",
@@ -128,14 +76,6 @@ const STELLAR_RUNTIME_COMPONENT_DEFAULTS = {
   },
 };
 
-function getRuntimeKind(catalog) {
-  return String(catalog?.network?.kind || ACTIVE_NETWORK.kind || "stellar").toLowerCase();
-}
-
-function isStellarRuntime(catalog) {
-  return getRuntimeKind(catalog) === "stellar";
-}
-
 function isPlaceholderRuntimeAddress(value) {
   return String(value || "").startsWith("stellar:");
 }
@@ -155,10 +95,6 @@ function buildExplorerHref(catalog, value) {
   }
 
   const explorerBase = getExplorerBase(catalog);
-  if (address.startsWith("0x")) {
-    return `${explorerBase}/account/${address}`;
-  }
-
   if (address.startsWith("C")) {
     return `${explorerBase}/contract/${address}`;
   }
@@ -171,7 +107,6 @@ function buildExplorerHref(catalog, value) {
 }
 
 function getDeployedContractDescriptors(catalog) {
-  if (isStellarRuntime(catalog)) {
     return [
       {
         ...STELLAR_RUNTIME_COMPONENT_DEFAULTS.sessionMeter,
@@ -232,62 +167,6 @@ function getDeployedContractDescriptors(catalog) {
           "This is the platform-facing policy surface for verification status changes, compliance rules, and asset freezes.",
       },
     ];
-  }
-
-  return [
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.stream,
-      address:
-        catalog?.payments?.contractAddress || LEGACY_CONTRACT_DEFAULTS.stream.address,
-      note:
-        "This is the contract the payment runtime uses for sender budgets, claims, and stream cancellation.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.rwaHub,
-      address: catalog?.rwa?.hubAddress || LEGACY_CONTRACT_DEFAULTS.rwaHub.address,
-      note:
-        "This is the user-facing entrypoint for the RWA subsystem. It ties together minting, yield funding, claims, compliance, and freezes.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.assetNft,
-      address:
-        catalog?.rwa?.assetNFTAddress || LEGACY_CONTRACT_DEFAULTS.assetNft.address,
-      note:
-        "This NFT is the digital twin. Ownership of this token is what future uncaptured yield follows.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.assetRegistry,
-      address:
-        catalog?.rwa?.assetRegistryAddress
-        || LEGACY_CONTRACT_DEFAULTS.assetRegistry.address,
-      note:
-        "This registry stores the durable asset identity: rights model, public metadata hash, property reference hash, evidence roots, and verification state.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.attestationRegistry,
-      address:
-        catalog?.rwa?.attestationRegistryAddress
-        || LEGACY_CONTRACT_DEFAULTS.attestationRegistry.address,
-      note:
-        "This registry stores who attested to what, when it was signed, when it expires, and whether it was revoked.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.assetStream,
-      address:
-        catalog?.rwa?.assetStreamAddress
-        || LEGACY_CONTRACT_DEFAULTS.assetStream.address,
-      note:
-        "This contract is where productive RWA logic becomes real. It tracks time-based yield and supports flash-advance behavior.",
-    },
-    {
-      ...LEGACY_CONTRACT_DEFAULTS.complianceGuard,
-      address:
-        catalog?.rwa?.complianceGuardAddress
-        || LEGACY_CONTRACT_DEFAULTS.complianceGuard.address,
-      note:
-        "This guard blocks claims or funding when compliance rules or freeze controls say the action should not proceed.",
-    },
-  ];
 }
 
 function buildRouteRows(routes = [], tokenSymbol = "USDC") {
@@ -326,22 +205,17 @@ function buildContractLinks(catalog) {
 }
 
 function buildSections(catalog) {
-  const stellar = isStellarRuntime(catalog);
   const networkName = catalog?.network?.name || "Stellar Testnet";
   const chainId = catalog?.network?.chainId ?? ACTIVE_NETWORK.chainId ?? 0;
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
   const paymentAssetCode = catalog?.payments?.assetCode || tokenSymbol;
   const paymentAssetIssuer = catalog?.payments?.assetIssuer || "";
-  const settlement = catalog?.payments?.settlement || (stellar ? "soroban-sac" : "erc20");
+  const settlement = catalog?.payments?.settlement || "soroban-sac";
   const recipientAddress =
     catalog?.payments?.recipientAddress || "Not configured";
-  const paymentTokenLabel = stellar ? `Stellar ${tokenSymbol}` : `Circle ${tokenSymbol}`;
-  const gasToken = stellar
-    ? "XLM"
-    : catalog?.network?.nativeCurrency?.symbol || ACTIVE_NETWORK.nativeCurrency?.symbol || "ETH";
-  const paymentAssetLabel = stellar
-    ? `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"}`
-    : `${tokenSymbol} payment token`;
+  const paymentTokenLabel = `Stellar ${tokenSymbol}`;
+  const gasToken = "XLM";
+  const paymentAssetLabel = `${paymentAssetCode}${paymentAssetIssuer ? ` / ${paymentAssetIssuer}` : " via SAC"}`;
 
   return [
     {
@@ -380,8 +254,8 @@ function buildSections(catalog) {
       steps: [
         "An agent or user hits a paid route or rental workflow.",
         "The service explains the payment terms in a machine-readable way.",
-        `The payer funds reusable ${stellar ? "session" : "stream"} state or executes a direct payment when that is cheaper.`,
-        `Middleware checks the ${stellar ? "session" : "stream"} or payment proof before serving the resource.`,
+        `The payer funds reusable session state or executes a direct payment when that is cheaper.`,
+        `Middleware checks the session or payment proof before serving the resource.`,
         "If the session ends early, unused balance is left with the payer instead of being burned through repeated checkout.",
       ],
       tables: [
@@ -434,7 +308,7 @@ function buildSections(catalog) {
         },
         {
           title: "Settlement layer",
-          body: `This is where ${tokenSymbol} actually moves. It can happen through direct settlement or through reusable ${stellar ? "payment sessions" : "stream contracts"}.`,
+          body: `This is where ${tokenSymbol} actually moves. It can happen through direct settlement or through reusable payment sessions.`,
         },
         {
           title: "Enforcement layer",
@@ -487,9 +361,9 @@ function buildSections(catalog) {
       title: "Streaming 101",
       eyebrow: "Money Flow",
       summary:
-        `What reusable payment ${stellar ? "session" : "stream"} state is and why it is better than repeated onchain payments for high-frequency usage.`,
+        `What reusable payment session state is and why it is better than repeated onchain payments for high-frequency usage.`,
       plainEnglish:
-        `A ${stellar ? "session" : "stream"} is a money meter. Think taxi meter, electricity meter, or prepaid running tab. Value unlocks gradually as time passes or usage is metered. If you stop early, the unused part stays yours.`,
+        `A session is a money meter. Think taxi meter, electricity meter, or prepaid running tab. Value unlocks gradually as time passes or usage is metered. If you stop early, the unused part stays yours.`,
       takeaways: [
         "A stream is closer to a metered tab than to a one-off transfer.",
         "The receiver only gets the accrued part, not the whole budget immediately.",
@@ -505,24 +379,24 @@ function buildSections(catalog) {
           body: "Pay one big amount up front for a long period. Easy for humans, but wasteful when usage is unpredictable.",
         },
         {
-          title: stellar ? "Session" : "Stream",
-          body: `Lock a budget, release value over time, and cancel when you are done. This is what makes autonomous usage practical on the current ${stellar ? "Stellar-backed" : "contract"} runtime.`,
+          title: "Session",
+          body: `Lock a budget, release value over time, and cancel when you are done. This is what makes autonomous usage practical on the current Stellar-backed runtime.`,
         },
         {
           title: "Refund logic",
-          body: `When a ${stellar ? "session" : "stream"} ends early, the unconsumed portion does not belong to the service. It remains with the sender and stops accruing.`,
+          body: `When a session ends early, the unconsumed portion does not belong to the service. It remains with the sender and stops accruing.`,
         },
       ],
       code: `flowRate = totalAmount / durationSeconds
 elapsed = min(now, stopTime) - startTime
 claimable = (flowRate * elapsed) - amountWithdrawn`,
-      stepsTitle: `How a payment ${stellar ? "session" : "stream"} behaves`,
+      stepsTitle: `How a payment session behaves`,
       steps: [
-        `The payer funds ${tokenSymbol} into the reusable ${stellar ? "session" : "stream"} rail.`,
-        `The ${stellar ? "session" : "stream"} starts with a sender, a recipient, a budget, and a duration.`,
+        `The payer funds ${tokenSymbol} into the reusable session rail.`,
+        `The session starts with a sender, a recipient, a budget, and a duration.`,
         "Claimable balance grows over time instead of arriving in one lump sum.",
         "The recipient withdraws only what has actually accrued.",
-        `If the ${stellar ? "session" : "stream"} is cancelled early, the remaining budget stops flowing.`,
+        `If the session is cancelled early, the remaining budget stops flowing.`,
       ],
       tables: [
         {
@@ -542,7 +416,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Streaming",
               "High-frequency or session-based usage",
-              `Needs ${stellar ? "session" : "stream"} lifecycle logic, but has the best economics`,
+              `Needs session lifecycle logic, but has the best economics`,
             ],
           ],
         },
@@ -556,7 +430,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         {
           question: "Is a stream the same as escrow?",
           answer:
-            `Close, but not identical. Escrow only holds funds. A ${stellar ? "session" : "stream"} also defines time-based release rules and cancellation behavior.`,
+            `Close, but not identical. Escrow only holds funds. A session also defines time-based release rules and cancellation behavior.`,
         },
       ],
     },
@@ -581,7 +455,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "What x402 does not do",
-          body: `It does not force one payment method. You can satisfy the requirement with direct settlement or a reusable ${stellar ? "session" : "stream"}.`,
+          body: `It does not force one payment method. You can satisfy the requirement with direct settlement or a reusable session.`,
         },
         {
           title: "Why agents need it",
@@ -596,9 +470,9 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       steps: [
         "Client sends a request to a paid route.",
         "Server replies with HTTP 402 and machine-readable payment terms.",
-        `The runtime reads mode, price, token, recipient, and ${stellar ? "session" : "contract"} details.`,
-        `The runtime picks direct payment or ${stellar ? "reusable sessions" : "streaming"}.`,
-        `The client retries with a ${stellar ? "session id" : "stream id"} or direct payment proof.`,
+        `The runtime reads mode, price, token, recipient, and session details.`,
+        `The runtime picks direct payment or reusable sessions.`,
+        `The client retries with a session id or direct payment proof.`,
         "Middleware verifies that proof before returning the resource.",
       ],
       tables: [
@@ -1111,9 +985,9 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             "IPFS stores the sanitized public content. Runtime anchors prove that the content, property reference, and private evidence roots being discussed are the same ones that were bound to the asset.",
         },
         {
-          question: `What happens with a smart rented car if the ${stellar ? "session" : "stream"} ends?`,
+          question: `What happens with a smart rented car if the session ends?`,
           answer:
-            `That is one of the strongest real-world examples for this model. A smart property or gated parcel can watch the ${stellar ? "session" : "stream"} state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.`,
+            `That is one of the strongest real-world examples for this model. A smart property or gated parcel can watch the session state, revoke access when the funded usage window is over, and require return or settlement before new usage continues.`,
         },
       ],
     },
@@ -1131,34 +1005,34 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           ? "Think of the system like a small company. The frontend talks to users. The backend handles coordination, evidence storage, and indexing. The Stellar runtime services meter payments and enforce asset policy. The catalog tells you which pieces are wired."
           : "Think of the system like a small company. The frontend talks to users. The backend handles coordination, metadata pinning, and indexing. The Solidity contracts are the accountants and rule enforcers. The explorer links let anyone inspect the live deployed workers directly.",
       takeaways: [
-        `Each ${stellar ? "runtime component" : "contract"} should have a narrow, understandable job.`,
+        `Each runtime component should have a narrow, understandable job.`,
         stellar
           ? "The backend exposes indexing, evidence, and policy services, but payment and verification state still have to line up with the runtime identifiers exposed in the catalog."
           : "The backend makes the system usable, but contracts remain the source of truth.",
-        `If you do not know where a fact lives, look for which ${stellar ? "component" : "contract"} owns that responsibility.`,
+        `If you do not know where a fact lives, look for which component owns that responsibility.`,
       ],
       points: [
         {
-          title: stellar ? "Built for Stellar testnet" : "Built with Solidity",
+          title: "Built for Stellar testnet",
           body: stellar
             ? "The active hackathon path uses a Stellar-native runtime with deployed Soroban contracts, reusable payment sessions, and backend read services around them."
             : "The live stream rail and RWA contract suite are Solidity contracts deployed onchain. The point is not only to talk about architecture abstractly, but to let readers verify the deployed code and addresses themselves.",
         },
         {
-          title: stellar ? "Payment session runtime" : "Payment contract",
+          title: "Payment session runtime",
           body: stellar
             ? `The payment runtime manages sender budget, session reuse, cancellation, refunds, and service settlement in ${tokenSymbol}.`
             : `The stream contract manages sender budget, recipient claims, cancellation, and metadata for payment sessions in ${tokenSymbol}.`,
         },
         {
-          title: stellar ? "RWA runtime services" : "RWA contracts",
+          title: "RWA runtime services",
           body: stellar
             ? "The RWA side is deliberately split into multiple runtime services because productive assets need more than ownership. The twin records durable ownership, the registry stores asset identity anchors, the attestation registry stores verifier claims, the yield vault handles revenue flow, the policy orchestrator controls regulated actions, and the backend ties those pieces together with evidence storage and indexed views."
             : "The RWA side is deliberately split into multiple Solidity contracts because productive assets need more than ownership. The NFT records the digital twin, the registry stores asset identity anchors, the attestation registry stores verifier claims, the asset stream contract handles revenue flow, the compliance guard controls regulated actions, and the hub ties those pieces together.",
         },
         {
           title: "How the RWA half really works",
-          body: `The RWA architecture is not just 'mint NFT, done.' The issuer anchors public metadata plus private evidence roots, and the backend submits the low-friction Stellar mint. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the ${stellar ? "yield vault" : "asset stream contract"} so future yield follows whoever owns the ${stellar ? "twin" : "NFT"}. That is the difference between a productive asset system and a passive onchain collectible.`,
+          body: `The RWA architecture is not just 'mint NFT, done.' The issuer anchors public metadata plus private evidence roots, and the backend submits the low-friction Stellar mint. The new twin then starts either in Verified or Pending Attestation depending on the policy for that asset type. If roles are required, they are collected and recorded next. Then rental revenue can be routed into the yield vault so future yield follows whoever owns the twin. That is the difference between a productive asset system and a passive onchain collectible.`,
         },
         {
           title: "Why we only care about productive assets here",
@@ -1166,7 +1040,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           title: "IoT and machine enforcement",
-          body: `The RWA side also expects physical access controls. A smart car, smart lock, or industrial controller can watch the payment ${stellar ? "session" : "stream"}, revoke access when funding ends, and let unused budget remain with the renter when the session ends early.`,
+          body: `The RWA side also expects physical access controls. A smart car, smart lock, or industrial controller can watch the payment session, revoke access when funding ends, and let unused budget remain with the renter when the session ends early.`,
         },
         {
           title: "Middleware and APIs",
@@ -1185,7 +1059,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
       ],
       stepsTitle: "How one action moves through the system",
       steps: [
-        `The frontend collects user intent: start a ${stellar ? "payment session" : "stream"}, mint an asset, verify a payload, or claim yield.`,
+        `The frontend collects user intent: start a payment session, mint an asset, verify a payload, or claim yield.`,
         "The backend helps with metadata pinning, registry views, and indexed history when needed.",
         stellar
           ? "The Stellar-backed runtime services enforce the payment, ownership, compliance, and yield rules."
@@ -1211,14 +1085,14 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "Catalog, public IPFS pinning, private evidence storage, verification API, indexed views, and middleware enforcement",
             ],
             [
-              stellar ? "Payment runtime" : "Stream contracts",
-              stellar ? "Soroban session meter + backend services" : "Solidity",
-              stellar ? "Session funding, cancellation, refunds, and paid-route settlement" : "Payment streaming, withdrawal, and cancellation",
+              "Payment runtime",
+              "Soroban session meter + backend services",
+              "Session funding, cancellation, refunds, and paid-route settlement",
             ],
             [
-              stellar ? "RWA runtime" : "RWA contracts",
-              stellar ? "Registry, attestation, yield, and policy services" : "Solidity",
-              stellar ? "Twin minting, asset identity storage, attestations, compliance, and asset-linked yield" : "NFT minting, asset identity storage, attestations, compliance, and asset-linked yield",
+              "RWA runtime",
+              "Registry, attestation, yield, and policy services",
+              "Twin minting, asset identity storage, attestations, compliance, and asset-linked yield",
             ],
             [
               "Indexer / provenance",
@@ -1228,22 +1102,22 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
           ],
         },
         {
-          title: stellar ? "Live runtime map" : "Live contract map",
-          headers: [stellar ? "Runtime Component" : "Solidity Contract", "Address", "What it does"],
+          title: "Live runtime map",
+          headers: ["Runtime Component", "Address", "What it does"],
           rows: buildContractRows(catalog),
         },
         {
-          title: stellar ? "RWA runtime choreography" : "RWA contract choreography",
+          title: "RWA runtime choreography",
           headers: ["RWA piece", "What it stores or controls", "Why the system needs it"],
           rows: [
             [
-              stellar ? "Stella's Stream Engine Asset Twin" : "Stella's Stream Engine Asset NFT",
+              "Stella's Stream Engine Asset Twin",
               "The digital twin and current owner",
               "Without it there is no durable ownership anchor for the productive asset",
             ],
             [
               "Stella's Stream Engine Asset Registry",
-              `Rights model, property reference hash, public metadata hash, evidence roots, status, linked ${stellar ? "yield" : "stream"} facts`,
+              `Rights model, property reference hash, public metadata hash, evidence roots, status, linked yield facts`,
               "Without it buyers and auditors cannot prove that the asset record is complete and current",
             ],
             [
@@ -1252,36 +1126,36 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "Without it the verifier cannot prove that lawyers, inspectors, valuers, or insurers actually signed off on the evidence set",
             ],
             [
-              stellar ? "Stella's Stream Engine Yield Vault" : "Stella's Stream Engine Asset Stream",
+              "Stella's Stream Engine Yield Vault",
               "Time-based yield logic, flash-advance behavior, future revenue state",
-              `Without it the asset becomes just another static ${stellar ? "twin" : "NFT"} with no revenue engine`,
+              `Without it the asset becomes just another static twin with no revenue engine`,
             ],
             [
-              stellar ? "Stella's Stream Engine Policy Orchestrator" : "Stella's Stream Engine Compliance Guard",
-              stellar ? "Compliance, policy, and freeze flags" : "Freeze and compliance flags",
+              "Stella's Stream Engine Policy Orchestrator",
+              "Compliance, policy, and freeze flags",
               stellar
                 ? "Without it there is no clean runtime boundary for admin and regulated actions"
                 : "Without it there is no contract-level stop switch for regulated or disputed actions",
             ],
             [
-              stellar ? "Policy orchestrator + backend admin surface" : "Stella's Stream Engine RWA Hub",
+              "Policy orchestrator + backend admin surface",
               "High-level orchestration across minting, funding, claims, and admin actions",
               "Without it the app would need to coordinate too many raw calls manually",
             ],
           ],
         },
         {
-          title: stellar ? "Primary runtime responsibilities" : "Primary contract responsibilities",
-          headers: [stellar ? "Component" : "Contract", "Why it exists", "What breaks without it"],
+          title: "Primary runtime responsibilities",
+          headers: ["Component", "Why it exists", "What breaks without it"],
           rows: [
             [
-              stellar ? "Stella's Stream Engine Session Meter" : "Stella's Stream Engine Stream",
-              `Create, cancel, and settle reusable payment ${stellar ? "sessions" : "streams"}`,
+              "Stella's Stream Engine Session Meter",
+              `Create, cancel, and settle reusable payment sessions`,
               "Agents fall back to repeated checkout and high-fee per-request settlement",
             ],
             [
-              stellar ? "Stella's Stream Engine Asset Twin" : "Stella's Stream Engine Asset NFT",
-              `Mint the productive rental asset ${stellar ? "twin" : "NFT"}`,
+              "Stella's Stream Engine Asset Twin",
+              `Mint the productive rental asset twin`,
               "There is no durable digital twin for the real asset",
             ],
             [
@@ -1295,17 +1169,17 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
               "Verifiers cannot tell whether legal, inspection, insurance, or valuation review was actually completed",
             ],
             [
-              stellar ? "Stella's Stream Engine Yield Vault" : "Stella's Stream Engine Asset Stream",
+              "Stella's Stream Engine Yield Vault",
               "Handle asset-linked yield and flash advance behavior",
-              `Future rental revenue cannot be ${stellar ? "metered" : "streamed"} or coupled cleanly to ${stellar ? "twin" : "NFT"} ownership`,
+              `Future rental revenue cannot be metered or coupled cleanly to twin ownership`,
             ],
             [
-              stellar ? "Stella's Stream Engine Policy Orchestrator" : "Stella's Stream Engine Compliance Guard",
+              "Stella's Stream Engine Policy Orchestrator",
               "Store compliance and freeze state",
               "Admins cannot block claims or withdrawals when policy or regulation requires intervention",
             ],
             [
-              stellar ? "Policy orchestrator + backend admin surface" : "Stella's Stream Engine RWA Hub",
+              "Policy orchestrator + backend admin surface",
               "Coordinate minting, funding, claims, and admin actions",
               "Frontend and backend would need to orchestrate too many raw contract calls directly",
             ],
@@ -1328,7 +1202,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "IoT-aware rental asset",
               "Ownership, verification, and machine-enforced access control",
-              `A car, lock, or machine can react to ${stellar ? "session" : "stream"} state and cut access when funding ends`,
+              `A car, lock, or machine can react to session state and cut access when funding ends`,
             ],
           ],
         },
@@ -1339,7 +1213,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Mint",
               "Issuer creates the digital twin, signs the mint request, and pins sanitized metadata",
-              stellar ? "Policy Orchestrator + Asset Twin + backend IPFS service" : "RWAHub + AssetNFT + backend IPFS service",
+              "Policy Orchestrator + Asset Twin + backend IPFS service",
             ],
             [
               "Bind truth",
@@ -1349,27 +1223,27 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
             [
               "Attest",
               "Required roles review the evidence and record attestations",
-              stellar ? "AttestationRegistry + Policy Orchestrator" : "AttestationRegistry + RWAHub",
+              "AttestationRegistry + Policy Orchestrator",
             ],
             [
               "Rent",
               "User funds access and pays only for actual usage time",
-              stellar ? "Session Meter + app access controls" : "Stella's Stream Engine Stream + app access controls",
+              "Session Meter + app access controls",
             ],
             [
               "Generate yield",
               "Rental revenue is routed into asset-linked yield logic",
-              stellar ? "YieldVault" : "AssetStream",
+              "YieldVault",
             ],
             [
               "Claim",
               "Current NFT owner claims the unclaimed revenue",
-              stellar ? "YieldVault + Asset Twin ownership checks" : "AssetStream + AssetNFT ownership checks",
+              "YieldVault + Asset Twin ownership checks",
             ],
             [
               "Transfer",
               "NFT moves to a new owner and future yield follows it",
-              stellar ? "Asset Twin + YieldVault coupling rules" : "AssetNFT + AssetStream coupling rules",
+              "Asset Twin + YieldVault coupling rules",
             ],
           ],
         },
@@ -1418,7 +1292,7 @@ claimable = (flowRate * elapsed) - amountWithdrawn`,
         },
         {
           question:
-            `Why include the ${stellar ? "runtime identifiers" : "contract addresses"} directly in the handbook?`,
+            `Why include the runtime identifiers directly in the handbook?`,
           answer:
             stellar
               ? "Because readers should not have to trust screenshots or slide decks. They should be able to inspect the active runtime identifiers the app is using, and cross-check any explorer-friendly Stellar addresses when they exist."
@@ -1891,7 +1765,6 @@ function FaqList({ items = [] }) {
 }
 
 function ArchitectureDiagram({ catalog }) {
-  const stellar = isStellarRuntime(catalog);
   const tokenSymbol = catalog?.payments?.tokenSymbol || "USDC";
   const paymentAssetCode = catalog?.payments?.assetCode || tokenSymbol;
   const paymentAssetIssuer = catalog?.payments?.assetIssuer || "";
@@ -1900,7 +1773,7 @@ function ArchitectureDiagram({ catalog }) {
   const paymentTokenAddress =
     catalog?.payments?.tokenAddress
     || ACTIVE_NETWORK.paymentTokenAddress
-    || (stellar ? "stellar:usdc-sac" : "");
+    || "stellar:usdc-sac";
   const contracts = getDeployedContractDescriptors(catalog);
   const paymentContracts = contracts.filter((contract) => contract.group === "Payment Rail");
   const rwaContracts = contracts.filter((contract) => contract.group === "RWA Rail");
@@ -1920,7 +1793,7 @@ function ArchitectureDiagram({ catalog }) {
               {[
                 {
                   title: "AI agents + API clients",
-                  body: `Hit x402-protected routes, open ${stellar ? "payment sessions" : "streams"}, and reuse them for repeated paid requests.`,
+                  body: `Hit x402-protected routes, open payment sessions, and reuse them for repeated paid requests.`,
                 },
                 {
                   title: "Owners, renters, auditors",
@@ -1928,7 +1801,7 @@ function ArchitectureDiagram({ catalog }) {
                 },
                 {
                   title: "IoT and smart access",
-                  body: `Cars, locks, and machinery can react to ${stellar ? "session" : "stream"} state so access ends when funding ends and unused budget remains refundable.`,
+                  body: `Cars, locks, and machinery can react to session state so access ends when funding ends and unused budget remains refundable.`,
                 },
               ].map((item) => (
                 <div
@@ -1960,7 +1833,7 @@ function ArchitectureDiagram({ catalog }) {
               {[
                 {
                   title: "Frontend",
-                  body: `Handles wallet connection, ${stellar ? "session" : "stream"} creation, RWA Studio, verification UX, and the docs handbook.`,
+                  body: `Handles wallet connection, session creation, RWA Studio, verification UX, and the docs handbook.`,
                 },
                 {
                   title: "Backend + x402 middleware",
@@ -2011,7 +1884,7 @@ function ArchitectureDiagram({ catalog }) {
                 </div>
                 <div className="rounded-2xl border border-slate-100 bg-white p-4">
                   <div className="text-sm font-semibold text-white">
-                    {stellar ? `Stellar ${tokenSymbol} settlement asset` : `${tokenSymbol} payment token`}
+                    {`Stellar ${tokenSymbol} settlement asset`}
                   </div>
                   <div className="mt-2 break-all font-mono text-xs text-blue-600">
                     {paymentTokenAddress}
@@ -2064,7 +1937,7 @@ function ArchitectureDiagram({ catalog }) {
                 ))}
               </div>
               <div className="mt-4 rounded-2xl border border-teal-100 bg-blue-50 p-4 text-sm leading-7 text-slate-600">
-                {`This is the part many RWA projects skip. Stella's Stream Engine does not stop at proving that a house, fleet, or machine exists. It also tracks who owns the digital twin, what metadata and verification facts are bound to it, how rental revenue is generated, and why future yield must follow whoever owns the ${stellar ? "twin" : "NFT"} now.`}
+                {`This is the part many RWA projects skip. Stella's Stream Engine does not stop at proving that a house, fleet, or machine exists. It also tracks who owns the digital twin, what metadata and verification facts are bound to it, how rental revenue is generated, and why future yield must follow whoever owns the twin now.`}
               </div>
             </div>
           </div>
@@ -2095,7 +1968,7 @@ function ArchitectureDiagram({ catalog }) {
                 },
                 {
                   title: "Physical asset + IoT",
-                  body: `Cars, locks, and machines can use ${stellar ? "session" : "stream"} status to grant or revoke access and stop usage when payment ends.`,
+                  body: `Cars, locks, and machines can use session status to grant or revoke access and stop usage when payment ends.`,
                 },
                 {
                   title: "Explorer / public chain history",
@@ -2125,13 +1998,12 @@ function ArchitectureDiagram({ catalog }) {
 }
 
 function DeployedContractCards({ catalog }) {
-  const stellar = isStellarRuntime(catalog);
   const contracts = getDeployedContractDescriptors(catalog);
 
   return (
     <div className="space-y-4">
       <div className="text-xs uppercase tracking-[0.24em] text-primary">
-        {stellar ? "Live Runtime Components" : "Live Deployed Solidity Contracts"}
+        {"Live Runtime Components"}
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         {contracts.map((contract) => {
@@ -2147,7 +2019,7 @@ function DeployedContractCards({ catalog }) {
                     {contract.name}
                   </div>
                   <div className="mt-1 text-xs uppercase tracking-[0.18em] text-primary">
-                    {contract.group} · {stellar ? "runtime component" : "Solidity contract"}
+                    {contract.group} · {"runtime component"}
                   </div>
                   <div className="mt-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
                     Runtime id: {contract.onchainName}
@@ -2205,7 +2077,6 @@ export default function Docs() {
   const { catalog, isLoading, error } = useProtocolCatalog();
   const { section } = useParams();
   const navigate = useNavigate();
-  const stellar = isStellarRuntime(catalog);
   const sections = useMemo(() => buildSections(catalog), [catalog]);
   const resolvedSection = section === "contracts" ? "architecture" : section;
   const activeSection = sections.find((entry) => entry.id === resolvedSection) || sections[0];
@@ -2271,11 +2142,11 @@ export default function Docs() {
               </div>
               <div>
                 <p className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 mb-2">Token</p>
-                <p className="text-sm font-bold text-primary">{stellar ? "Stellar" : "Circle"} {catalog?.payments?.tokenSymbol || "USDC"}</p>
+                <p className="text-sm font-bold text-primary">{"Stellar"} {catalog?.payments?.tokenSymbol || "USDC"}</p>
               </div>
               <div>
                 <p className="text-[10px] font-label font-bold uppercase tracking-widest text-slate-400 mb-2">Settlement</p>
-                <p className="text-sm font-bold text-primary">{catalog?.payments?.settlement || (stellar ? "soroban-sac" : "erc20")}</p>
+                <p className="text-sm font-bold text-primary">{catalog?.payments?.settlement || "soroban-sac"}</p>
               </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-100 flex items-start gap-4">
