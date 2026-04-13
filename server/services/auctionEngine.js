@@ -172,10 +172,16 @@ class AuctionEngine {
         }
 
         const auctionId = await this.store.nextCounter("continuumAuctionId");
+        // In force mode, use the asset's actual currentOwner as seller so the
+        // operator/agent wallet can still bid on these auctions
+        const effectiveSeller = force && asset.currentOwner
+            ? String(asset.currentOwner).toUpperCase()
+            : sellerAgentPublicKey;
+
         const auction = {
             auctionId,
             assetId: Number(tokenId),
-            seller: sellerAgentPublicKey,
+            seller: effectiveSeller,
             sellerOwnerPublicKey: String(sellerOwnerPublicKey || "").toUpperCase(),
             currency: normalizedCurrency,
             reservePrice: normalizedReserve.toString(),
