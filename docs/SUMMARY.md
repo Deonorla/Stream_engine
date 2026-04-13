@@ -24,9 +24,6 @@
 
 * [Overview](sdk/README.md)
 * [StreamEngineSDK](sdk/stream-engine-sdk.md)
-* [GeminiPaymentBrain](sdk/gemini-payment-brain.md)
-* [SpendingMonitor](sdk/spending-monitor.md)
-* [StreamEngineProxy](sdk/stream-engine-proxy.md)
 
 ## API Reference
 
@@ -40,12 +37,7 @@
 * [Overview](deployment/README.md)
 * [Production Checklist](deployment/production.md)
 
-## Guides
 
-* [Creating Sessions](guides/creating-streams.md)
-* [Claiming Session Balance](guides/withdrawing-funds.md)
-* [Building AI Agents](guides/building-ai-agents.md)
-* [Provider Integration](guides/provider-integration.md)
 
 ## Reference
 

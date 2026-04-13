@@ -1,9 +1,9 @@
 # Architecture Overview
 
-Stella's Stream Engine has two linked rails:
+Continuum has two linked rails powered by the underlying Stream Engine runtime:
 
-1. an **x402-compatible payment rail** for agents and paid APIs
-2. a **productive RWA rail** for verified rental twins and ownership-linked yield
+1. an **x402-compatible payment rail** for continuous AI agent interactions and paid APIs
+2. a **productive RWA rail** for verified rental twins and ownership-linked yield streams
 
 The important design choice in v2 is that RWA NFTs are **not presented as direct legal title transfer instruments**. They are verified digital twins backed by:
 

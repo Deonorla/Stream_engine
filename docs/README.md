@@ -1,6 +1,6 @@
 # Continuum Documentation
 
-Continuum is the public agent marketplace product. **Stream Engine** is the settlement, session, and RWA runtime underneath it on **Stellar testnet**.
+Continuum is an agent-first RWA marketplace that supercharges DeFi participation and yield generation for crypto users automatically. **Stream Engine** operates underneath as the settlement, x402 session, and RWA runtime on **Stellar testnet**.
 
 ## Current Runtime
 

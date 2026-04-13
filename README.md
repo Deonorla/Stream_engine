@@ -1,176 +1,182 @@
-# Continuum
+# Continuum: Autonomous Agent RWA Marketplace
 
-**Continuum** is an agent marketplace for productive RWA twins on **Stellar testnet**. It uses **Stream Engine** underneath as the settlement, session, and yield runtime for paid market actions.
+> AI agents that autonomously screen, bid, and generate yield from real-world assets on the Stellar network, powered by x402 micropayments.
 
-## What It Does
+Continuum is an agent-first Real-World Asset (RWA) marketplace. It tokenizes physical real estate and land as on-chain twins on the Stellar Testnet. AI agents—running 24/7 with managed Stellar wallets—autonomously screen these assets through an internal rules engine (or LLM), place multi-currency bids in active auctions, and continuously farm yield without human intervention.
 
-- lets agents browse productive twins for free, then pay for premium analysis, bidding, and treasury actions
-- runs timed USDC auctions for platform and economic ownership of productive asset twins
-- supports server-managed agent wallets, mandate enforcement, yield claims, and treasury rebalancing
-- keeps **Stream Engine** underneath as the reusable payment-session and RWA runtime
+---
 
-## Product Split
+## System Architecture
 
-- **Continuum**: the public marketplace, agent console, auctions, analytics, and treasury layer
-- **Stream Engine**: the underlying session, settlement, RWA registry, and yield runtime
+The ecosystem relies on an aggressive separation of concerns across the client interface, Node.js backend orchestration, and Stellar smart contracts.
 
-## Runtime
+```mermaid
+graph TD
+    subgraph Client [Frontend App - React/Vite]
+        UI[Zillow-Style Mint UI]
+        Port[Agent Portfolio Dash]
+        Crypto[Freighter Wallet]
+        LocalHash[Browser Crypto Subtle]
+    end
 
-- **Network:** Stellar Testnet
-- **Auction quote asset:** USDC via SAC
-- **Runtime assets:** USDC + XLM
-- **Wallet:** Freighter
-- **Managed agent auth:** local agent JWTs or Auth0 bearer tokens bound to a Stellar owner key
-- **Payment model:** x402 negotiation + reusable session settlement
-- **Exchange model:** timed English auction
-- **RWA model:** productive twin + private evidence + attestations + policy controls
+    subgraph Backend [Node.js / Express Engine]
+        API[API Gateway & x402 Middleware]
+        Agent[Continuous Agent Tick Loop]
+        Screener[Asset Screener & Yield Calc]
+        Engine[Timed Auction Engine]
+        Vault[Zero-Knowledge Evidence Vault]
+        LLM[GenAI Logic Matrix]
+        DB[(PostgreSQL)]
+        
+        API --> Agent
+        API --> Vault
+        API --> DB
+        Agent --> Screener
+        Agent --> Engine
+        Agent --> LLM
+    end
 
-## Preserved public surfaces
+    subgraph IPFS [Decentralized Storage]
+        Pinata[Pinata Cloud]
+        Schema[Schema Version 3 JSON]
+    end
 
-- `/api/engine/catalog`
-- `/api/rwa/*`
-- `/api/market/*`
-- `/api/agents/*`
-- x402 `402` headers
-- `StreamEngineSDK`
-- `StreamEngineRWAClient`
-- the current frontend pages and user journeys
+    subgraph Stellar [Stellar Testnet / Soroban]
+        SAC[Stellar Asset Contracts: USDC/XLM]
+        Registry[Soroban RWA Registry]
+        Streams[Session/Yield Runtime]
+    end
 
-## Key backend endpoints
+    UI -- "1. Structured Payload" --> API
+    LocalHash -- "2. Evidence SHA-256" --> Vault
+    Vault -- "3. Pin Evidence/Metadata" --> Pinata
+    API -- "4. Trigger Contract Build" --> Registry
+    Engine -- "5. Escrow & Settle" --> SAC
+    Streams -- "6. Emit Yield" --> DB
+```
 
-### Catalog and payments
+### Core Architecture Components
+- **Minting & Privacy (Zero-Knowledge):** Users interact with a Zillow-style UI to catalog property details. Sensitive documents (title deeds, appraisals) are hashed locally using the browser's `crypto.subtle`. Only the `evidenceRoot` touches the backend and chain, ensuring absolute privacy.
+- **Agent Loop:** The `AgentRuntimeService` operates a relentless 2-minute tick sequence. It hits the `AssetScreener` to verify the parsed IPFS yield parameters (`monthlyRentalIncome`, `annualLandLeaseIncome`). 
+- **x402 Micropayments:** Deep API endpoints (analytics, treasury rebalancing) require clients to transmit x402 cryptographic headers to pay per-request compute costs, minimizing spam and charging for LLM resources dynamically.
 
-- `GET /api/engine/catalog`
-- `GET /api/free`
-- `GET /api/weather`
-- `GET /api/premium`
-- `GET /api/sessions`
-- `POST /api/sessions`
-- `GET /api/sessions/:sessionId`
-- `POST /api/sessions/:sessionId/metadata`
-- `POST /api/sessions/:sessionId/cancel`
-- `POST /api/sessions/:sessionId/claim`
+---
 
-### Continuum market and agents
+## Tech Stack & Tooling
 
-- `GET /api/market/assets`
-- `GET /api/market/assets/:assetId`
-- `GET /api/market/assets/:assetId/analytics`
-- `POST /api/market/assets/:assetId/auctions`
-- `GET /api/market/auctions/:auctionId`
-- `POST /api/market/auctions/:auctionId/bids`
-- `POST /api/market/auctions/:auctionId/settle`
-- `GET /api/market/positions`
-- `POST /api/market/yield/claim`
-- `POST /api/market/yield/route`
-- `POST /api/market/treasury/rebalance`
-- `POST /api/agents`
-- `GET /api/agents/:agentId/state`
-- `GET /api/agents/:agentId/performance`
-- `GET /api/agents/:agentId/mandate`
-- `POST /api/agents/:agentId/mandate`
-- `GET /api/agents/:agentId/wallet`
+| Domain | Technology / Protocol | Description |
+|---|---|---|
+| **Blockchain** | Stellar / Soroban Contracts | High-throughput asset registry and verifiable state execution. |
+| **Payments** | x402 Protocol · USDC · XLM | Continuous streaming payments & hybrid-currency auction settlement. |
+| **Backend** | Node.js / Express | Robust monolith managing live auctions, PG caching, and AI orchestration. |
+| **Storage / DB** | PostgreSQL · IPFS (Pinata) | Relational state + decentralized metadata storage for canonical verification. |
+| **Frontend** | React / Vite / TypeScript | Zillow-inspired UI with structured forms and dynamic Google Map renders. |
+| **AI Layer** | Groq / Gemini / OpenRouter | Evaluates risk and constructs agent portfolio heuristics. |
 
-### RWA
+---
 
-- `POST /api/rwa/ipfs/metadata`
-- `POST /api/rwa/evidence`
-- `POST /api/rwa/assets` (active low-friction Stellar mint surface)
-- `GET /api/rwa/assets`
-- `GET /api/rwa/assets/:tokenId`
-- `GET /api/rwa/assets/:tokenId/activity`
-- `POST /api/rwa/attestations` (legacy backend/operator attestation surface on Stellar)
-- `POST /api/rwa/verify`
-- `POST /api/rwa/relay` (legacy backend/operator write surface on Stellar)
-- `POST /api/rwa/admin`
+## Key API Surface
 
-## Quick start
+Below are the primary core API collections for interfacing directly with the Continuum backend:
 
-### 1. Install
+### Continuum Market and Agents
+- `GET /api/market/assets` — Hydrated public asset catalog 
+- `GET /api/market/assets/:assetId/analytics` — x402-gated deep analysis
+- `POST /api/market/assets/:assetId/auctions` — Initialize timed English auction
+- `POST /api/market/auctions/:auctionId/bids` — Submit dynamic token bids
+- `POST /api/market/auctions/:auctionId/settle` — Finalize escrow and transfer Soroban token
+- `POST /api/market/yield/route` — Autonomously claim active streams
+- `GET /api/agents/:agentId/state` — Query tick state, portfolio allocation, and idle balances
 
+### RWA Registry & Integrity
+- `POST /api/rwa/photos` — Binary file upload/pinning via Pinata
+- `POST /api/rwa/evidence` — Store anonymous client-side fingerprints in `EvidenceVault`
+- `POST /api/rwa/assets` — Mint Zillow-style property payloads onto Stellar
+- `POST /api/rwa/verify` — Validates document freshness, verification status, and attestations 
+
+---
+
+## Local Development
+
+Continuum utilizes a tightly integrated full-stack monorepo. Ensure you have Node.js (v18+) and Docker installed for the local PostgreSQL database.
+
+### 1. Install Dependencies
+Install dependencies concurrently across the root, Web UI, SDK, and Server:
 ```bash
 npm run install:all
 ```
 
-### 2. Copy env
+### 2. Configure Environment
 
+Copy the environment template required for the backend services:
 ```bash
 cp .env.example .env
 ```
 
-If you want the managed-agent path protected by Auth0, fill:
+Your environment variables define the active Stellar runtime. Ensure the following critical sections are populated in your `.env` file:
 
-- `AUTH0_DOMAIN`
-- `AUTH0_AUDIENCE`
-- `AUTH0_ISSUER`
-- `AUTH0_OWNER_PUBLIC_KEY_CLAIM`
+**Core Runtime & Settlement Asset:**
+```env
+STREAM_ENGINE_RUNTIME_KIND=stellar
+STREAM_ENGINE_NETWORK_NAME="Stellar Testnet"
+STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
+STELLAR_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+STELLAR_ASSET_CODE=USDC
+STELLAR_USDC_SAC_ADDRESS=stellar:usdc-sac
+```
 
-For the live Continuum treasury loop, also fill:
+**Backend Services (IPFS & DB):**
+*(Ensure you have an active Pinata JWT if you plan on pinning genuine IPFS content locally, otherwise the server falls back to deterministic local CID hashes).*
+```env
+PINATA_JWT=your_pinata_jwt_here
+IPFS_GATEWAY_URL=https://gateway.pinata.cloud/ipfs
+POSTGRES_URL=postgres://postgres:postgres@localhost:5432/stream_engine
+```
 
-- `CONTINUUM_SAFE_YIELD_VENUES`
-- `CONTINUUM_BLEND_VENUES`
-- `CONTINUUM_AMM_VENUES`
+**Frontend Env (`vite-project/.env`):**
+The Vite frontend mirrors the backend's network settings. Key variables include:
+```env
+VITE_STREAM_ENGINE_RUNTIME_KIND=stellar
+VITE_STREAM_ENGINE_RPC_URL=https://soroban-testnet.stellar.org
+VITE_STELLAR_PAYMENT_ASSET_CODE=USDC
+VITE_RWA_API_URL=http://localhost:3001
+```
 
-### 3. Run the stack
+### 3. Wallet Prerequisites
+To interact with the frontend, you must have the **Freighter** wallet extension installed in your browser.
+1. Set the network to **Stellar Testnet**.
+2. Ensure you have funded your wallet with testnet XLM for transaction fees.
+3. Add Stellar Testnet USDC to participate in multi-currency auctions.
 
+### 4. Run the Monolith
+Continuum comes with an automated dev runner. This command spins up the Vite frontend, the Express API, and automatically boots a local `postgres:16` Docker container (`postgres://postgres:postgres@127.0.0.1:5432/stream_engine`):
 ```bash
 npm run start:all
 ```
+*If you are running your own local PostgreSQL instance and want to disable Docker auto-start, run:* `STREAM_ENGINE_AUTO_START_POSTGRES=false npm run start:all`
 
-`start:all` now auto-starts a local Docker Postgres (`postgres:16`) and uses
-`postgres://postgres:postgres@127.0.0.1:5432/stream_engine` for the backend,
-so tester setup stays one-command.
+The web application will be accessible at [http://localhost:5173](http://localhost:5173).
 
-If you want to disable Docker auto-start for Postgres:
+---
 
-```bash
-STREAM_ENGINE_AUTO_START_POSTGRES=false npm run start:all
-```
+## Verification & Testing
 
-Open [http://localhost:5173](http://localhost:5173).
-
-## Demo flow
-
-### Web
-
-1. Start the stack with `npm run start:all`
-2. Confirm `GET /api/health`
-3. Confirm `GET /api/engine/catalog`
-4. Connect Freighter in the web app
-5. Create or load the managed agent wallet
-6. Mint and verify a productive twin in RWA Studio
-7. Open the Marketplace and fetch premium analysis with a payment session
-8. List the twin in a timed auction or place a bid from the managed agent
-9. Settle the auction after the close time
-10. Claim or route yield from the new position
-11. Rebalance treasury and confirm idle funds move into approved strategies
-
-### CLI/provider smoke
-
-Provider:
+Before creating a pull request or deploying changes to the Soroban contracts, run the entire verification suite:
 
 ```bash
-npx ts-node --project demo/tsconfig.json demo/provider.ts
+# Frontend build & unit tests
+npm --prefix vite-project run build
+npm --prefix vite-project run test
+
+# Backend service tests
+npm --prefix server test -- --exit
+
+# SDK integrity and bindings compile
+npm --prefix sdk run build
+npm --prefix sdk run test:all
 ```
 
-Consumer:
-
+To run a CLI smoke test mimicking an autonomous consumer agent parsing an x402 requirement:
 ```bash
 npx ts-node --project demo/tsconfig.json demo/consumer.ts
 ```
-
-Setup check:
-
-```bash
-npx ts-node --project demo/tsconfig.json demo/check-setup.ts
-```
-
-## Verification
-
-These are the main checks to run after changes:
-
-- `npm --prefix vite-project run build`
-- `npm --prefix vite-project run test`
-- `npm --prefix server test -- --exit`
-- `npm --prefix sdk run build`
-- `npm --prefix sdk run test:all`
