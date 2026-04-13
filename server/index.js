@@ -392,6 +392,71 @@ async function buildServices(config) {
     return services;
 }
 
+/**
+ * Auto-open a HYBRID auction for every productive asset that has no active auction.
+ * Runs at startup and can be triggered on-demand via POST /api/rwa/admin/open-auctions.
+ */
+async function autoOpenMissingAuctions(services) {
+    if (!services.auctionEngine || !services.store || !services.chainService?.isConfigured?.()) {
+        return { opened: 0, skipped: 0, errors: [] };
+    }
+
+    const RESERVE_PRICE = process.env.AUTO_AUCTION_RESERVE_PRICE || "250";
+    const DURATION_HOURS = Number(process.env.AUTO_AUCTION_DURATION_HOURS || 24);
+    const operatorOwnerKey = process.env.STELLAR_OPERATOR_PUBLIC_KEY || process.env.STELLAR_PLATFORM_ADDRESS || "";
+
+    if (!operatorOwnerKey) {
+        console.warn("[auto-auction] STELLAR_OPERATOR_PUBLIC_KEY not set — skipping auto-auction bootstrap");
+        return { opened: 0, skipped: 0, errors: ["operator key not configured"] };
+    }
+
+    let assets = [];
+    try {
+        const limit = Number(process.env.RWA_BOOTSTRAP_ASSET_LIMIT || 200);
+        assets = await services.chainService.listAssetSnapshots({ limit, lightweight: true });
+    } catch {
+        return { opened: 0, skipped: 0, errors: ["failed to list assets"] };
+    }
+
+    const { isSupportedProductiveTwin } = require("./services/rwaAssetScope");
+    const productive = assets.filter(isSupportedProductiveTwin);
+
+    let opened = 0;
+    let skipped = 0;
+    const errors = [];
+
+    for (const asset of productive) {
+        try {
+            const existing = await services.auctionEngine.listAuctions({ tokenId: asset.tokenId, status: "active" });
+            if (existing.length > 0) { skipped++; continue; }
+
+            const now = Math.floor(Date.now() / 1000);
+            await services.auctionEngine.createAuction({
+                sellerOwnerPublicKey: operatorOwnerKey,
+                tokenId: Number(asset.tokenId),
+                reservePrice: RESERVE_PRICE,
+                startTime: now,
+                endTime: now + DURATION_HOURS * 3600,
+                currency: "HYBRID",
+                note: "Auto-listed at startup",
+            });
+            opened++;
+            console.log(`[auto-auction] Opened auction for twin #${asset.tokenId}`);
+        } catch (err) {
+            const msg = String(err?.message || err);
+            // Skip assets not owned by the operator wallet — they need their own owner to list
+            if (/not owned|agent_wallet_not_found|asset_not_owned/i.test(msg)) {
+                skipped++;
+            } else {
+                errors.push(`twin #${asset.tokenId}: ${msg}`);
+            }
+        }
+    }
+
+    console.log(`[auto-auction] Done — opened ${opened}, skipped ${skipped}, errors ${errors.length}`);
+    return { opened, skipped, errors };
+}
+
 function beginIndexerSync(app, options = {}) {
     void app;
     void options;
@@ -502,6 +567,10 @@ function createApp(config = defaultConfig) {
         app.locals.agentWallet = services.agentWallet;
         app.locals.agentAuth = services.agentAuth;
         app.locals.agentBrain = services.agentBrain;
+        // Auto-open auctions for any productive assets that don't have one yet
+        void autoOpenMissingAuctions(services).catch((err) =>
+            console.warn("[auto-auction] Startup bootstrap failed:", err?.message || err)
+        );
         return services;
     });
 
@@ -1628,6 +1697,13 @@ function createApp(config = defaultConfig) {
             evidenceBundle: evidenceRecord ? services.evidenceVault.exportBundle(evidenceRecord) : null,
             verificationPayloadVersion: payloadVersion,
         });
+    }));
+
+    // On-demand: open auctions for all productive assets that don't have one
+    app.post("/api/rwa/admin/open-auctions", asyncHandler(async (req, res) => {
+        const services = await app.locals.ready;
+        const result = await autoOpenMissingAuctions(services);
+        res.json({ code: "auto_auctions_triggered", ...result });
     }));
 
     app.post("/api/rwa/admin", asyncHandler(async (req, res) => {
