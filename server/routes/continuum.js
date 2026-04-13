@@ -1026,6 +1026,7 @@ router.post("/market/assets/:assetId/auctions", requireJwt, asyncHandler(async (
         reservePrice: req.body?.reservePrice || "0",
         startTime: req.body?.startTime,
         endTime: req.body?.endTime,
+        currency: req.body?.currency || "HYBRID",
         note: req.body?.note || "",
     });
     const wake = await services.agentRuntime.requestWake({
