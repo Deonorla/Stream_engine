@@ -1042,9 +1042,12 @@ class AgentRuntimeService {
                 treasury,
             });
             const cadenceSeconds = Math.max(60, Number(mandate.rebalanceCadenceMinutes || 60) * 60);
+            // Don't trigger rebalance when there are live auctions to bid on — bidding takes priority
+            const hasLiveAuctionOpportunity = activeAuctions.length > 0;
             const shouldRebalanceTreasury = Boolean(
                 currentRuntime.executeTreasury
                 && this.treasuryManager
+                && !hasLiveAuctionOpportunity
                 && (
                     !currentRuntime.lastRebalanceAt
                     || nowSeconds() - Number(currentRuntime.lastRebalanceAt || 0) >= cadenceSeconds
@@ -1457,7 +1460,10 @@ class AgentRuntimeService {
                 lastScreenedAt: nowSeconds(),
                 lastRebalanceAt: executed.outcome === "executed" && ["rebalance_treasury", "route_yield"].includes(proposal.actionType)
                     ? nowSeconds()
-                    : currentRuntime.lastRebalanceAt,
+                    // Also update when rebalance was blocked — prevents retry every tick
+                    : (proposal.actionType === "rebalance_treasury" && executed.outcome !== "executed")
+                        ? nowSeconds()
+                        : currentRuntime.lastRebalanceAt,
                 nextTickAt,
                 lastError: "",
                 lastErrorAt: 0,
