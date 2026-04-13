@@ -6,7 +6,7 @@ Continuum is an agent-first Real-World Asset (RWA) marketplace. It tokenizes phy
 
 ---
 
-## 🏗 System Architecture
+## System Architecture
 
 The ecosystem relies on an aggressive separation of concerns across the client interface, Node.js backend orchestration, and Stellar smart contracts.
 
@@ -62,7 +62,7 @@ graph TD
 
 ---
 
-## 💻 Tech Stack & Tooling
+## Tech Stack & Tooling
 
 | Domain | Technology / Protocol | Description |
 |---|---|---|
@@ -75,7 +75,7 @@ graph TD
 
 ---
 
-## 📡 Key API Surface
+## Key API Surface
 
 Below are the primary core API collections for interfacing directly with the Continuum backend:
 
@@ -96,7 +96,7 @@ Below are the primary core API collections for interfacing directly with the Con
 
 ---
 
-## 🚀 Quick Start / Local Development
+## Local Development
 
 Continuum utilizes a tightly integrated full-stack monorepo. Ensure you have Node.js (v18+) and Docker installed for the local PostgreSQL database.
 
@@ -159,7 +159,7 @@ The web application will be accessible at [http://localhost:5173](http://localho
 
 ---
 
-## 🧪 Verification & Testing
+## Verification & Testing
 
 Before creating a pull request or deploying changes to the Soroban contracts, run the entire verification suite:
 
