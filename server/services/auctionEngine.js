@@ -400,7 +400,13 @@ class AuctionEngine {
         }
 
         const remainingAfterAdditional = onchainBalance - additionalReserve;
-        const liquidityFloorAmount = (capitalBase * BigInt(Number(mandate.liquidityFloorPct || 10))) / 100n;
+        // Use wallet-capped capital base for floor calc — same logic as buildLiquidityContext
+        const effectiveCapitalBase = capitalBase > 0n && onchainBalance < capitalBase
+            ? onchainBalance
+            : capitalBase > 0n ? capitalBase : onchainBalance;
+        const liquidityFloorAmount = effectiveCapitalBase > 0n
+            ? (effectiveCapitalBase * BigInt(Number(mandate.liquidityFloorPct || 10))) / 100n
+            : 0n;
         if (remainingAfterAdditional < 0n || remainingAfterAdditional < liquidityFloorAmount) {
             throw Object.assign(new Error("Bid would violate the mandate liquidity floor."), {
                 status: 400,

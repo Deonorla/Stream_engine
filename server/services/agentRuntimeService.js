@@ -493,12 +493,16 @@ class AgentRuntimeService {
                 ))
                 .map((tokenId) => Number(tokenId))
         );
-        const approvalThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
+        const configuredThreshold = normalizeStellarAmount(mandate?.approvalThreshold || "250");
         const bidIncrement = 10_000_000n;
         const hasLiquidityContext = liquidity && typeof liquidity === "object";
         const immediateBidHeadroom = hasLiquidityContext
             ? normalizeStellarAmount(liquidity.immediateBidHeadroom || "0")
             : null;
+        // Cap approval threshold to actual headroom so the agent doesn't block itself
+        const approvalThreshold = immediateBidHeadroom != null && immediateBidHeadroom > 0n && immediateBidHeadroom < configuredThreshold
+            ? immediateBidHeadroom
+            : configuredThreshold;
         const now = nowSeconds();
 
         return auctions
@@ -916,7 +920,7 @@ class AgentRuntimeService {
             // Auto-open auctions for any owned productive assets that don't have one yet
             if (this.auctionEngine?.createAuction && ownedAssets.length > 0) {
                 const activeAuctionTokenIds = new Set(activeAuctions.map((a) => Number(a.assetId)));
-                const RESERVE = process.env.AUTO_AUCTION_RESERVE_PRICE || "250";
+                const RESERVE = process.env.AUTO_AUCTION_RESERVE_PRICE || "10";
                 const DURATION = Number(process.env.AUTO_AUCTION_DURATION_HOURS || 24) * 3600;
                 for (const asset of ownedAssets.filter(productiveOnly)) {
                     if (activeAuctionTokenIds.has(Number(asset.tokenId))) continue;

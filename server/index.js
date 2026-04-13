@@ -401,7 +401,7 @@ async function autoOpenMissingAuctions(services) {
         return { opened: 0, skipped: 0, errors: [] };
     }
 
-    const RESERVE_PRICE = process.env.AUTO_AUCTION_RESERVE_PRICE || "250";
+    const RESERVE_PRICE = process.env.AUTO_AUCTION_RESERVE_PRICE || "10";
     const DURATION_HOURS = Number(process.env.AUTO_AUCTION_DURATION_HOURS || 24);
     const { isSupportedProductiveTwin } = require("./services/rwaAssetScope");
 
