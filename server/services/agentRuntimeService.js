@@ -565,10 +565,11 @@ class AgentRuntimeService {
             0n,
         );
         const configuredCapitalBase = normalizeStellarAmount(mandate?.capitalBase || "0");
-        // If no capital base is configured (or it's the default 1000 USDC placeholder),
-        // use the actual wallet balance so the liquidity floor is always relative to real funds.
-        const capitalBase = configuredCapitalBase > 0n ? configuredCapitalBase : walletBalance;
-        const effectiveCapitalBase = capitalBase > 0n ? capitalBase : walletBalance;
+        // Use the smaller of configured capital base and actual wallet balance as the effective
+        // base — prevents the floor from exceeding what the agent actually has available.
+        const effectiveCapitalBase = configuredCapitalBase > 0n
+            ? (walletBalance > 0n && walletBalance < configuredCapitalBase ? walletBalance : configuredCapitalBase)
+            : walletBalance;
         const floorPct = BigInt(Number(mandate?.liquidityFloorPct || 10));
         const targetPct = BigInt(Number(mandate?.reservePolicy?.targetLiquidPct || 20));
         const maxPct = BigInt(Number(mandate?.reservePolicy?.maxLiquidPct || Math.max(Number(mandate?.reservePolicy?.targetLiquidPct || 20), 30)));
