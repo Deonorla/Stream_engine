@@ -15,6 +15,7 @@ import Docs from './pages/Docs'
 import PropertyMint from './pages/PropertyMint'
 import PropertyDetail from './pages/PropertyDetail'
 import Properties from './pages/Properties'
+import Portfolio from './pages/Portfolio'
 
 function AppRoutes() {
   return (
@@ -26,6 +27,7 @@ function AppRoutes() {
       <Route path="/app/property-mint" element={<Layout><PropertyMint /></Layout>} />
       <Route path="/app/property/:id" element={<Layout><PropertyDetail /></Layout>} />
       <Route path="/app/properties" element={<Layout><Properties /></Layout>} />
+      <Route path="/app/portfolio" element={<Layout><Portfolio /></Layout>} />
       <Route path="/app/docs" element={<Layout><Docs /></Layout>} />
       <Route path="/app/docs/:section" element={<Layout><Docs /></Layout>} />
       {/* Redirect old routes to new equivalents */}

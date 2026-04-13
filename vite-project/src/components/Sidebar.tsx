@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Zap, Bot, FileText, X, ChevronRight, Layers, MapPin, Home, Store } from 'lucide-react';
+import { LayoutDashboard, Zap, Bot, FileText, X, ChevronRight, Layers, MapPin, Home, Store, Briefcase } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { useWallet } from '../context/WalletContext';
 import { useAppMode } from '../context/AppModeContext';
@@ -9,6 +9,7 @@ import { useAgentWallet } from '../hooks/useAgentWallet';
 const ownerNavItems = [
   { icon: LayoutDashboard, label: 'Owner Hub',         href: '/app',               sub: 'Capital · assets · overview' },
   { icon: Home,            label: 'Marketplace',       href: '/app/properties',    sub: 'View minted listings' },
+  { icon: Briefcase,       label: 'My Portfolio',      href: '/app/portfolio',     sub: 'Your minted assets' },
   { icon: MapPin,          label: 'List Property',     href: '/app/property-mint', sub: 'Estate · Land · Full data' },
   { icon: Bot,             label: 'Agent Console',     href: '/app/agent',         sub: 'Mandate · Treasury · P&L' },
   { icon: Zap,             label: 'Payment Sessions',  href: '/app/streams',       sub: 'Stream Engine rail' },

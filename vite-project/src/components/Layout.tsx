@@ -10,6 +10,7 @@ function getTitle(pathname) {
   if (pathname.startsWith('/app/property-mint'))  return 'List a Property';
   if (pathname.startsWith('/app/property/'))      return 'Property Detail';
   if (pathname.startsWith('/app/properties'))     return 'Marketplace';
+  if (pathname.startsWith('/app/portfolio'))      return 'My Portfolio';
   if (pathname.startsWith('/app/agent'))          return 'Agent Console';
   if (pathname.startsWith('/app/docs'))           return 'Documentation';
   return 'Continuum Hub';
