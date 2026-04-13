@@ -592,7 +592,9 @@ class AgentRuntimeService {
             maxReserveAmountDisplay: toDisplayAmount(maxAmount),
             immediateBidHeadroom: immediateBidHeadroom.toString(),
             immediateBidHeadroomDisplay: toDisplayAmount(immediateBidHeadroom),
-            outsideTargetBand: walletBalance < floorAmount || walletBalance > maxAmount,
+            // Only flag outsideTargetBand when below floor; "above max" is meaningless
+            // when the effective capital base is derived from the wallet balance itself.
+            outsideTargetBand: walletBalance < floorAmount,
         };
     }
 
