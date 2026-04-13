@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { StrKey } = require("@stellar/stellar-sdk");
 const streamEngineMiddleware = require("./middleware/streamEngineMiddleware");
+const { getMppMiddleware } = require("./middleware/mppMiddleware");
 const { IPFSService, normalizeCid } = require("./services/ipfsService");
 const {
     buildVerificationPayload,
@@ -591,6 +592,14 @@ function createApp(config = defaultConfig) {
     });
 
     app.use("/api/agent", agentRoutes);
+
+    // MPP (Machine Payments Protocol) middleware — official @stellar/mpp integration
+    // Gates premium routes with Soroban SAC USDC payments. Agents auto-pay via MPP client.
+    app.use(getMppMiddleware({
+        mppSecretKey: process.env.MPP_SECRET_KEY,
+        recipientAddress: resolvedConfig.recipientAddress,
+        network: runtimeConfig.kind === 'stellar-mainnet' ? 'stellar:mainnet' : 'stellar:testnet',
+    }));
 
     app.use(streamEngineMiddleware({
         ...resolvedConfig,

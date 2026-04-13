@@ -9,14 +9,17 @@
     },
     "dependencies": {
         "@google/generative-ai": "^0.24.1",
+        "@stellar/mpp": "^0.4.0",
         "@stellar/stellar-sdk": "^14.6.1",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "express": "^4.18.2",
         "jsonwebtoken": "^9.0.3",
+        "mppx": "^0.5.12",
         "multer": "^1.4.5-lts.1",
         "pg": "^8.13.1",
-        "serverless-http": "^4.0.0"
+        "serverless-http": "^4.0.0",
+        "viem": "^2.47.16"
     },
     "devDependencies": {
         "chai": "^4.3.7",
