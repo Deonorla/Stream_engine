@@ -1706,6 +1706,26 @@ function createApp(config = defaultConfig) {
         res.json({ code: "auto_auctions_triggered", ...result });
     }));
 
+    // Reset: cancel all active auctions and reopen at the correct reserve price
+    app.post("/api/rwa/admin/reset-auctions", asyncHandler(async (req, res) => {
+        const services = await app.locals.ready;
+        if (!services.auctionEngine) {
+            return res.status(503).json({ error: "Auction engine not available" });
+        }
+        const active = await services.auctionEngine.listAuctions({ status: "active" });
+        const cancelled = [];
+        for (const auction of active) {
+            try {
+                await services.auctionEngine.cancelAuction({ auctionId: auction.auctionId });
+                cancelled.push(auction.auctionId);
+            } catch (err) {
+                console.warn(`[reset-auctions] Failed to cancel auction #${auction.auctionId}:`, err?.message);
+            }
+        }
+        const result = await autoOpenMissingAuctions(services);
+        res.json({ code: "auctions_reset", cancelled, ...result });
+    }));
+
     app.post("/api/rwa/admin", asyncHandler(async (req, res) => {
         const services = await app.locals.ready;
         const chainService = services.chainService;

@@ -729,6 +729,49 @@ class AuctionEngine {
             },
         };
     }
+
+    async cancelAuction({ auctionId }) {
+        const auction = await this.getAuction(auctionId);
+        if (!auction) {
+            throw Object.assign(new Error(`Auction ${auctionId} not found.`), { status: 404, code: "auction_not_found" });
+        }
+        if (!["active", "closing"].includes(auction.status)) {
+            return auction; // already closed
+        }
+
+        // Refund all active bids
+        for (const bid of (auction.bids || []).filter((b) => b.status === "active")) {
+            try {
+                await this.chainService.anchorService.submitPayment({
+                    destination: bid.bidder,
+                    amount: formatStellarAmount(bid.amountStroops),
+                    assetCode: "USDC",
+                    assetIssuer: this.chainService.runtime?.paymentAssetIssuer || "",
+                    memoText: `refund:${auctionId}`,
+                });
+                bid.status = "refunded";
+                bid.refundedAt = nowSeconds();
+                await this.store.upsertRecord(auctionBidKey(auctionId, bid.bidId), bid);
+            } catch { /* best-effort refund */ }
+        }
+
+        // Return asset from escrow to seller
+        try {
+            await this.chainService.contractService.invokeWrite({
+                contractId: this.chainService.assetRegistryAddress,
+                method: "transfer_asset",
+                args: [
+                    { type: "address", value: this.chainService.signer.address },
+                    { type: "u64", value: BigInt(Number(auction.assetId)) },
+                    { type: "address", value: auction.seller },
+                ],
+            });
+        } catch { /* best-effort return */ }
+
+        const cancelled = { ...auction, status: "cancelled", cancelledAt: nowSeconds() };
+        await this.store.upsertRecord(auctionKey(auctionId), cancelled);
+        return cancelled;
+    }
 }
 
 module.exports = {
