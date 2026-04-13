@@ -1510,33 +1510,40 @@ class AgentRuntimeService {
                 portfolio: portfolio.summary,
             };
         } catch (error) {
+            // Extract detailed error info from axios/fetch errors
+            const errorDetail = error.response?.data
+                ? JSON.stringify(error.response.data)
+                : error.message || "Unknown runtime error";
+            const errorCode = error.response?.data?.code || error.code || "";
+            console.error(`[AgentRuntime] Tick failed for ${normalizedAgentId}:`, errorDetail);
+
             const runtime = await this.agentState.setRuntime(normalizedAgentId, {
                 status: currentRuntime.running ? "running" : currentRuntime.status || "idle",
                 running: currentRuntime.running,
                 lastTickAt: nowSeconds(),
                 nextTickAt,
-                lastError: error.message || "Runtime tick failed",
+                lastError: errorDetail,
                 lastErrorAt: nowSeconds(),
                 heartbeatCount: Number(currentRuntime.heartbeatCount || 0) + 1,
             });
             const brain = await this.agentState.setBrainState(normalizedAgentId, {
                 status: "error",
-                blockedBy: error.message || "Runtime tick failed",
+                blockedBy: errorDetail,
                 wakeReason: reason,
                 lastModelRunAt: nowSeconds(),
             });
             await this.agentState.appendJournal(normalizedAgentId, {
                 kind: "error",
                 message: "Autonomous runtime tick failed",
-                detail: error.message || "Unknown runtime error",
-                blockedBy: error.message || "Unknown runtime error",
+                detail: errorDetail,
+                blockedBy: errorDetail,
                 result: { outcome: "error" },
-                metadata: { wakeReason: reason },
+                metadata: { wakeReason: reason, code: errorCode },
             });
             await this.agentState.appendDecision(normalizedAgentId, {
                 type: "error",
                 message: "Autonomous runtime tick failed",
-                detail: error.message || "Unknown runtime error",
+                detail: errorDetail,
             });
             return {
                 runtime,

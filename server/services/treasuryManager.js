@@ -394,13 +394,21 @@ class TreasuryManager {
             if (allocation <= 0n) {
                 continue;
             }
-            const position = await this.deployToVenue({
-                ownerPublicKey,
-                agentId,
-                family: plan.family,
-                venue: plan.venue,
-                amount: allocation,
-            });
+            let position;
+            try {
+                position = await this.deployToVenue({
+                    ownerPublicKey,
+                    agentId,
+                    family: plan.family,
+                    venue: plan.venue,
+                    amount: allocation,
+                });
+            } catch (deployErr) {
+                // Skip venues that fail (misconfigured destination, network error, etc.)
+                // Don't crash the whole tick — just log and continue
+                console.warn(`[TreasuryManager] Skipping venue ${plan.venue?.id || plan.family}: ${deployErr?.message}`);
+                continue;
+            }
             nextPositions.push(position);
             remaining -= allocation;
         }
