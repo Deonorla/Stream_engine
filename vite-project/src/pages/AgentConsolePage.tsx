@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, AlertTriangle, BarChart2, Bot, Copy, Pause, Play,
   RefreshCw, Settings, Store, Target, TrendingUp, Wallet, X,
@@ -241,6 +241,7 @@ export default function AgentConsolePage() {
   const [chatInput, setChatInput] = useState('');
   const [chatPending, setChatPending] = useState(false);
   const [chatError, setChatError] = useState('');
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const [startingAgent, setStartingAgent] = useState(false);
 
   const activeState = contextState || state;
@@ -518,6 +519,8 @@ export default function AgentConsolePage() {
         });
       }
       await doRefreshState();
+      // Scroll to bottom after response arrives
+      setTimeout(() => { if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }, 100);
     } catch (chatFailure: any) {
       setChatError(chatFailure?.message || 'Could not send the message to the agent.');
     } finally {
@@ -542,6 +545,11 @@ export default function AgentConsolePage() {
   const performanceEvents = Array.isArray(performance.recentEvents) ? [...performance.recentEvents].reverse() : [];
   const journalPreview = Array.isArray(activeState?.journalPreview) ? activeState.journalPreview : [];
   const chatPreview = Array.isArray(activeState?.chatPreview) ? activeState.chatPreview : [];
+
+  // Auto-scroll chat to bottom whenever messages change
+  useEffect(() => {
+    if (chatScrollRef.current) { chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight; }
+  }, [chatPreview?.length, chatPending]);
   const treasury = activeState?.treasury || { positions: [], summary: {} };
   const treasurySummary = treasury.summary || {};
   const treasuryHealth = treasurySummary.health || {};
@@ -753,7 +761,7 @@ export default function AgentConsolePage() {
                       {degradedMode ? 'Degraded' : 'Healthy'}
                     </span>
                   </div>
-                  <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  <div ref={chatScrollRef} className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {chatPreview.length === 0 ? (
                       <p className="text-sm text-slate-400">Ask the agent what it plans to do, why it held, or how you want it to trade.</p>
                     ) : chatPreview.map((message: any) => (
@@ -767,7 +775,7 @@ export default function AgentConsolePage() {
                   <div className="flex gap-2">
                     <textarea value={chatInput}
                       onChange={e => setChatInput(e.target.value)}
-                      rows={3}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendAgentChat(); } }}                      rows={3}
                       placeholder="Why didn’t you bid? Focus more on land. Tighten risk."
                       className="flex-1 bg-white border border-slate-100 rounded-xl px-3 py-2 text-sm text-slate-800 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200" />
                     <button onClick={() => void sendAgentChat()} disabled={!agentPublicKey || chatPending || !chatInput.trim()}
@@ -1113,7 +1121,7 @@ export default function AgentConsolePage() {
                 <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Recent Journal</p>
                 {journalPreview.length === 0 ? (
                   <p className="text-sm text-slate-400">No journal entries yet. The next tick will persist the planner’s thesis here.</p>
-                ) : journalPreview.map((entry: any) => (
+                ) : journalPreview.slice(-3).map((entry: any) => (
                   <div key={entry.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-bold text-slate-800">{entry.message}</p>
