@@ -397,30 +397,23 @@ async function buildServices(config) {
  * Runs at startup and can be triggered on-demand via POST /api/rwa/admin/open-auctions.
  */
 async function autoOpenMissingAuctions(services) {
-    if (!services.auctionEngine || !services.store || !services.chainService?.isConfigured?.()) {
+    if (!services.auctionEngine || !services.store) {
         return { opened: 0, skipped: 0, errors: [] };
     }
 
     const RESERVE_PRICE = process.env.AUTO_AUCTION_RESERVE_PRICE || "250";
     const DURATION_HOURS = Number(process.env.AUTO_AUCTION_DURATION_HOURS || 24);
-    const operatorOwnerKey = process.env.STELLAR_OPERATOR_PUBLIC_KEY || process.env.STELLAR_PLATFORM_ADDRESS || "";
+    const { isSupportedProductiveTwin } = require("./services/rwaAssetScope");
 
-    if (!operatorOwnerKey) {
-        console.warn("[auto-auction] STELLAR_OPERATOR_PUBLIC_KEY not set — skipping auto-auction bootstrap");
-        return { opened: 0, skipped: 0, errors: ["operator key not configured"] };
-    }
-
+    // Get all assets from the store
     let assets = [];
     try {
-        const limit = Number(process.env.RWA_BOOTSTRAP_ASSET_LIMIT || 200);
-        assets = await services.chainService.listAssetSnapshots({ limit, lightweight: true });
+        assets = await services.store.listAssets();
     } catch {
         return { opened: 0, skipped: 0, errors: ["failed to list assets"] };
     }
 
-    const { isSupportedProductiveTwin } = require("./services/rwaAssetScope");
     const productive = assets.filter(isSupportedProductiveTwin);
-
     let opened = 0;
     let skipped = 0;
     const errors = [];
@@ -430,9 +423,17 @@ async function autoOpenMissingAuctions(services) {
             const existing = await services.auctionEngine.listAuctions({ tokenId: asset.tokenId, status: "active" });
             if (existing.length > 0) { skipped++; continue; }
 
+            // Find the owner's managed agent wallet
+            const ownerKey = asset.currentOwner || asset.ownerAddress || "";
+            if (!ownerKey) { skipped++; continue; }
+
+            // Try to find which owner public key maps to this agent wallet
+            const agentProfile = await services.agentState.getAgentProfile(ownerKey).catch(() => null);
+            const ownerPublicKey = agentProfile?.ownerPublicKey || ownerKey;
+
             const now = Math.floor(Date.now() / 1000);
             await services.auctionEngine.createAuction({
-                sellerOwnerPublicKey: operatorOwnerKey,
+                sellerOwnerPublicKey: ownerPublicKey,
                 tokenId: Number(asset.tokenId),
                 reservePrice: RESERVE_PRICE,
                 startTime: now,
@@ -444,7 +445,6 @@ async function autoOpenMissingAuctions(services) {
             console.log(`[auto-auction] Opened auction for twin #${asset.tokenId}`);
         } catch (err) {
             const msg = String(err?.message || err);
-            // Skip assets not owned by the operator wallet — they need their own owner to list
             if (/not owned|agent_wallet_not_found|asset_not_owned/i.test(msg)) {
                 skipped++;
             } else {

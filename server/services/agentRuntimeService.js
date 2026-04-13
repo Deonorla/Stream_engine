@@ -912,6 +912,40 @@ class AgentRuntimeService {
 
             const productiveAssets = allAssets.filter(productiveOnly);
             const approvedClasses = new Set(mandate.approvedAssetClasses || []);
+
+            // Auto-open auctions for any owned productive assets that don't have one yet
+            if (this.auctionEngine?.createAuction && ownedAssets.length > 0) {
+                const activeAuctionTokenIds = new Set(activeAuctions.map((a) => Number(a.assetId)));
+                const RESERVE = process.env.AUTO_AUCTION_RESERVE_PRICE || "250";
+                const DURATION = Number(process.env.AUTO_AUCTION_DURATION_HOURS || 24) * 3600;
+                for (const asset of ownedAssets.filter(productiveOnly)) {
+                    if (activeAuctionTokenIds.has(Number(asset.tokenId))) continue;
+                    try {
+                        const now = nowSeconds();
+                        await this.auctionEngine.createAuction({
+                            sellerOwnerPublicKey: ownerPublicKey,
+                            tokenId: Number(asset.tokenId),
+                            reservePrice: RESERVE,
+                            startTime: now,
+                            endTime: now + DURATION,
+                            currency: "HYBRID",
+                            note: "Auto-listed by agent runtime",
+                        });
+                        await this.agentState.appendDecision(normalizedAgentId, {
+                            type: "action",
+                            message: `Auto-listed twin #${asset.tokenId} for auction`,
+                            detail: `Reserve ${RESERVE} USDC · 24h HYBRID auction opened`,
+                        });
+                        // Add to active auctions so this tick sees it
+                        const newAuctions = await this.auctionEngine.listAuctions({ status: "active" });
+                        newAuctions.forEach((a) => activeAuctionTokenIds.add(Number(a.assetId)));
+                        activeAuctions.push(...newAuctions.filter((a) => !activeAuctions.some((x) => x.auctionId === a.auctionId)));
+                    } catch {
+                        // Not owned by this agent wallet — skip silently
+                    }
+                }
+            }
+
             let screened = screenAssets(productiveAssets, {
                 minYield: Number(mandate.targetReturnMinPct || 0),
                 maxRisk: 80,
